@@ -22,7 +22,7 @@ commands can work the board. The board is `prds/` at the repo root.
 | `memos.py`                      | reads and checks the memos — the only reader of that format      |
 | `doctor.sh`                     | installed, wired, mirroring? `--fix` repairs                     |
 | `statusline.sh`                 | renders the progress numbers continuously                        |
-| `plane/`                        | the board as live tickets in a self-hosted Plane, the live service, and the wave planner. Optional — `plane/plane.md` |
+| `view/`                         | the board as a live view — the wave planner, the service that watches, the render, and the writers. **The view** below |
 
 ## Roles
 
@@ -71,19 +71,19 @@ pipeline: 4
 members:
   - ../mitosys/prds
   - model: ../model/prds
-  - ../realm/.mi/prds
+  - ../realm/prds
 ---
 ```
 
 - A board whose `settings.md` carries `members:` **is** a master board. Nothing
   else marks one, and it is otherwise an ordinary board: it can hold its own
-  PRDs, its own memos, its own Plane project.
+  PRDs, its own memos, its own view.
 - An entry is `- <path>` or `- <name>: <path>`. A relative path resolves
   against the master's `prds/`; a path at a repo root gains `/prds`.
-- The name defaults to the walk-up that names the Plane project — `realm/.mi/prds`
+- The name defaults to the directory the board sits in — `realm/prds`
   is `realm`. Write `<name>: <path>` to hold a name against a move.
 - **Nothing moves.** Every member keeps its own `prds/`, `settings.md`,
-  `memos/`, `.plane.env` and Plane project. PRDs, specs and memos are written
+  `memos/` and its own view. PRDs, specs and memos are written
   where they live.
 - What lives at the master: the plan, the merged mirror, the progress line.
 
@@ -106,7 +106,7 @@ one orchestrator per PRD, and the master owns every PRD it merges.
 transition written in one project re-orders the whole board:
 
 ```sh
-python3 <skill>/plane/sync.py reconcile [board]   # waves recomputed, anchor kept
+python3 <skill>/view/plan.py reconcile [board]   # waves recomputed, anchor kept
 ```
 
 The live service does it by itself — it watches every member's files and
@@ -212,7 +212,7 @@ Never reach for `blocked` to avoid a hard `failed`.
 
 A `state` outside this table is the user's own and **parked**: never
 dispatched, never scheduled by `plan`, left out of the progress line and the
-status line, and given its own Plane state rather than borrowing `open`'s.
+status line, and kept out of the plan rather than folded into `open`.
 Report parked PRDs by name in the round — neither progress nor backlog.
 
 ## Derived work
@@ -307,6 +307,9 @@ not a failed attempt:
 
 **2. Answer**
 
+- Read what came back through the view: a PRD whose `## Answers` grew, or one
+  a person moved, is the user talking to the board. The view writes those
+  directly, so they are simply on the board when the round scans it.
 - Collect `## Questions` from every `question` PRD.
 - Put them to the user as one round per `references/drill.md` — the whole
   frontier, numbered, each with your recommended answer.
@@ -353,8 +356,8 @@ dispatch an implementer.
 
 On each finished worker: validate the result (specs on disk / verify output
 present), write the transition, write `actual:` on a clean `done` per
-**Calibration**, clear `claim:`, print the progress line, mirror per **Plane**,
-return to step 2.
+**Calibration**, clear `claim:`, print the progress line, post the worker's
+report with `POST /report` per **The view**, return to step 2.
 
 A worker reports defects outside its own scope — that is what a worker is for,
 and it must not reach into a sibling's files to fix them. Deciding what becomes
@@ -371,6 +374,11 @@ slot. Do not poll if results are pushed to you.
 Nothing in flight and nothing dispatchable: report per-state counts, every
 `question` / `refine` / `failed` PRD by name with what it needs, and the final
 progress line.
+
+- Everything left is waiting on the user, and the live service is up? Park on
+  `serve.py wait` in the background before you stop, per **The view**. An
+  answer the user writes in the view then wakes the round that acts on it,
+  instead of waiting until someone next runs `/pearde`.
 
 Report the two origins separately, and name what remains of the **deliverable**
 first — the requested PRDs still not `done`, with their `est`. A closing report
@@ -399,19 +407,19 @@ the rest always report.
 | `board`      | no board                               | off the contract path, or no `language`                          |
 | `members`    | not a master board — no `members:`     | a `members:` entry that is not a board on disk, or an empty list  |
 | `memos`      | no `memos/`                            | a memo fails the check in `references/memo.md`                   |
-| `plane`      | not installed                          | installed and unreachable, or reachable and this board never bootstrapped |
+| `view`       | the service is not running             | it runs and this board is not registered                                  |
+| `plan`       | no plan on record yet                  | —                                                                          |
 
 - It reads the config `$CLAUDE_CONFIG_DIR` names, falling back to `~/.claude` —
   several profiles can live on one machine, and a status line wired into the
   wrong one is correct and inert.
-- `--fix` repairs four things: a missing skill symlink, a dead status-line
-  symlink, a board Plane is running for that was never bootstrapped, and a
-  live service not watching this board.
+- `--fix` repairs three things: a missing skill symlink, a dead status-line
+  symlink, and a view service that is down or not watching this board.
 - `--fix` never writes `settings.json`. The status line a user configured is
   theirs, so a missing one is printed as JSON to paste.
 - After repairing, doctor re-checks itself once — the report and exit code
   describe the state the repairs left behind, so a clean first run is one
-  command: `doctor.sh --fix` ends green, mirrored, and watched.
+  command: `doctor.sh --fix` ends green and watched.
 
 Run it on the first run, on `doctor`, and whenever a part is silent when it
 should not be.
@@ -472,8 +480,8 @@ run a command, plus what the working tree owes and a link to the board:
 - `*<dirty>` is uncommitted entries. `↑`/`↓` are commits against the upstream.
   A branch with no upstream reads `no-upstream`, not `↑0` — nothing to push to
   is not nothing to push.
-- `▸board` links to the Plane timeline, from the `gantt` key `plan` writes into
-  `.plane-map.json`. It is an OSC-8 hyperlink; `PRD_STATUS_LINK=off` prints the
+- `▸board` links to the board's live view, from the running service. It is an
+  OSC-8 hyperlink; `PRD_STATUS_LINK=off` prints the
   label bare for a terminal that shows the escape raw. Optional.
 
 ## Calibration
@@ -635,7 +643,7 @@ follows, a road not taken, a constraint that looks arbitrary. Not for what a
 commit message covers. `references/memo.md` is the format and the argument.
 
 Decisions already recorded in another system stay there: `memos: <dir>` in
-`prds/settings.md` mirrors that dir to Plane read-only, and the strict gate
+`prds/settings.md` reads that dir read-only, and the strict gate
 keeps applying only to the board's own `memos/`.
 
 ## Handles
@@ -656,9 +664,9 @@ arguments, "pearde status" in plain chat. The meanings are fixed.
 | a blocked PRD's event landed | `unblock <prd>` — re-runs only the open boxes, per **States**; `done` when they close                    |
 | run one PRD to done          | `run <prd>` — the loop scoped to that PRD's subtree                                                      |
 | record a decision            | `memo <subject>` — creates `prds/memos/<slug>.md` from `references/templates/memo.md`, per **Memos**     |
-| pre-plan parallel waves      | `plan` — `sync.py plan` per **Plane**; print the waves it returns                                        |
-| the adaptive local timeline  | `gantt` — `sync.py gantt --open`: the plan as `prds/.gantt.html`, a now-line and only the rows in the scrolled window |
-| the ticket mirror            | `plane` — `plane/plane.sh boot`: app up + every board synced, per **Plane**                              |
+| pre-plan parallel waves      | `plan` — `view/plan.py plan` per **The view**; print the waves it returns                                |
+| the local timeline           | `gantt` — `sync.py gantt --open`: the plan as `prds/.gantt.html`, x = distance to the vision |
+| open the board               | `view` — `view/serve.py ensure`, then the URL it prints, per **The view**                                |
 | plan across projects         | `master <path> …` — writes `members:` in `prds/settings.md`, asks the group's `name:` the first time, per **Master boards**. This board is then the parent every round works in |
 | what a master merges         | `master` with no path — `sync.py members`: every member, its path, and `MISSING` when it is not on disk  |
 | stop merging one             | `master drop <name>` — removes that `members:` entry. Nothing in the member changes; it is a board again |
@@ -703,104 +711,83 @@ One orchestrator per board. On start, if the scan shows fresh `analyzing` /
 session: say so and run `status` only. Never sweep another live session's
 claims.
 
-## Plane
+## The view
 
-Optional. The board mirrors to a self-hosted Plane running inside the skill:
-
-- one ticket per `prd.md` — title, body, `state`, `priority` mapped, every
-  other frontmatter scalar a `key: value` label, child PRDs as sub-tickets
-- one **page** per memo — a memo is a document, so it belongs in the wiki, not
-  the work list
-- a master board mirrors the merged set into **its own** project: every member's
-  tickets carry a `board: <member>` label, and each member keeps its own project
-  as well. The master project is the merged view, not a move
-
-Setup, mapping, and the wave planner: `plane/plane.md`. Install:
-`references/install.md` step 3.
+The board is files; the view is how a person reads and works them. One command
+starts it, once per machine:
 
 ```sh
-python3 <skill>/plane/serve.py ensure        # the live service: watch + mirror
-python3 <skill>/plane/sync.py sync --quiet   # one manual mirror pass
-python3 <skill>/plane/sync.py plan           # waves → stdout + `wave: N` labels
-python3 <skill>/plane/sync.py reconcile      # re-order the waves, keep the anchor
-python3 <skill>/plane/sync.py gantt --open   # the plan as prds/.gantt.html
+python3 <skill>/view/serve.py ensure     # start if needed, register this board
 ```
 
-All three are safe to run any time. `gantt` needs no Plane at all: it renders
-the last plan as one self-contained HTML file, an adaptive condensed timeline —
-a vertical line marks now, and only the tasks whose bars cross the visible
-window get a row, sorted by priority, so scrolling left and right re-forms the
-list around the time under your eyes. `plan` rewrites it and `sync` keeps it
-fresh once it exists; details in `plane/plane.md`.
+From then on `http://127.0.0.1:8443/board/<name>` is the board, live: it
+re-renders within a second of any file changing, and every board registered on
+this machine is listed at `/`.
 
-**The live service first.** Run `serve.py ensure` once at session start: it
-starts the daemon if none runs, registers this board, and from then on every
-disk change mirrors itself within a second — tickets, memo pages, and the
-waves as Plane cycles. It also serves the timeline live at
-`http://127.0.0.1:8443/board/<name>` and takes worker reports as ticket
-comments (`POST /report`) — post each worker's report there on collect, so the
-ticket carries its own evidence. Details: `plane/plane.md` § The live service.
+**Five readings of the same board.**
 
-Mirror rule, on `prds/.plane.env` and `plane` from `prds/settings.md`:
+| view          | answers                                                        |
+|---------------|------------------------------------------------------------------|
+| **timeline**  | what is in front of us — see below                                |
+| **board**     | what is where — kanban by state; drag a card to write `state:`    |
+| **list**      | all of it — sortable, filterable, one row per PRD                 |
+| **analytics** | how this is going — where the work sits, where the hours are, estimates against reality, hours left over time |
+| **memos**     | what the board decided — `prds/memos/`, rendered                  |
 
-| `.plane.env` | Plane            | do                                                        |
-|--------------|------------------|-----------------------------------------------------------|
-| present      | daemon watching (`serve.py status`) | nothing — it mirrors for you; `POST /report` on collect |
-| present      | daemon not running | `serve.py ensure`; until it runs, `sync --quiet` after every state change |
-| absent       | installed and up | `plane/plane.sh bootstrap` this board, then mirror — a running app mirrors nothing on its own |
-| absent       | not installed    | no mirror; report it once in the round, never again        |
+**The timeline's x axis is not time.** The workers are agents: they start when
+the work is dispatchable, and there are as many of them as the board can
+usefully run, so a date on a bar is a guess about staffing. The dependency
+structure is not a guess. The axis is est-hours along the **critical path** —
+zero at now, the right edge the vision reached.
 
-`plane: off` in `prds/settings.md` stops all three: no bootstrap, no sync, no
-report. The board on disk is the source of truth — ticket edits made in Plane
-are overwritten on the next sync.
+- **★ critical** marks the chain that sets the finish. An hour cut there moves
+  the vision closer; an hour cut anywhere else moves nothing.
+- **float** is the tail behind a bar: how late it may start before it becomes
+  critical.
+- **ready now** is the frontier at zero, ordered by how much work each PRD
+  unblocks. That ordering *is* the dispatch order.
+- **wave bands** across the top are the plan's rounds — a wave runs after the
+  one before it, because that is what a footprint clash means.
+- the header names the **peak agent count** the fastest path asks for, beside
+  what `workers` costs instead. The gap between them is the decision.
+- **dates** (or `v`) draws the same bars on the worker-limited calendar, at
+  `gantt-day` hours per day, for anyone who wants a date.
 
-**Memos → Pages.** `sync` mirrors `prds/memos/` into the project's Pages: a
-`Memos` index whose table is a fold of the frontmatter, plus one
-`Memo · <slug>` page each. They are pages, not work items, so they stay out of
-the issue list, the Gantt, and the progress count.
+**Clicking anything opens the PRD**, and the pane writes back: title, `state`,
+`priority`, the body, a note appended to `## Notes`, and — on a PRD in
+`question` — its questions with an answer box that writes `## Answers` and sets
+the PRD `open` again. `+ PRD` (or `n`) writes a new one from the view. Every
+write goes through `view/edit.py`: one line at a time, atomically, frontmatter
+and body never in the same write.
 
-- A memo deleted on disk has its page **archived**, not deleted — archiving
-  undoes in one click, and the record of having decided is the thing least safe
-  to destroy.
-- Pages live on Plane's session API, not `/api/v1`, so the memo mirror is
-  best-effort exactly like the `Gantt — waves` view: with auto-login off it is
-  skipped, `sync` says so on its last line, and the tickets still mirror.
-- The pages are flat, not nested under the index — this Plane build drops a
-  page out of the project's page collection the moment a `parent` is set and
-  404s its detail route with it. The `Memo · ` prefix does the grouping the
-  tree would have done.
+Deep links are real: `#prd=<rel>` opens one PRD, `#view=board` opens a view.
 
-**`plan`** orders the undone PRDs into waves — as parallel as `needs:`
-frontmatter, parent-after-children, and footprints allow — labels each ticket
-`wave: N`, and dates it so Plane's Timeline view is the Gantt of the plan
-(kanban is the Board layout, grouped by State). It reads `workers` and
-`est-default` from `prds/settings.md`; `--workers=N` overrides. Run it on
-`plan`, and re-run it when a refine adds children or specs land with
-conflicting footprints.
+```sh
+python3 <skill>/view/plan.py plan         # the waves, to stdout
+python3 <skill>/view/plan.py reconcile    # re-order them, keep the anchor
+python3 <skill>/view/plan.py gantt --open # the same view as one HTML file
+python3 <skill>/view/plan.py status       # the board, its members, its memos
+python3 <skill>/view/serve.py wait        # block until the board moves
+```
 
-What it guarantees:
+`gantt` writes `prds/.view.html` — the same render, self-contained, no service
+needed. It loses only what needs the service: the detail pane's live read and
+every edit.
 
-- **Two constraints, one fixed point.** A footprint clash bumps the lower
-  priority to the next wave, and every bump re-applies the `needs` floor — so a
-  bumped PRD never ends up level with, or ahead of, a parent that waits on it.
-- **A footprint comes from the specs, or from the PRD.** `footprint:` on
-  `prd.md` counts too, so a PRD plans correctly before it is specced and while
-  an implementer holds its spec files.
-- **A parent weighs nothing.** Its hours are its children's; counting both
-  bills the same work twice. It still waits for them.
-- **Only real work is scheduled.** `done` and parked PRDs are named, not
-  planned, and a PRD that leaves the plan loses its Gantt bar on the next sync.
-- **The timeline is a saved view.** `plan` prints the URL of a `Gantt — waves`
-  view whose layout is the timeline, so the plan opens as a Gantt instead of a
-  list. It needs auto-login on; without it, the layout is two clicks.
+**Being woken, not polling.** `serve.py wait` sleeps in the kernel and exits
+the moment anything on the board moves, printing what did. Park it in the
+background at session start, and again whenever a round ends with work still
+open: the board wakes the orchestrator rather than the orchestrator polling the
+board.
 
-**`plane`** runs `plane/plane.sh boot`: install and start if needed, then every
-board on the machine — this one, the registry, every Claude session folder
-holding a `prds/`, and any board one level below one of those — bootstrapped
-into its own Plane project and synced. A board off the contract path is
-mirrored, not skipped; `doctor.sh` is what says move it. No browser step
-anywhere.
+**What the board keeps.** `prds/.plan.json` is the last plan (waves, schedule,
+the day it was anchored). `prds/.history.jsonl` is one row a day — the only
+memory the board has, and what the burn-down draws. Both are machine-local and
+regenerable; gitignore them:
 
-`plane/plane.sh status [board]` answers both halves: the app, and whether that
-board mirrors. To look at a board in the app: `plane/plane.sh open` — the
-browser, straight into the workspace, no login.
+```
+prds/.plan.json
+prds/.history.jsonl
+prds/.view.html
+```
+

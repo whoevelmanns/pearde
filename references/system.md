@@ -25,6 +25,6 @@ templates under `<skill>/references/`.
 - **No parallel workers?** Run the single-agent mode the README describes.
 
 Handles: `status`, `once`, `add <title>`, `drill <prd>`, `retry <prd>`,
-`unblock <prd>`, `run <prd>`, `memo <subject>`, `plan`, `plane`, `workers=N`,
+`unblock <prd>`, `run <prd>`, `memo <subject>`, `plan`, `view`, `workers=N`,
 `pipeline=N`.
 <!-- pearde:end -->

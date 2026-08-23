@@ -1,5 +1,4 @@
-.DS_Store
-plane/plane-app/
-plane/setup.sh
 __pycache__/
 *.pyc
+.DS_Store
+view/state/

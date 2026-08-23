@@ -3,18 +3,21 @@
 # (see references/install.md beside this script) so every project gets it.
 #
 # Renders line 1:  <dir> <branch> <*dirty ↑ahead ↓behind> · <model>  — always
-#         line 2:  ▸pearde<⊞b> <ad>/<an> <ap>% · +<dn>d · open <o> <q>% · ▸board  — with a board
+#         line 2:  ▸pearde<⊞b> <ad>/<an> <ap>% · +<dn>d · open <o> <q>% · ▸board
 #
 # The board gets its own line: it is the thing being read, and sharing a row
 # with the path pushed it off the edge of a narrow terminal. No board, no
 # second line — a blank row reads as a broken status line, not an empty board.
 #
+# `▸board` links to the board's live view, when the service is up. See below.
+#
 # `*N` is what `git status` reports — an untracked directory counts once, not
 # per file inside it. `↑N`/`↓N` are commits against the upstream. No upstream
 # says so: `↑0` would read as "everything is pushed" when there is nowhere to
-# push to. `▸board` is an OSC-8 link to the board's Plane timeline, from the
-# `gantt` key `sync.py plan` writes into .plane-map.json. PRD_STATUS_LINK=off
-# renders the label without the escape, for a terminal that shows them raw.
+# push to. `▸board` is an OSC-8 link to the board's view at
+# 127.0.0.1:8443/board/<name>, matched on the daemon's registered path, and
+# absent when no daemon is running. PRD_STATUS_LINK=off renders the label
+# without the escape, for a terminal that shows them raw.
 #
 # The pearde segment mirrors the progress line in README.md beside this script:
 #   ad/an = done / all REQUESTED PRDs, ap% = their est-weighted done share,
@@ -165,9 +168,21 @@ if [ -n "$BOARD" ]; then
   fi
 
   # the link goes last: a terminal that mis-measures an OSC-8 sequence then has
-  # nothing left to misplace
-  LINK=$(sed -n 's/.*"gantt"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
-         "$BOARD/.plane-map.json" 2>/dev/null | head -1)
+  # nothing left to misplace.
+  #
+  # Matched on the daemon's registered PATH, never the directory name: a
+  # board keys in the service by its declared name, and grepping the directory
+  # would report a watched board as unwatched.
+  SRV_PORT="${PLANE_SERVE_PORT:-8443}"
+  LINK=""
+  SRV=$(curl -fsS -m 1 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
+  if [ -n "$SRV" ]; then
+    BNAME=$(printf '%s' "$SRV" | tr '{' '\n' \
+            | grep -F "\"path\": \"$BOARD\"" \
+            | sed -n 's/.*"name": "\([^"]*\)".*/\1/p' | head -1)
+    [ -n "$BNAME" ] && LINK="http://127.0.0.1:$SRV_PORT/board/$BNAME"
+  fi
+
   if [ -n "$LINK" ]; then
     [ -n "$BOARD_OUT" ] && BOARD_OUT="$BOARD_OUT \033[38;5;240m·\033[0m "
     if [ "${PRD_STATUS_LINK:-on}" = "off" ]; then

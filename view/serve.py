@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
-"""pearde serve — the live board service: one daemon per machine, watching
-every registered board and mirroring each change to Plane as it lands.
+"""pearde serve — the board's live service: one daemon per machine, watching
+every registered board and serving the view that reads and writes it.
 
     serve.py ensure [board]   start the daemon if none runs, register a board
                               (default: walk up from the cwd); safe to run on
                               every session start
     serve.py run              the daemon, foreground — what `ensure` detaches
     serve.py status           the daemon and every board it watches
-    serve.py forget <name>    stop watching one board (its Plane data stays)
+    serve.py wait  [board]    block until the board moves, then say what did
+    serve.py forget <name>    stop watching one board
     serve.py stop             stop the daemon
 
 Singleton by port bind: the daemon owns 127.0.0.1:8443 (PLANE_SERVE_PORT
@@ -17,45 +18,45 @@ is the whole locking story — no pidfile to go stale.
 What it does, per registered board, within about a second of a file changing:
 
   - re-orders a master board's waves in place, keeping the anchor day, so a
-    state written in one member re-plans the whole board (sync.py's reconcile)
-  - mirrors tickets and memo pages (sync.py's own cmd_sync, unchanged)
-  - rewrites the waves as cycles when the plan changed (sync_cycles)
-  - serves the adaptive timeline live at /board/<name> — the page long-polls
-    /wait and reloads itself on every board change
-  - bumps a per-board sequence number an agent can long-poll on /wait
-
-The view works with no Plane at all — it renders from disk. Plane pushes are
-skipped, and reported in /status, when the board has no .plane.env.
+    state written in one member re-plans the whole board
+  - writes the day's history row, which is the only memory the board has
+  - bumps a per-board sequence number the view and any agent long-poll on
 
 A board keys by repo name plus any dot-dirs on its path (`racer/.mi/prds` →
-`racer-mi`), so two boards in one repo — or one Plane project mirroring two
-boards on purpose — still get distinct watch entries and /board/ URLs.
+`racer-mi`), or by `name:` in its settings.md when it has one — so two boards
+in one repo still get distinct watch entries and /board/ URLs.
 
 A master board (`members:` in its settings.md) is watched over its members'
 files too, and registering one registers every member as a board in its own
-right: the master carries the merged plan, each member keeps its own project.
+right: the master carries the merged plan, each member keeps its own.
 
-Disk stays the one source of truth: the daemon reads prds/ and writes Plane,
-never the reverse, and it never writes PRD state — the orchestrator stays the
-only writer. The registry and log live in plane-app/ (machine-local,
-gitignored): serve.json, serve.log.
+Everything is local. The board is the files; this serves them, and the edits
+the view makes go back into the same files through one set of writers
+(edit.py). The registry and log live in state/ beside this script
+(machine-local, gitignored): serve.json, serve.log.
 
 HTTP API, all JSON, all 127.0.0.1-only:
 
-  GET  /status                     daemon + boards: seq, last sync, last error
-  GET  /data?board=<name>          the timeline payload + seq
+  GET  /status                     daemon + boards: seq, last pass, last error
+  GET  /data?board=<name>          the view payload + seq
   GET  /wait?board=<name>&seq=<n>  long-poll: 200 {seq} on change, 204 quiet
-  GET  /board/<name>               the live timeline page
+  GET  /board/<name>               the view itself
+  GET  /prd?board=<name>&rel=<rel> one PRD in full: frontmatter, body, specs
+  GET  /memos?board=<name>         the board's decision records
   GET  /                           board index
   POST /register {"cwd": path}     add the board found walking up from cwd
-  POST /sync     {"board": name}   force a mirror pass now
-  POST /report   {"board": name, "prd": rel, "text": md}
-                                   the worker's report as a ticket comment
-  POST /unregister {"board": name} stop watching it (nothing in Plane changes)
+  POST /sync     {"board": name}   force a pass now
+  POST /new      {"board","title","body"?,"parent"?,"priority"?,"est"?}
+                                   write a new PRD
+  POST /edit     {"board","prd","title"?,"fm"?,"body"?,"append"?}
+                                   write one PRD — what the detail pane saves
+  POST /report   {"board","prd","text"}   a worker's report → `## Report`
+  POST /unregister {"board": name} stop watching it
   POST /stop                       shut the daemon down
 
 Python 3 stdlib only.
 """
+import datetime
 import json
 import os
 import re
@@ -70,13 +71,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import sync as synclib  # noqa: E402
-import gantt as ganttlib  # noqa: E402
+import plan as planlib  # noqa: E402
+import render as renderlib  # noqa: E402
 import memos as memoslib  # noqa: E402
+import edit as editlib  # noqa: E402
 
 PORT = int(os.environ.get("PLANE_SERVE_PORT", "8443"))
 DIR = os.path.dirname(os.path.abspath(__file__))
-APP_DIR = os.path.join(DIR, "plane-app")
+APP_DIR = os.path.join(DIR, "state")
 REG_PATH = os.path.join(APP_DIR, "serve.json")
 LOG_PATH = os.path.join(APP_DIR, "serve.log")
 POLL_S = 1.0       # how often each board is stat-swept
@@ -89,10 +91,9 @@ WAIT_MAX_S = 25    # long-poll ceiling; clients just re-poll
 def serve_name(path):
     """The daemon's board key: the repo name, plus the dot-dirs between it and
     prds/ — `racer/.mi/prds` keys as `racer-mi`, `realm/.claude/prds` as
-    `realm-claude`. Plane's project name (walk-up only, PLANE_PROJECT_NAME
-    override) can legitimately collide — realm mirrors two boards into one
-    project on purpose — but a daemon key cannot: it is the watch entry and
-    the /board/ URL, and two boards must never share one.
+    `realm-claude`. Two boards may legitimately want the same name, but a
+    daemon key cannot: it is the watch entry and the /board/ URL, and two
+    boards must never share one.
 
     This is the name that must always exist and always be unique, so it stays a
     pure function of the path. A board that renamed itself is preferred over it
@@ -105,7 +106,7 @@ def serve_name(path):
             break
         dots.append(re.sub(r"[^A-Za-z0-9_-]", "", base))
         d = os.path.dirname(d)
-    return "-".join([synclib.project_name(path)] + list(reversed(dots)))
+    return "-".join([planlib.project_name(path)] + list(reversed(dots)))
 
 
 class Board:
@@ -117,6 +118,7 @@ class Board:
         self.plan_digest = None  # of waves+planned_at — when to redo cycles
         self.last_sync = None
         self.last_error = None
+        self.history_day = None
         self.lock = threading.Lock()      # one mirror pass at a time
         self.cond = threading.Condition()  # /wait sleepers
 
@@ -129,7 +131,7 @@ def plan_digest(path):
     """Of the plan alone — waves and the day it was made. The map's ticket
     hashes churn on every push (our own writes), so watching the file's mtime
     would loop; watching this content only fires when `plan` actually ran."""
-    mp, _ = synclib.load_map(path)
+    mp, _ = planlib.load_map(path)
     return hash(json.dumps([mp.get("waves"), mp.get("planned_at")],
                            sort_keys=True))
 
@@ -139,7 +141,7 @@ def member_paths(path):
     pass: `members:` is a setting, and a board joins or leaves a master by one
     line in settings.md — the daemon must not need a restart for that."""
     try:
-        return [p for _, p in synclib.members(path) if os.path.isdir(p)]
+        return [p for _, p in planlib.members(path) if os.path.isdir(p)]
     except Exception:
         return []
 
@@ -210,7 +212,7 @@ def save_registry():
 def declared_name(path):
     """What the board calls itself, or "".
 
-    `PLANE_PROJECT_NAME` is the name a board carries in Plane, so a board that
+    A board's declared `name:` is what it calls itself, so a board that
     renamed itself should answer to that name here too — one name in the
     project, the watch entry, and the `/board/<name>` URL. A master board is
     the case that needs it: it is named for what it owns rather than for the
@@ -225,17 +227,14 @@ def declared_name(path):
     construction. That is better than suffixing the shared name: the loser
     keeps its own meaningful `realm-claude` instead of an order-dependent
     `realm-2`."""
-    declared = str(synclib.board_settings(path).get("name", "")).strip()
-    if not declared:
-        cfg, _ = synclib.load_cfg(path)
-        declared = (cfg or {}).get("PLANE_PROJECT_NAME", "").strip()
+    declared = str(planlib.board_settings(path).get("name", "")).strip()
     return re.sub(r"[^A-Za-z0-9_.-]", "-", declared) if declared else ""
 
 
 def register(path):
     """Add one prds/ dir. The board's declared name keys it when that name is
     free, else the project-dir name — two boards sharing a name is already the
-    collision plane.md tells the user to break with PLANE_PROJECT_NAME."""
+    collision `register()` breaks by suffixing."""
     path = os.path.abspath(path)
     b = Board(path)
     with BOARDS_LOCK:
@@ -272,43 +271,42 @@ def bump(b):
         b.cond.notify_all()
 
 
+def history(b):
+    """One row a day per board, written by whoever is watching. Cheap (it is a
+    scan the mirror pass already did) and it is the only memory the board has:
+    without it the burn-down has nothing to draw."""
+    try:
+        row = planlib.write_history(b.path)
+        b.history_day = row["d"]
+    except Exception:
+        pass
+
+
 def mirror(b, force=False):
-    """One pass: push tickets, memo pages, and — when the plan moved — cycles.
-    The view's seq bumps regardless, so the local timeline is live even when
-    the push fails or the board was never bootstrapped."""
+    """One pass over a board that changed: re-order a master's waves, write the
+    day's history row, and bump the sequence every reader is parked on. It
+    writes nothing but the board's own files — there is nowhere else for it to
+    write any more."""
     with b.lock:
         # A master board re-orders before it mirrors: its waves span repos
         # nobody re-plans by hand, so a state written in one member has to
         # re-order the whole board. The anchor day is kept — `plan` re-anchors,
-        # this only re-orders. It runs with or without Plane: the local
-        # timeline is the thing most likely to be read.
-        if synclib.is_master(b.path):
+        # this only re-orders.
+        if planlib.is_master(b.path):
             try:
-                synclib.reconcile(b.path)
+                planlib.reconcile(b.path)
             except SystemExit:
                 b.last_error = "plan: needs cycle — reconcile skipped"
             except Exception as e:
                 b.last_error = f"reconcile: {type(e).__name__}: {e}"
         bump(b)
-        cfg, cfg_path = synclib.load_cfg(b.path)
-        if cfg is None:
-            b.last_error = f"not bootstrapped — no {cfg_path}"
-            return
         try:
-            synclib.cmd_sync(b.path, quiet=True)
-            pd = plan_digest(b.path)
-            if force or pd != b.plan_digest:
-                mp, _ = synclib.load_map(b.path)
-                api = synclib.Api(cfg)
-                pid = cfg.get("PLANE_PROJECT_ID")
-                if pid and mp.get("waves"):
-                    synclib.sync_cycles(api, pid, b.path, mp, quiet=True)
-                b.plan_digest = pd
+            if b.history_day != datetime.date.today().isoformat():
+                history(b)
+            b.plan_digest = plan_digest(b.path)
             b.last_sync = time.time()
             b.last_error = None
-        except SystemExit:
-            b.last_error = "sync failed — see serve.log"
-        except Exception as e:  # a mirror pass must never kill the watcher
+        except Exception as e:  # a pass must never kill the watcher
             b.last_error = f"{type(e).__name__}: {e}"
 
 
@@ -318,18 +316,15 @@ def watch():
             try:
                 d = digest(b.path)
             except OSError:
-                continue
-            if d == b.digest:
-                # no .md moved — but `plan` may have: it writes only the map
-                if plan_digest(b.path) != b.plan_digest:
+                d = None
+            if d is not None and d != b.digest:
+                time.sleep(SETTLE_S)  # a worker mid-write settles first
+                d2 = digest(b.path)
+                if d2 == d:           # still moving? next tick finds it at rest
+                    b.digest = d2
                     mirror(b)
-                continue
-            time.sleep(SETTLE_S)  # a worker mid-write settles first
-            d2 = digest(b.path)
-            if d2 != d:
-                continue  # still moving; next tick catches it at rest
-            b.digest = d2
-            mirror(b)
+            elif d is not None and plan_digest(b.path) != b.plan_digest:
+                mirror(b)             # `plan` moved, and it writes only the map
         time.sleep(POLL_S)
 
 
@@ -339,8 +334,19 @@ LIVE_JS = """<script>
 (async () => {
   for (;;) {
     try {
-      const r = await fetch("/wait?board=__NAME__&seq=__SEQ__");
-      if (r.status === 200) { location.reload(); return; }
+      const r = await fetch((window.__BASE || "") +
+        "/wait?board=__NAME__&seq=__SEQ__");
+      if (r.status === 200) {
+        // never reload out from under someone typing in the detail pane —
+        // the page is live, but a half-written body is not the board's to
+        // throw away. Hold, and pick the change up when the field is clean.
+        if (window.__pearde_hold && window.__pearde_hold()) {
+          await new Promise(s => setTimeout(s, 4000));
+          continue;
+        }
+        location.reload();
+        return;
+      }
     } catch (e) { await new Promise(s => setTimeout(s, 3000)); }
   }
 })();
@@ -350,7 +356,7 @@ LIVE_JS = """<script>
 def board_json(b):
     return {"name": b.name, "path": b.path, "seq": b.seq,
             "last_sync": b.last_sync, "last_error": b.last_error,
-            "members": [n for n, _ in synclib.members(b.path)]}
+            "members": [n for n, _ in planlib.members(b.path)]}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -369,10 +375,20 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    # A prefix a reverse proxy may mount this under. Stripped here and
+    # remembered, so every route below is written once and the page it renders
+    # knows which base its own fetches have to use.
+    PREFIX = "/timeline"
+
     def q(self):
         from urllib.parse import urlparse, parse_qs
         u = urlparse(self.path)
-        return u.path, {k: v[0] for k, v in parse_qs(u.query).items()}
+        path = u.path
+        self.base = ""
+        if path == self.PREFIX or path.startswith(self.PREFIX + "/"):
+            self.base = self.PREFIX
+            path = path[len(self.PREFIX):] or "/"
+        return path, {k: v[0] for k, v in parse_qs(u.query).items()}
 
     def do_GET(self):
         path, q = self.q()
@@ -383,10 +399,57 @@ class Handler(BaseHTTPRequestHandler):
             b = by_name(q.get("board"))
             if not b:
                 return self.reply(404, {"error": "unknown board"})
-            payload = synclib.gantt_payload(
-                b.path, synclib.scan(b.path), synclib.load_map(b.path)[0],
-                synclib.board_settings(b.path))
+            payload = planlib.gantt_payload(
+                b.path, planlib.scan(b.path), planlib.load_map(b.path)[0],
+                planlib.board_settings(b.path))
             return self.reply(200, {"seq": b.seq, "payload": payload})
+        if path == "/prd":
+            # everything the timeline cannot fit on a bar: the PRD itself, its
+            # specs and its file. The chart asks for this when a row is
+            # clicked, so the view is a place to read the work and not only to
+            # look at its shape.
+            b = by_name(q.get("board"))
+            if not b:
+                return self.reply(404, {"error": "unknown board"})
+            rel = q.get("rel") or ""
+            prd = planlib.scan(b.path).get(rel)
+            if not prd:
+                return self.reply(404, {"error": f"no PRD at {rel}"})
+            specs = []
+            sdir = os.path.join(prd["dir"], "specs")
+            for f in sorted(os.listdir(sdir)) if os.path.isdir(sdir) else []:
+                if not f.endswith(".md"):
+                    continue
+                fm, title, body = planlib.parse_prd(os.path.join(sdir, f))
+                specs.append({"file": f, "title": title or f,
+                              "est": fm.get("est", ""),
+                              "state": fm.get("state", ""),
+                              "footprint": fm.get("footprint", []),
+                              "body": body})
+            return self.reply(200, {
+                "rel": rel, "title": prd["title"], "state": prd["state"],
+                "fm": {k: v for k, v in prd["fm"].items()},
+                "body": prd["body"], "specs": specs,
+                "path": prd.get("footer") or f"prds/{rel}/prd.md",
+                "file": os.path.join(prd["dir"], "prd.md"),
+                "board": prd.get("board"),
+            })
+        if path == "/memos":
+            b = by_name(q.get("board"))
+            if not b:
+                return self.reply(404, {"error": "unknown board"})
+            ms = memoslib.scan(b.path)
+            out = [{"slug": m["slug"], "subject": m.get("subject"),
+                    "kind": m.get("kind"), "status": m.get("status"),
+                    "date": str(m.get("date") or ""), "path": m.get("path"),
+                    "prds": (m["fm"].get("prds") if isinstance(
+                        m["fm"].get("prds"), list) else
+                        [m["fm"]["prds"]] if m["fm"].get("prds") else []),
+                    "body": m.get("body", "")}
+                   for m in ms.values()]
+            out.sort(key=lambda m: (str(m["status"]), str(m["date"])),
+                     reverse=True)
+            return self.reply(200, {"memos": out})
         if path == "/wait":
             b = by_name(q.get("board"))
             if not b:
@@ -402,16 +465,32 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(204, b"")
                 return self.reply(200, {"seq": b.seq,
                                         "last_error": b.last_error})
-        if path.startswith("/board/"):
-            b = by_name(path[len("/board/"):].strip("/"))
+        ROUTES = ("/", "/status", "/data", "/wait", "/prd", "/memos")
+        want = None
+        if path.startswith("/board/") or path.startswith("/timeline/"):
+            want = path.split("/", 2)[2].strip("/")
+        elif self.base and path not in ROUTES and path.count("/") == 1:
+            # behind the proxy the friendly form is /timeline/<board>, so a
+            # single unrecognised segment under the prefix is a board name —
+            # under the prefix
+            want = path[1:]
+        if want is not None:
+            b = by_name(want)
             if not b:
                 return self.reply(404, "unknown board", "text/plain")
-            payload = synclib.gantt_payload(
-                b.path, synclib.scan(b.path), synclib.load_map(b.path)[0],
-                synclib.board_settings(b.path))
-            live = (LIVE_JS.replace("__NAME__", b.name)
-                    .replace("__SEQ__", str(b.seq)))
-            html = ganttlib.render(payload).replace("</body>", live + "</body>")
+            payload = planlib.gantt_payload(
+                b.path, planlib.scan(b.path), planlib.load_map(b.path)[0],
+                planlib.board_settings(b.path))
+            head = (f'<script>window.__BASE={json.dumps(self.base)};'
+                    f'window.__BOARD={json.dumps(b.name)};</script>')
+            live = "" if q.get("nolive") else (
+                LIVE_JS.replace("__NAME__", b.name)
+                       .replace("__SEQ__", str(b.seq)))
+            # into the head: the page's own script reads __BOARD/__BASE at
+            # module level, so they have to exist before it runs
+            html = (renderlib.render(payload)
+                    .replace("</head>", head + "</head>")
+                    .replace("</body>", live + "</body>"))
             return self.reply(200, html, "text/html; charset=utf-8")
         if path == "/":
             rows = "".join(
@@ -437,7 +516,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(400, {"error": "bad json"})
         if path == "/register":
             try:
-                board = synclib.find_board(body.get("cwd") or None)
+                board = planlib.find_board(body.get("cwd") or None)
             except SystemExit:
                 return self.reply(404, {"error": "no prds/ found from cwd"})
             b, new = register(board)
@@ -462,33 +541,91 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(404, {"error": "unknown board"})
             mirror(b, force=True)
             return self.reply(200, board_json(b))
+        if path == "/new":
+            # Filing work from the view. The template is the board's own, so a
+            # PRD written here is the same shape as one written by hand — and
+            # `origin: requested` because a person asked for it.
+            b = by_name(body.get("board"))
+            if not b:
+                return self.reply(404, {"error": "unknown board"})
+            title = (body.get("title") or "").strip()
+            if not title:
+                return self.reply(400, {"error": "title required"})
+            slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60]
+            if not slug:
+                return self.reply(400, {"error": "title has no letters"})
+            parent = (body.get("parent") or "").strip("/")
+            base = os.path.join(b.path, parent) if parent else b.path
+            d, n = os.path.join(base, slug), 2
+            while os.path.exists(d):
+                d, n = os.path.join(base, f"{slug}-{n}"), n + 1
+            os.makedirs(d)
+            fm = ["---", "state: open", "origin: requested",
+                  f"priority: {int(body.get('priority') or 0)}"]
+            if body.get("est"):
+                fm.append(f"est: {str(body['est'])[:12]}")
+            fm.append("---")
+            text = ("\n".join(fm) + f"\n\n# {title}\n\n"
+                    + (body.get("body") or "").strip() + "\n")
+            editlib.write_atomic(os.path.join(d, "prd.md"), text)
+            threading.Thread(target=mirror, args=(b,), daemon=True).start()
+            return self.reply(200, {"prd": os.path.relpath(d, b.path)})
+        if path == "/edit":
+            # The view writes the board: one structured line at a time,
+            # atomically, frontmatter and body never in the same write.
+            # A claim is reported, not enforced: whoever is looking at this
+            # page is the authority, and the answer to "a worker holds it" is
+            # to say so, not to refuse.
+            b = by_name(body.get("board"))
+            if not b:
+                return self.reply(404, {"error": "unknown board"})
+            rel = body.get("prd") or ""
+            prd = planlib.scan(b.path).get(rel)
+            if not prd:
+                return self.reply(404, {"error": f"no PRD at {rel}"})
+            path_md = os.path.join(prd["dir"], "prd.md")
+            # body first: it replaces everything under the frontmatter, so a
+            # title written before it would be the first thing overwritten
+            wrote = []
+            if body.get("body") is not None:
+                editlib.set_body(path_md, str(body["body"]))
+                wrote.append("body")
+            if body.get("append"):
+                editlib.append_section(path_md, body.get("heading", "Notes"),
+                                       str(body["append"]))
+                wrote.append("append")
+            if body.get("title"):
+                editlib.set_title(path_md, str(body["title"])[:250])
+                wrote.append("title")
+            for k, v in (body.get("fm") or {}).items():
+                if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", str(k)):
+                    continue
+                if v in (None, ""):
+                    editlib.del_key(path_md, k)
+                else:
+                    editlib.set_key(path_md, k, str(v).replace("\n", " "))
+                wrote.append(k)
+            if wrote:
+                threading.Thread(target=mirror, args=(b,), daemon=True).start()
+            return self.reply(200, {"wrote": wrote, "prd": rel,
+                                    "claim": prd["fm"].get("claim")})
         if path == "/report":
+            # A worker's report is evidence, and evidence belongs with the PRD
+            # it is evidence about. It appends to `## Report` and nothing else
+            # happens to it.
             b = by_name(body.get("board"))
             if not b:
                 return self.reply(404, {"error": "unknown board"})
             rel, text = body.get("prd", ""), body.get("text", "")
             if not rel or not text:
                 return self.reply(400, {"error": "prd and text required"})
-            cfg, _ = synclib.load_cfg(b.path)
-            if not cfg or not cfg.get("PLANE_PROJECT_ID"):
-                return self.reply(409, {"error": "board not bootstrapped"})
-            mp, _ = synclib.load_map(b.path)
-            iid = mp["issues"].get(rel, {}).get("id")
-            if not iid:
-                mirror(b)  # the ticket may simply not exist yet
-                mp, _ = synclib.load_map(b.path)
-                iid = mp["issues"].get(rel, {}).get("id")
-            if not iid:
-                return self.reply(404, {"error": f"no ticket for {rel}"})
-            api = synclib.Api(cfg)
-            pid = cfg["PLANE_PROJECT_ID"]
-            seg = api.issues_seg(pid)
-            try:
-                c = api.call("POST", api.proj(pid, f"{seg}/{iid}/comments/"),
-                             {"comment_html": synclib.md_html(text)})
-            except synclib.ApiError as e:
-                return self.reply(502, {"error": str(e)})
-            return self.reply(200, {"comment": c.get("id"), "issue": iid})
+            prd = planlib.scan(b.path).get(rel)
+            if not prd:
+                return self.reply(404, {"error": f"no PRD at {rel}"})
+            editlib.append_section(os.path.join(prd["dir"], "prd.md"),
+                                   "Report", text)
+            threading.Thread(target=mirror, args=(b,), daemon=True).start()
+            return self.reply(200, {"wrote": f"{rel}/prd.md"})
         if path == "/unregister":
             name = body.get("board")
             with BOARDS_LOCK:
@@ -561,7 +698,7 @@ def cmd_ensure(arg):
                   file=sys.stderr)
             return 1
         print(f"serve: started on http://127.0.0.1:{PORT}")
-    board = synclib.find_board(arg)  # dies with the usual message if none
+    board = planlib.find_board(arg)  # dies with the usual message if none
     out = call("/register", {"cwd": board})
     b = out["board"]
     print(f"serve: {'registered' if out['new'] else 'watching'} {b['name']} "
@@ -590,6 +727,43 @@ def cmd_status():
     return 0
 
 
+def cmd_wait(arg, timeout):
+    """Block until the board moves, then say what moved. This is the answer to
+    `README.md`'s "do not poll if results are pushed to you" for the one thing
+    that a round would otherwise have to come back and look for. An
+    orchestrator with nothing left to dispatch parks here instead of ending the
+    round, and comes back when there is something to do.
+
+    Exit 0 = something happened (the inbox, or any board change), 1 = the
+    timeout ran out quietly, 2 = no daemon."""
+    board = planlib.find_board(arg)
+    st = running()
+    if not st:
+        print("serve: not running — nothing to wait on", file=sys.stderr)
+        return 2
+    name = next((b["name"] for b in st["boards"]
+                 if os.path.abspath(b["path"]) == os.path.abspath(board)), None)
+    if not name:
+        print(f"serve: {board} is not registered — run `ensure` first",
+              file=sys.stderr)
+        return 2
+    seq = next(b["seq"] for b in st["boards"] if b["name"] == name)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            out = call(f"/wait?board={name}&seq={seq}",
+                       timeout=WAIT_MAX_S + 10)
+        except (urllib.error.URLError, OSError):
+            print("serve: daemon went away while waiting", file=sys.stderr)
+            return 2
+        if not out:
+            continue                      # 25 quiet seconds; park again
+        print(f"serve: {name} moved · seq {out.get('seq')}")
+        return 0
+    print(f"serve: {name} quiet for {timeout}s")
+    return 1
+
+
 def cmd_stop():
     if not running():
         print("serve: not running")
@@ -613,6 +787,11 @@ def main():
         return cmd_status()
     if cmd == "stop":
         return cmd_stop()
+    if cmd == "wait":
+        rest = [a for a in args[1:] if not a.startswith("--")]
+        return cmd_wait(rest[0] if rest else None,
+                        next((int(a[len("--timeout="):]) for a in args
+                              if a.startswith("--timeout=")), 900))
     if cmd == "forget":
         if len(args) < 2:
             print("serve: forget <board-name>", file=sys.stderr)

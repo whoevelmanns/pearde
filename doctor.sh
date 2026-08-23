@@ -1,5 +1,5 @@
 #!/bin/bash
-# pearde doctor — is the skill installed, wired, and mirroring for this board?
+# pearde doctor — is the skill installed, wired, and serving this board?
 #
 #   doctor.sh [board]        report every part, exit 1 when one is broken
 #   doctor.sh --fix [board]  report, then repair what is unambiguous
@@ -7,12 +7,12 @@
 # One part per line: `ok`, `off` (installed nowhere, nothing to repair), or
 # `broken` (installed and not working — the failure the loop used to run
 # straight past). A broken part carries its exact fix on the next line.
-# `skill`, `statusline`, `board`, `memos` and `plane` always report; `origin`
-# needs PRDs to read, and `members` only exists on a master board.
+# `skill`, `statusline`, `board`, `memos`, `view` and `plan` always report;
+# `origin` needs PRDs to read, and `members` only exists on a master board.
 #
-# `--fix` repairs four things and only four: the missing skill symlink, a dead
-# status-line symlink, a board that Plane is running for but has never been
-# bootstrapped, and a live service that is not watching this board. A status
+# `--fix` repairs three things and only three: the missing skill symlink, a
+# dead status-line symlink, and a view service that is down or not watching
+# this board. A status
 # line absent from settings.json is printed, never written: that file is the
 # user's. After repairing, doctor re-checks itself once, so the report and the
 # exit code describe the state the repairs left behind — never the state they
@@ -34,15 +34,31 @@ echo "pearde doctor — $START"
 [ -n "${CLAUDE_CONFIG_DIR:-}" ] && echo "  config     $CLAUDE_CONFIG_DIR"
 echo
 
+# Is Claude Code on this machine at all? The next two rows check wiring that is
+# specific to it — a skills symlink and a statusLine — and neither is something
+# the board needs. README: all state is on disk, and anything that can read
+# files, write files and run commands can work it. So on a machine without the
+# harness these rows must not read as damage, and their fix must point at the
+# agent-neutral entry point instead of at a symlink nobody wants.
+HARNESS=0
+for d in "${CLAUDE_CONFIG_DIR:-}" "$HOME/.claude"; do
+  [ -n "$d" ] && [ -d "$d" ] && { HARNESS=1; break; }
+done
+
 # ── skill: discoverable as a skill named pearde ───────────────────────────────
 SKILL_LINKS=()
 for p in "$HOME/.claude/skills/pearde" "$START/.claude/skills/pearde"; do
   [ -e "$p" ] || [ -L "$p" ] && SKILL_LINKS+=("$p")
 done
 if [ ${#SKILL_LINKS[@]} -eq 0 ]; then
-  row skill off "discovered nowhere — the /pearde command does not exist"
-  fix "ln -s $DIR ~/.claude/skills/pearde"
-  if [ "$FIX" = 1 ]; then
+  if [ "$HARNESS" = 0 ]; then
+    row skill off "no Claude Code here — the board does not need one"
+    fix "point your agent at $DIR/references/system.md, or run the commands in README.md directly"
+  else
+    row skill off "discovered nowhere — the /pearde command does not exist"
+    fix "ln -s $DIR ~/.claude/skills/pearde"
+  fi
+  if [ "$FIX" = 1 ] && [ "$HARNESS" = 1 ]; then
     mkdir -p "$HOME/.claude/skills"
     ln -s "$DIR" "$HOME/.claude/skills/pearde" && did "linked ~/.claude/skills/pearde"
   fi
@@ -83,8 +99,13 @@ PY
 done
 
 if [ -z "$SL_CMD" ]; then
-  row statusline off "no statusLine in $CFG_DIR — the board numbers show nowhere"
-  fix "add to $CFG_DIR/settings.json: \"statusLine\": {\"type\": \"command\", \"command\": \"bash $DIR/statusline.sh\"}"
+  if [ "$HARNESS" = 0 ]; then
+    row statusline off "no Claude Code here — nowhere to render a status line"
+    fix "the same numbers, on demand: bash $DIR/statusline.sh <<< '{}'"
+  else
+    row statusline off "no statusLine in $CFG_DIR — the board numbers show nowhere"
+    fix "add to $CFG_DIR/settings.json: \"statusLine\": {\"type\": \"command\", \"command\": \"bash $DIR/statusline.sh\"}"
+  fi
 else
   # the command's script path: the first argument that exists, or looks like one
   SL_PATH=$(printf '%s\n' $SL_CMD | grep -E '/|\.sh$' | head -1)
@@ -161,7 +182,7 @@ fi
 # matters: the plan silently loses a whole project, and the board looks smaller
 # rather than broken.
 if [ -n "$BOARD" ] && grep -qE '^[[:space:]]*members:' "$BOARD/settings.md" 2>/dev/null; then
-  MEM=$(python3 "$DIR/plane/sync.py" members "$BOARD" 2>/dev/null | grep .)
+  MEM=$(python3 "$DIR/view/plan.py" members "$BOARD" 2>/dev/null | grep .)
   NM=$(printf '%s\n' "$MEM" | grep -c . )
   MISS=$(printf '%s\n' "$MEM" | grep -c MISSING || true)
   NAMES=$(printf '%s\n' "$MEM" | awk '{print $1}' | tr '\n' ' ')
@@ -181,7 +202,7 @@ if [ -n "$BOARD" ] && grep -qE '^[[:space:]]*members:' "$BOARD/settings.md" 2>/d
     # the name is reported, never repaired: what a group of projects is called
     # is the user's call, and the first round that meets an unnamed master
     # board asks for it. Inference keeps the board working until then.
-    BNAME=$(python3 -c "import sys;sys.path.insert(0,'$DIR/plane');import sync;print(sync.board_name('$BOARD'))" 2>/dev/null)
+    BNAME=$(python3 -c "import sys;sys.path.insert(0,'$DIR/view');import plan;print(plan.board_name('$BOARD'))" 2>/dev/null)
     if grep -qE '^[[:space:]]*name:' "$BOARD/settings.md" 2>/dev/null; then
       row members ok "$NM member board(s) · ${NAMES}· $MPRDS member PRDs planned here · name $BNAME"
     else
@@ -251,52 +272,48 @@ if [ -n "$BOARD" ]; then
   fi
 fi
 
-# ── plane: installed, running, configured for THIS board ──────────────────────
-PL="$DIR/plane/plane.sh"
-if [ ! -f "$DIR/plane/plane-app/plane.env" ]; then
-  row plane off "not installed — the mirror is opt-in"
-  fix "$PL boot"
-else
-  URL=$(bash "$PL" url 2>/dev/null)
-  if ! curl -fsS -o /dev/null -m 3 "$URL" 2>/dev/null; then
-    row plane broken "installed, $URL not reachable"
-    fix "$PL start"
-    [ "$FIX" = 1 ] && bash "$PL" start && did "started"
-  elif [ -z "$BOARD" ]; then
-    row plane ok "up at $URL · no board to mirror"
-  elif [ -f "$BOARD/.plane.env" ]; then
-    KEY=$(grep '^PLANE_API_KEY=' "$BOARD/.plane.env" | cut -d= -f2-)
-    CODE=$(curl -s -o /dev/null -w '%{http_code}' -m 5 -H "X-API-Key: $KEY" "$URL/api/v1/users/me/" 2>/dev/null)
-    case "$CODE" in
-      200)
-        SRV_PORT="${PLANE_SERVE_PORT:-8443}"
-        # match on the registered path, never on a name: a board that renamed
-        # its project keys by that name in the daemon, and grepping the
-        # directory name reports a watched board as unwatched
-        SRV=$(curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
-        if printf '%s' "$SRV" | grep -qF "\"$BOARD\"" \
-           || printf '%s' "$SRV" | grep -qF "\"$PBOARD\""; then
-          row plane ok "up at $URL · this board mirrors · live service watching"
-        elif [ "$FIX" = 1 ] && python3 "$DIR/plane/serve.py" ensure "$BOARD" >/dev/null 2>&1; then
-          row plane ok "up at $URL · this board mirrors · live service watching"
-          did "live service started"
-        else
-          row plane ok "up at $URL · this board mirrors · live service off — python3 $DIR/plane/serve.py ensure"
-        fi ;;
-      429) row plane ok "up at $URL · this board mirrors · api rate-limiting a sync in flight" ;;
-      401|403)
-        row plane broken "up at $URL · $BOARD/.plane.env token rejected"
-        fix "$PL bootstrap $BOARD"
-        [ "$FIX" = 1 ] && bash "$PL" bootstrap "$BOARD" && did "re-bootstrapped" ;;
-      *) row plane ok "up at $URL · token unverified (HTTP ${CODE:-none})" ;;
-    esac
-  else
-    row plane broken "up at $URL · this board was never bootstrapped, so nothing mirrors"
-    fix "$PL bootstrap $BOARD && python3 $DIR/plane/sync.py sync"
-    if [ "$FIX" = 1 ]; then
-      bash "$PL" bootstrap "$BOARD" && python3 "$DIR/plane/sync.py" sync "$BOARD" && did "bootstrapped and synced"
-      python3 "$DIR/plane/serve.py" ensure "$BOARD" >/dev/null 2>&1 && did "live service watching"
+# ── the view service: is the board actually being watched? ────────────────────
+# The board is files, so nothing here is required for the board to work. What
+# this row answers is whether the live view — the thing a person looks at and
+# edits through — is up and watching THIS board. Matched on the registered
+# path, never the name: a board keys by its declared `name:`, and grepping the
+# directory would report a watched board as unwatched.
+if [ -n "$BOARD" ]; then
+  SRV_PORT="${PLANE_SERVE_PORT:-8443}"
+  SRV=$(curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
+  if [ -z "$SRV" ]; then
+    row view off "not running — the board reads and plans without it"
+    fix "python3 $DIR/view/serve.py ensure $BOARD"
+    if [ "$FIX" = 1 ] && python3 "$DIR/view/serve.py" ensure "$BOARD" >/dev/null 2>&1; then
+      did "view service started"
     fi
+  elif printf '%s' "$SRV" | grep -qF "\"$BOARD\"" \
+       || printf '%s' "$SRV" | grep -qF "\"$PBOARD\""; then
+    BN=$(printf '%s' "$SRV" | tr '{' '\n' | grep -F "\"$BOARD\"" \
+         | sed -n 's/.*"name": "\([^"]*\)".*/\1/p' | head -1)
+    row view ok "watching · http://127.0.0.1:$SRV_PORT/board/${BN:-?}"
+  else
+    row view broken "the service is up but this board is not registered"
+    fix "python3 $DIR/view/serve.py ensure $BOARD"
+    if [ "$FIX" = 1 ] && python3 "$DIR/view/serve.py" ensure "$BOARD" >/dev/null 2>&1; then
+      did "board registered"
+    fi
+  fi
+fi
+
+# ── the plan: is there one, and how old is it? ────────────────────────────────
+# A board with no plan has no waves, no critical path and no bars — the view
+# opens and says so. Not broken: a board planned once and never re-planned is
+# a normal state, and `plan` is one command.
+if [ -n "$BOARD" ]; then
+  PLANNED=$(sed -n 's/.*"planned_at"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+            "$BOARD/.plan.json" 2>/dev/null | head -1)
+  if [ -z "$PLANNED" ]; then
+    row plan off "no plan on record — the view has no bars until there is one"
+    fix "python3 $DIR/view/plan.py plan $BOARD"
+  else
+    NW=$(grep -c '": [0-9]*,\?$' "$BOARD/.plan.json" 2>/dev/null || echo 0)
+    row plan ok "planned $PLANNED"
   fi
 fi
 

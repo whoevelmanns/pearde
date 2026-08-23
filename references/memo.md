@@ -84,7 +84,7 @@ one fact, one home, and the other system's gate owns its files. Point
 memos: ../.mi/docs/memos
 ```
 
-The dir is mirrored to Plane read-only, every scalar frontmatter key rendered
+The dir is read read-only, every scalar frontmatter key rendered
 as-is. The check then verifies only what is universal — the file parses, the
 required five are present — and leaves the foreign vocabulary alone. The
 closed set below applies only to the board's own `memos/`.
@@ -119,7 +119,7 @@ let `prds:` name a sibling and let the check verify it.
 **Status as the folder** — `open/`, `decided/`, `superseded/`, with the check
 enforcing that a memo sits in the directory matching its status. Lost: moving a
 file to change a status rots every inbound link, and memos are linked from
-PRDs, from each other, and from Plane.
+PRDs and from each other.
 
 ## Trimmed on the way in
 

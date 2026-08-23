@@ -5,7 +5,7 @@ discovered — no scripts, no repo wiring.
 
 `<skill>` is the skill folder, the one holding `README.md`. It holds
 everything: the definition (`README.md`), the docs and templates in
-`references/`, the status line, `memos.py`, `plane/`.
+`references/`, the status line, `memos.py`, `view/`.
 
 `bash <skill>/doctor.sh --fix` answers whether installing worked, for all three
 steps below plus the board itself, and repairs what it can. Run it after
@@ -62,44 +62,30 @@ it wherever a status line can run a command — a config entry pointing at
   board segment is pearde's — drop the dir/branch/model part if the existing
   line already shows it.
 
-## 3. Plane
+## 3. The view
 
-Optional. Mirrors the board as tickets in a self-hosted
-[Plane](https://github.com/makeplane/plane) running inside the skill. Requires
-Docker and Python 3, nothing else.
-
-```sh
-<skill>/plane/plane.sh boot        # everything: install + start + every board
-                                   # on the machine synced into its own project
-```
-
-The pieces `boot` is made of, when one is needed alone:
+Optional, and one command. The board reads and plans without it; the view is
+how a person looks at it and edits it. Requires Python 3 and nothing else — no
+Docker, no account, no port but one on loopback.
 
 ```sh
-<skill>/plane/plane.sh install     # fetches Plane's installer into <skill>/plane/,
-                                   # installs into <skill>/plane/plane-app/,
-                                   # sets port 8442; no-op when already installed
-<skill>/plane/plane.sh start       # starts the containers, waits for the API
-<skill>/plane/plane.sh bootstrap   # run from the target repo: creates the
-                                   # account, workspace, API token, and writes
-                                   # prds/.plane.env; no-op when configured
-<skill>/plane/plane.sh open        # the app in the browser — no login screen
-<skill>/plane/plane.sh status      # installed? running? reachable?
+python3 <skill>/view/serve.py ensure     # start the service, register this board
 ```
 
-- **No login anywhere.** `bootstrap` creates everything itself, and `start`
-  pins the app to `127.0.0.1` and injects auto-login, so the browser opens
-  straight into the workspace. The knobs — password login back, LAN exposure —
-  are in `plane/plane.md`, with the config keys, the manual path, and what maps
-  to what.
-- Port taken? Set `PLANE_PORT=<n>` before the first `install`.
-- **A running app is not a mirror.** Each board needs its own `bootstrap`,
-  which writes that board's `prds/.plane.env`. `plane.sh status [board]` and
-  `doctor.sh` both report a board the app is up for and was never bootstrapped
-  for.
-- `plane-app/` and the fetched `setup.sh` are machine-local and gitignored, so
-  a fresh clone of the skill re-runs `install` on each machine. Data lives in
-  docker volumes and survives stop, start, and upgrade.
+It prints the URL: `http://127.0.0.1:8443/board/<name>`. Every board registered
+on this machine is listed at `/`.
+
+- **One daemon per machine**, singleton by port bind — a second `ensure` on
+  another board registers that board with the same service. `PLANE_SERVE_PORT`
+  moves it.
+- **Nothing leaves the machine.** It binds `127.0.0.1`, reads the board's
+  files, and writes the same files back when you edit in the view.
+- `serve.py status` says what it watches; `serve.py stop` ends it; `doctor.sh`
+  reports a board the service is up for but is not watching, and `--fix`
+  registers it.
+- `view/state/` holds the registry and the log — machine-local and gitignored.
+- No service at all? `python3 <skill>/view/plan.py gantt --open` writes the
+  same render to `prds/.view.html` as one self-contained file.
 
 ## 4. A master board
 
@@ -127,5 +113,6 @@ Remove the symlink, delete the `pearde` block, unset the status line.
 
 `prds/` is your data — untouched by installing, and it survives uninstalling.
 
-Plane: `plane.sh stop`, then delete `<skill>/plane/plane-app/` and the
-`plane-app` docker volumes.
+The view: `python3 <skill>/view/serve.py stop`. Nothing else of it lives
+outside the skill folder except `prds/.plan.json`, `prds/.history.jsonl` and
+`prds/.view.html` on each board — all machine-local and regenerable.
