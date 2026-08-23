@@ -150,6 +150,7 @@ no tool touches it.
 | `priority`  | user                           | dispatch order, higher first                      |
 | `est`       | orchestrator, from the analyst | progress line, `~<h>h left`                       |
 | `actual`    | orchestrator                   | calibration                                       |
+| `commit`    | orchestrator                   | the sha the PRD landed as, per **Commits**        |
 | `claim`     | orchestrator                   | the sweep, elapsed on `done`                      |
 | `repo`      | user                           | the worker brief. Optional                        |
 | `needs`     | user                           | `plan` wave order. A list of PRD dir names. Optional |
@@ -285,6 +286,9 @@ nothing.
   no `name:` on it, ask the user what the group is called and write it before
   the round goes on — a name inferred from directory names is a placeholder.
 - No board: create `prds/`, report it empty, stop.
+- Record what the working tree already owes — `git status --porcelain` in the
+  board's repo and in every `repo:` on it. Those paths are the user's, and no
+  commit this round adds them, per **Commits**.
 - Once per session, sweep a dead session's leftovers — `analyzing` with no live
   worker → `open`; `claimed` with no live worker → `failed`. Partial code may
   exist, and a human look is cheaper than a blind retry.
@@ -356,8 +360,9 @@ dispatch an implementer.
 
 On each finished worker: validate the result (specs on disk / verify output
 present), write the transition, write `actual:` on a clean `done` per
-**Calibration**, clear `claim:`, print the progress line, post the worker's
-report with `POST /report` per **The view**, return to step 2.
+**Calibration**, commit what landed per **Commits** and write its `commit:`,
+clear `claim:`, print the progress line, post the worker's report with
+`POST /report` per **The view**, return to step 2.
 
 A worker reports defects outside its own scope — that is what a worker is for,
 and it must not reach into a sibling's files to fix them. Deciding what becomes
@@ -375,6 +380,9 @@ Nothing in flight and nothing dispatchable: report per-state counts, every
 `question` / `refine` / `failed` PRD by name with what it needs, and the final
 progress line.
 
+- Say what the tree owes: commits made this run, what is ahead of the
+  upstream, and every path left dirty. The board commits and never pushes,
+  so the last word on the run is the user's to act on.
 - Everything left is waiting on the user, and the live service is up? Park on
   `serve.py wait` in the background before you stop, per **The view**. An
   answer the user writes in the view then wakes the round that acts on it,
@@ -515,6 +523,76 @@ Scale by the ratio the pairs show. Three pairs at 4h/40m mean the board
 estimates 6× high — say so in the report, and estimate the next PRD at the
 corrected scale.
 
+## Commits
+
+A PRD that lands is committed on the transition that lands it. A board that
+runs for hours otherwise ends with one working tree holding every PRD's work —
+nothing can be reviewed, reverted, or bisected on its own, and the only review
+left is the whole session.
+
+The orchestrator commits. Never a worker — two implementers committing in
+parallel write each other's half-finished files into each other's commits, and
+one writer is the rule that already keeps them apart.
+
+| transition          | do                                                                    |
+|---------------------|------------------------------------------------------------------------|
+| `claimed → done`    | commit                                                                 |
+| `claimed → blocked` | commit — the work is done, the open boxes wait on something named       |
+| `blocked → done`    | commit what closing the boxes wrote                                    |
+| `claimed → failed`  | nothing. Name the dirty paths in the report, leave them on disk         |
+
+Board state written between transitions — answers, a refine split, a memo —
+carries no commit of its own and rides the next one. It describes work in
+flight; a commit records work that landed.
+
+**Scope: the footprint, never the tree.** Add the union of the specs'
+`footprint:` and the PRD's own, plus the PRD's own folder. Never `git add -A`,
+never `git commit -a` — step 5 already proved no other `claimed` PRD writes
+that footprint, so a footprint-scoped commit cannot swallow a parallel worker's
+half-written file or a `failed` PRD's leftovers.
+
+Two guards on what gets added:
+
+- **The inherited tree is not the board's.** Step 1 records what is dirty
+  before the round starts. Those paths are never added, whatever footprint they
+  fall in. Name them once in the round.
+- **A path the worker wrote outside its footprint is a wrong footprint.**
+  Commit it with the rest and say so — step 5 cleared some other PRD against a
+  file it did not know this one touches.
+
+**Gate first.** Commit only what the `done` gate passed: verify output in the
+report, every box `[x]`, spot-checks run. A red tree is a `failed` PRD, and a
+`failed` PRD does not commit.
+
+**Message.** Subject `<prd> — <what landed>`, one line per spec, `prd:` naming
+the folder so the history points back at the board.
+
+```
+<prd> — <the PRD's contract in one line>
+
+<specNN>: <goal>
+<specNN>: <goal>
+
+prd: prds/<path>
+```
+
+Write the sha to `commit:` on the PRD, beside `actual:`. It is the only link
+from a `done` PRD to the code it produced, and `retry` on a later regression
+starts by reading it.
+
+**One commit per repo the PRD wrote.** A PRD with `repo:` elsewhere writes code
+there and its own record on the board: commit each where it lives, same subject
+line. One repo is one commit. On a master board that is the member's repo, not
+the master's.
+
+**Never push.** The commit is the board's, the push is the user's. Report what
+is ahead in the closing report and stop there.
+
+`commits: off` in `prds/settings.md` holds all of it — each transition then
+names its dirty footprint instead. While it is on, `*<dirty>` in the status
+line is the reading that matters: a count climbing across rounds is a board
+whose commits are not landing.
+
 ## Worker briefs
 
 Give each worker exactly its brief with the placeholders filled in. `<skill>`
@@ -524,6 +602,8 @@ Rules for every worker:
 
 - Never edit frontmatter, never touch other PRDs, never write outside the PRD
   folder. Implementers also write the target repo.
+- Never commit, never stage, never branch. Leave the work in the tree — the
+  orchestrator commits the PRD on the transition that lands it, per **Commits**.
 - Write per `references/language.md`, in the board `language` from
   `prds/settings.md`. Name the language in the brief. On a master board that is
   the language of the PRD's **own** board — a member's PRD is written in the
@@ -586,8 +666,8 @@ On return:
 Two unclosable boxes to catch when the specs land, not after a worker has spent
 hours on them:
 
-- A box asking for a **commit message** — committing is not an implementer's
-  act.
+- A box asking for a **commit** or a commit message — committing is the
+  orchestrator's act on the transition, per **Commits**.
 - A `verify:` running the **whole workspace** — it inherits every other node's
   flake, so the box measures the tree's worst neighbour rather than this node's
   work.
@@ -605,7 +685,8 @@ highest-priority actionable PRD → run its brief yourself as a checklist
 after → print the progress line → repeat. Effectively `workers=1`,
 `pipeline=1`.
 
-Every rule holds: one writer, verify before `done`, work flows to the leaves.
+Every rule holds: one writer, verify before `done`, commit on the transition,
+work flows to the leaves.
 
 ## Memos
 
@@ -657,6 +738,7 @@ arguments, "pearde status" in plain chat. The meanings are fixed.
 | one round, then stop         | `once`                                                                                                   |
 | more implementers            | `workers=5` — written to `prds/settings.md`, persists                                                    |
 | deeper spec pipeline         | `pipeline=5` — written to `prds/settings.md`, persists                                                   |
+| hold the commits             | `commits=off` — written to `prds/settings.md`, persists. Each transition names its dirty footprint instead, per **Commits** |
 | new PRD                      | `add <title>` — creates the dir + `prd.md` from `references/templates/prd.md`, `state: open`, `origin: requested` |
 | park a derived PRD           | `defer <prd>` — `state: deferred`, per **Derived work**. Reported by name, never dispatched              |
 | work out what is wanted      | `drill <prd>` — interview per `references/drill.md`; with no `<prd>`, into a new tree                    |

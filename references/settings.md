@@ -12,6 +12,7 @@ value written here leaks into every board.
 language: <language>
 workers: 3
 pipeline: 3
+commits: on
 est-default: 4h
 gantt-day: 8h
 ---
@@ -33,6 +34,7 @@ members:
 | `language`    | none — asked | the language every PRD, spec, and report is written in            |
 | `workers`     | 3            | implementer slots, loop step 5                                    |
 | `pipeline`    | 3            | `specced` PRDs kept ahead, loop step 4                            |
+| `commits`     | on           | commit each PRD on the transition that lands it, loop step 6. `off` holds every commit and names the dirty footprint instead. README, **Commits** |
 | `est-default` | 4h           | weight of an unestimated PRD while no PRD on the board has `est`  |
 | `gantt-day`   | 8h           | est-hours one calendar day represents in the view's `dates` mode. Lower it to stretch a small board's timeline |
 | `memos`       | `memos/`     | where the board's decision records live, relative to `prds/`. Point it at another system's memo dir (`../.mi/docs/memos`) to mirror those read-only — the strict format gate then applies only to the board's own `memos/`, per `references/memo.md` |
@@ -55,6 +57,7 @@ The orchestrator is the only writer, same as PRD state.
 | `members:` and no `name:`  | a master board nobody named: ask the user what the group is called, write `name:`, then run the round |
 | a board joins or leaves    | append or remove its `members:` entry. Nothing in the member changes — that is the whole join |
 | `workers=N` / `pipeline=N` | write the key, then run with it                                        |
+| `commits=on` / `commits=off` | write the key, then run with it                                      |
 | any other setting stated   | write it, confirm in one line                                          |
 
 First run:

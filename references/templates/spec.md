@@ -19,8 +19,8 @@ PRD, without reading the sibling specs.>
 
 <!-- The implementer ticks a box [x] only for a check it actually ran, quoting
      the output in its report.
-     Never write a box that asks for a commit message — committing is not an
-     implementer's act. -->
+     Never write a box that asks for a commit or a commit message — the
+     orchestrator commits the PRD on the transition that lands it. -->
 
 ## Verify and Proof
 
