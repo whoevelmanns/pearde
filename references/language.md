@@ -1,36 +1,40 @@
 # Language
 
-How everything here is written: this definition, the PRDs, the specs, the
-reports workers hand back. In the board `language` from `prds/settings.md`;
-every rule below holds in any language.
+Governs this definition, PRDs, specs, memos, and worker reports. Written in the
+board `language` from `prds/settings.md`. Every rule holds in any language.
 
-Short. On the point. Precise.
+Reader: an agent, cold, without the conversation that produced the document.
 
-**One idea per sentence.** If a sentence needs a comma to hold two thoughts,
-it is two sentences.
+## Rules
 
-**Imperative.** Say what to do. "Set `specced`", not "the state should then be
-set to specced".
+- **Structure over prose.** A fact set is a table. A sequence is a numbered
+  list. A rule set is bullets. Write a paragraph only when the content is an
+  argument.
+- **One idea per sentence.** A comma joining two thoughts is two sentences.
+- **Imperative.** `Set specced`, not "the state should then be set to specced".
+- **Name the thing.** The file, state, command, field. Never "the relevant
+  config" for `references/templates/prd.md`.
+- **No hedging.** No `might`, `probably`, `consider`. A real choice names who
+  chooses and when.
+- **No meta.** No "this section explains", no "as mentioned above".
+- **No legacy.** Present tense only. No former names, no migration notes, no
+  deprecated aliases. History lives in version control.
+- **Rationale only where it changes a decision**, as a trailing clause after
+  `—`. "One writer — nothing to race, so no locking" earns its clause. "This is
+  important for correctness" does not.
+- **Delete, do not deprecate.** A stale line reads as current.
 
-**Name the thing.** The file, the state, the command, the field. Never "the
-relevant config" when you mean `templates/prd.md`.
+## Where prose stays
 
-**No hedging.** No "might", "probably", "if you like", "consider". A rule is a
-rule. If something is genuinely a choice, say who chooses and when.
+A memo's `## Why` and `## Alternatives considered` are arguments, not facts —
+the one place paragraphs are correct. Compress them. Everything else in a memo
+is a table or a list.
 
-**No meta.** Do not describe the document inside the document. No "this section
-explains", no "as mentioned above".
+## Shape per document
 
-**No legacy.** Describe what is true now. No former names, no migration notes,
-no deprecated aliases, no "previously called". Rename and move on. History
-lives in version control, not in the prose.
-
-**Rationale only where it changes a decision.** "One writer means nothing to
-race" earns its line — it tells you why there is no locking. "This is important
-for correctness" does not.
-
-**Delete, do not deprecate.** A stale line is worse than a missing one, because
-it is read as current.
-
-Prose in a PRD is a contract an analyst reads cold, without this conversation.
-Prose in a spec is a checklist an implementer runs. Write for that reader.
+| document      | reader              | shape               |
+|---------------|---------------------|---------------------|
+| PRD body      | an analyst, cold    | a contract          |
+| spec body     | an implementer      | a checklist         |
+| memo          | a reader months out | decision + argument |
+| worker report | the orchestrator    | verdict + evidence  |
