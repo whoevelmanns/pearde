@@ -4,14 +4,17 @@
 #   doctor.sh [board]        report every part, exit 1 when one is broken
 #   doctor.sh --fix [board]  report, then repair what is unambiguous
 #
-# Four parts, each on one line: `ok`, `off` (installed nowhere, nothing to
+# Five parts, each on one line: `ok`, `off` (installed nowhere, nothing to
 # repair), or `broken` (installed and not working — the failure the loop used
 # to run straight past). A broken part carries its exact fix on the next line.
 #
-# `--fix` repairs three things and only three: the missing skill symlink, a
-# dead status-line symlink, and a board that Plane is running for but has never
-# been bootstrapped. A status line absent from settings.json is printed, never
-# written: that file is the user's.
+# `--fix` repairs four things and only four: the missing skill symlink, a dead
+# status-line symlink, a board that Plane is running for but has never been
+# bootstrapped, and a live service that is not watching this board. A status
+# line absent from settings.json is printed, never written: that file is the
+# user's. After repairing, doctor re-checks itself once, so the report and the
+# exit code describe the state the repairs left behind — never the state they
+# replaced.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,9 +23,10 @@ FIX=0
 START="${1:-$PWD}"
 
 BROKEN=0
+REPAIRED=0
 row() { printf '  %-11s %-7s %s\n' "$1" "$2" "$3"; [ "$2" = broken ] && BROKEN=1; return 0; }
 fix() { printf '  %-11s %-7s fix: %s\n' "" "" "$1"; }
-did() { printf '  %-11s %-7s ✓ %s\n' "" "" "$1"; }
+did() { printf '  %-11s %-7s ✓ %s\n' "" "" "$1"; REPAIRED=1; }
 
 echo "pearde doctor — $START"
 [ -n "${CLAUDE_CONFIG_DIR:-}" ] && echo "  config     $CLAUDE_CONFIG_DIR"
@@ -131,7 +135,9 @@ if [ -z "$BOARD" ]; then
 else
   ROOT=$(git -C "$BOARD" rev-parse --show-toplevel 2>/dev/null)
   N=$(find "$BOARD" -type f -name prd.md 2>/dev/null | wc -l | tr -d ' ')
-  if [ -n "$ROOT" ] && [ "$BOARD" != "$ROOT/prds" ]; then
+  # compare physical paths — /tmp vs /private/tmp is a spelling, not a move
+  PBOARD=$(cd "$BOARD" 2>/dev/null && pwd -P)
+  if [ -n "$ROOT" ] && [ "$PBOARD" != "$ROOT/prds" ]; then
     row board broken "$BOARD is not $ROOT/prds"
     fix "git mv $BOARD $ROOT/prds"
   elif [ ! -f "$BOARD/settings.md" ]; then
@@ -150,16 +156,19 @@ fi
 
 # ── memos: the board's decision records, and their frontmatter ────────────────
 if [ -n "$BOARD" ]; then
-  if [ ! -d "$BOARD/memos" ]; then
+  MDIR=$(python3 -c "import sys;sys.path.insert(0,'$DIR');import memos;d,e=memos.memos_dir('$BOARD');print(f'{d}\t{e}')" 2>/dev/null)
+  MEXT="${MDIR##*	}"; MDIR="${MDIR%%	*}"
+  if [ ! -d "${MDIR:-$BOARD/memos}" ] && [ "$MEXT" != "True" ]; then
     row memos off "no memos/ — a decision gets one when there is a decision"
   elif ! command -v python3 >/dev/null 2>&1; then
     row memos broken "memos/ present, no python3 to read it"
     fix "install python3 — memos.py is the only reader of the format"
   else
-    M=$(find "$BOARD/memos" -maxdepth 1 -type f -name '*.md' ! -name README.md 2>/dev/null | wc -l | tr -d ' ')
+    M=$(find "${MDIR:-$BOARD/memos}" -maxdepth 1 -type f -name '*.md' ! -name README.md 2>/dev/null | wc -l | tr -d ' ')
+    SRC=""; [ "$MEXT" = "True" ] && SRC=" · external at $MDIR, mirrored read-only"
     PROBLEMS=$(python3 "$DIR/memos.py" check "$BOARD" 2>&1)
     if [ -z "$PROBLEMS" ]; then
-      row memos ok "$M memos · frontmatter checks out"
+      row memos ok "$M memos · frontmatter checks out$SRC"
     else
       NP=$(echo "$PROBLEMS" | wc -l | tr -d ' ')
       row memos broken "$M memos · $NP problem$([ "$NP" = 1 ] || echo s)"
@@ -188,7 +197,16 @@ else
     KEY=$(grep '^PLANE_API_KEY=' "$BOARD/.plane.env" | cut -d= -f2-)
     CODE=$(curl -s -o /dev/null -w '%{http_code}' -m 5 -H "X-API-Key: $KEY" "$URL/api/v1/users/me/" 2>/dev/null)
     case "$CODE" in
-      200) row plane ok "up at $URL · this board mirrors" ;;
+      200)
+        SRV_PORT="${PLANE_SERVE_PORT:-8443}"
+        if curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null | grep -q "\"$(basename "$(dirname "$BOARD")")\""; then
+          row plane ok "up at $URL · this board mirrors · live service watching"
+        elif [ "$FIX" = 1 ] && python3 "$DIR/plane/serve.py" ensure "$BOARD" >/dev/null 2>&1; then
+          row plane ok "up at $URL · this board mirrors · live service watching"
+          did "live service started"
+        else
+          row plane ok "up at $URL · this board mirrors · live service off — python3 $DIR/plane/serve.py ensure"
+        fi ;;
       429) row plane ok "up at $URL · this board mirrors · api rate-limiting a sync in flight" ;;
       401|403)
         row plane broken "up at $URL · $BOARD/.plane.env token rejected"
@@ -201,10 +219,16 @@ else
     fix "$PL bootstrap $BOARD && python3 $DIR/plane/sync.py sync"
     if [ "$FIX" = 1 ]; then
       bash "$PL" bootstrap "$BOARD" && python3 "$DIR/plane/sync.py" sync "$BOARD" && did "bootstrapped and synced"
+      python3 "$DIR/plane/serve.py" ensure "$BOARD" >/dev/null 2>&1 && did "live service watching"
     fi
   fi
 fi
 
 echo
+if [ "$FIX" = 1 ] && [ "$REPAIRED" = 1 ]; then
+  echo "pearde: repaired — re-checking."
+  echo
+  exec bash "$0" "$START"
+fi
 [ "$BROKEN" = 1 ] && echo "pearde: something is installed and not working — the fixes are above." && exit 1
 echo "pearde: installed and wired."

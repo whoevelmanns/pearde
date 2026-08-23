@@ -71,13 +71,24 @@ def parse(path):
 
 
 def memos_dir(board):
-    return os.path.join(board, "memos")
+    """(path, external). `prds/memos/` unless `memos:` in prds/settings.md
+    points elsewhere — a repo whose decisions already live in another system
+    (mitosys keeps them in .mi/docs/memos) mirrors that dir read-only instead
+    of moving files another tool owns. External means foreign contract: the
+    strict frontmatter gate applies only to the board's own memos/."""
+    st = os.path.join(board, "settings.md")
+    if os.path.isfile(st):
+        fm, _, _ = parse(st)
+        v = (fm or {}).get("memos")
+        if v and not isinstance(v, list):
+            return os.path.normpath(os.path.join(board, v)), True
+    return os.path.join(board, "memos"), False
 
 
 def scan(board):
     """{slug: memo} for every prds/memos/*.md. Sorted by date descending, then
     slug — newest decision first, which is the order a reader wants."""
-    d = memos_dir(board)
+    d, _ = memos_dir(board)
     if not os.path.isdir(d):
         return {}
     out = {}
@@ -111,8 +122,14 @@ def _listed(v):
 
 
 def check(board):
-    """Every problem, one string each. Empty means the memos are clean."""
+    """Every problem, one string each. Empty means the memos are clean.
+    An external memo dir is another system's contract: only what is universal
+    is checked — the file parses, the required five are present — and its own
+    vocabulary (kinds, statuses, extra keys) is left alone."""
     memos, bad = scan(board), []
+    d, external = memos_dir(board)
+    if external and not os.path.isdir(d):
+        return [f"settings.md: `memos: …` points at {d}, which does not exist"]
     prds = board_prds(board)
     for slug in sorted(memos):
         m, at = memos[slug], f"{slug}.md"
@@ -120,6 +137,11 @@ def check(board):
             bad.append(f"{at}: no closed `---` frontmatter fence")
             continue
         fm = m["fm"]
+        if external:
+            for k in REQUIRED:
+                if not fm.get(k):
+                    bad.append(f"{at}: missing `{k}:`")
+            continue
         for k in REQUIRED:
             if not fm.get(k):
                 bad.append(f"{at}: missing `{k}:`")

@@ -5,6 +5,8 @@
     sync.py plan [board] [--workers N] [--no-push]
                                         compute the most-parallel wave plan,
                                         print it, push `wave: N` labels
+    sync.py gantt [board] [--open]      render the plan as prds/.gantt.html —
+                                        the adaptive local timeline
     sync.py status [board]              config + connectivity check
 
 board = the prds/ directory, a directory holding one, or omitted to walk up
@@ -26,7 +28,9 @@ import urllib.error
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import memos as memolib  # noqa: E402 — the skill root, one dir up
+import gantt as ganttlib  # noqa: E402 — beside this script
 
 # ── board ─────────────────────────────────────────────────────────────────────
 
@@ -277,6 +281,19 @@ def plane_priority(v):
     return next((name for cut, name in PRIO if n >= cut), "none")
 
 
+def project_name(board):
+    """The board's containing dir names the project — except a dot-dir
+    (`.mi/prds`), which Plane rejects as a name: walk up until an ancestor
+    can carry it. `board` as the last resort, never empty."""
+    d = os.path.dirname(os.path.abspath(board))
+    while d and d != "/":
+        base = os.path.basename(d)
+        if base and not base.startswith("."):
+            return base
+        d = os.path.dirname(d)
+    return "board"
+
+
 def ensure_project(api, cfg, cfg_path, board):
     pid = cfg.get("PLANE_PROJECT_ID")
     if pid:
@@ -287,7 +304,7 @@ def ensure_project(api, cfg, cfg_path, board):
             if e.code not in (403, 404):
                 raise
             pid = None  # deleted in the app — find or create anew
-    name = cfg.get("PLANE_PROJECT_NAME") or os.path.basename(os.path.dirname(board))
+    name = cfg.get("PLANE_PROJECT_NAME") or project_name(board)
     for p in api.listing(f"/workspaces/{api.ws}/projects/"):
         if p["name"] == name:
             pid = p["id"]
@@ -480,14 +497,17 @@ def memo_index_html(board, ms):
         "memo on disk and re-sync.</p>"
         f"<table><thead><tr>{head}</tr></thead><tbody>"
         + "".join(rows) + "</tbody></table>"
-        f"<p><code>{html.escape(os.path.basename(os.path.dirname(board)))}"
-        "/prds/memos/</code> is the source.</p>")
+        f"<p><code>{html.escape(memolib.memos_dir(board)[0])}"
+        "</code> is the source.</p>")
 
 
 def memo_body_html(m):
     fm = m["fm"]
-    facts = [(k, fm[k]) for k in ("kind", "status", "date", "updated",
-                                  "supersedes", "superseded_by") if fm.get(k)]
+    # every scalar fact the memo declares, in its own order — an external
+    # memo's keys (lands_in, gate, …) are its format, and the page shows them
+    facts = [(k, v) for k, v in fm.items()
+             if k not in ("memo", "subject", "prds") and v
+             and not isinstance(v, list)]
     prds = fm.get("prds") or []
     prds = prds if isinstance(prds, list) else [prds]
     head = " · ".join(f"<strong>{html.escape(k)}</strong> {html.escape(str(v))}"
@@ -498,7 +518,7 @@ def memo_body_html(m):
                    + ", ".join(f"<code>{html.escape(x)}</code>" for x in prds)
                    + "</p>")
     out.append(md_html(m["body"]))
-    out.append(f"<p><code>prds/memos/{html.escape(m['slug'])}.md</code></p>")
+    out.append(f"<p><code>{html.escape(m['path'])}</code></p>")
     return "\n".join(out)
 
 
@@ -637,6 +657,128 @@ def gantt_dates(mp, rel, day_h):
     return start.isoformat(), end.isoformat()
 
 
+def gantt_payload(board, prds, mp, settings):
+    """What the local timeline renders: one bar per scheduled leaf, day offsets
+    from the plan's hour offsets at `gantt-day` hours per day. Parents weigh
+    nothing in the plan, so a zero-length schedule entry is a container and
+    folds away; done and parked PRDs carry no bar, only a count."""
+    day_h = hours(settings.get("gantt-day", "8h")) or 8.0
+    sched = mp.get("schedule", {})
+    tasks, unplanned = [], []
+    done = parked = containers = 0
+    for rel in sorted(prds):
+        p = prds[rel]
+        st = p["state"]
+        if st == "done":
+            done += 1
+            continue
+        if st not in LIVE_STATES:
+            parked += 1
+            continue
+        s = sched.get(rel)
+        if not s:
+            unplanned.append(rel)
+            continue
+        if s["end"] <= s["start"]:
+            containers += 1
+            continue
+        try:
+            prio = float(p["fm"].get("priority", 0))
+        except (TypeError, ValueError):
+            prio = 0.0
+        needs = p["fm"].get("needs", [])
+        needs = needs if isinstance(needs, list) else [needs]
+        tasks.append({
+            "rel": rel, "name": p["name"], "title": p["title"],
+            "state": st,
+            "prio": int(prio) if prio == int(prio) else prio,
+            "est": round(s["end"] - s["start"], 2),
+            "startDay": round(s["start"] / day_h, 4),
+            "endDay": round(s["end"] / day_h, 4),
+            "wave": mp.get("waves", {}).get(rel),
+            "needs": [os.path.basename(str(n)) for n in needs],
+        })
+    return {
+        "board": os.path.basename(os.path.dirname(board)),
+        "anchor": mp.get("planned_at") or datetime.date.today().isoformat(),
+        "dayHours": day_h,
+        "workers": str(settings.get("workers", "3")),
+        "counts": {"done": done, "parked": parked, "containers": containers},
+        "unplanned": unplanned,
+        "tasks": tasks,
+    }
+
+
+def cmd_gantt(board, open_after=False):
+    mp, _ = load_map(board)
+    if not mp.get("schedule") or not mp.get("planned_at"):
+        print("gantt: no plan on record — planning first\n")
+        cmd_plan(board, None, push=False)
+        mp, _ = load_map(board)
+    path = ganttlib.write(
+        board, gantt_payload(board, scan(board), mp, board_settings(board)))
+    print(f"gantt: {path}")
+    if open_after:
+        import webbrowser
+        webbrowser.open("file://" + os.path.abspath(path))
+
+
+def sync_cycles(api, pid, board, mp, quiet=False):
+    """Waves → cycles: one Plane cycle per wave, dated like the Gantt bars,
+    members assigned — the Cycles view then reads as the plan's sprints. An
+    issue lives in at most one cycle, so re-planning moves it rather than
+    duplicating it. Adopted by name (`wave N`), like tickets are by title.
+    Requires the project's cycle_view flag; turned on once, on first use."""
+    waves, sched = mp.get("waves", {}), mp.get("schedule", {})
+    anchor = mp.get("planned_at")
+    if not anchor:
+        return 0
+    day_h = hours(board_settings(board).get("gantt-day", "8h")) or 8.0
+    base = datetime.date.fromisoformat(anchor)
+    spans = {}  # wave → (min start, max end), est-hours
+    for rel, w in waves.items():
+        s = sched.get(rel)
+        if not s or s["end"] <= s["start"]:
+            continue  # containers weigh nothing and get no cycle membership
+        lo, hi = spans.get(w, (s["start"], s["end"]))
+        spans[w] = (min(lo, s["start"]), max(hi, s["end"]))
+
+    proj = api.call("GET", f"/workspaces/{api.ws}/projects/{pid}/")
+    if spans and not proj.get("cycle_view"):
+        api.call("PATCH", f"/workspaces/{api.ws}/projects/{pid}/",
+                 {"cycle_view": True})
+    have = {c["name"]: c for c in api.listing(api.proj(pid, "cycles/"))}
+    changed = 0
+    for w in sorted(spans):
+        lo, hi = spans[w]
+        start = (base + datetime.timedelta(days=int(lo // day_h))).isoformat()
+        end = (base + datetime.timedelta(
+            days=max(int(lo // day_h), math.ceil(hi / day_h) - 1))).isoformat()
+        name = f"wave {w}"
+        payload = {"name": name, "start_date": start, "end_date": end}
+        c = have.get(name)
+        if not c:
+            c = api.call("POST", api.proj(pid, "cycles/"), payload)
+            changed += 1
+        elif (c.get("start_date"), c.get("end_date")) != (start, end):
+            api.call("PATCH", api.proj(pid, f"cycles/{c['id']}/"), payload)
+            changed += 1
+        ids = [mp["issues"][r]["id"] for r, x in waves.items()
+               if x == w and mp["issues"].get(r, {}).get("id")
+               and sched.get(r) and sched[r]["end"] > sched[r]["start"]]
+        if ids:
+            api.call("POST", api.proj(pid, f"cycles/{c['id']}/cycle-issues/"),
+                     {"issues": ids})
+    # a wave the plan no longer has leaves a stale sprint behind
+    for name, c in have.items():
+        if re.fullmatch(r"wave \d+", name) and int(name[5:]) not in spans:
+            api.call("DELETE", api.proj(pid, f"cycles/{c['id']}/"))
+            changed += 1
+    if changed and not quiet:
+        print(f"  cycles: {changed} wave(s) written")
+    return changed
+
+
 def cmd_sync(board, quiet=False):
     global QUIET
     QUIET = quiet
@@ -723,6 +865,11 @@ def cmd_sync(board, quiet=False):
     for r in gone:
         del mp["issues"][r]
     save_map(mp, mp_path)
+    # a board that rendered the local timeline keeps it fresh: states and
+    # dates change on every sync, and a stale .gantt.html lies convincingly
+    if os.path.isfile(os.path.join(board, ganttlib.GANTT_FILE)):
+        ganttlib.write(board,
+                       gantt_payload(board, prds, mp, board_settings(board)))
     memo_n = sync_memos(api, pid, board, mp, mp_path, quiet)
     if not quiet or changed:
         line = (f"plane-sync: {changed} updated, {len(prds) - changed} unchanged"
@@ -891,8 +1038,14 @@ def cmd_plan(board, workers, push):
         else:
             print("\ngantt: switch the layout to Timeline in the app — "
                   "a saved view needs auto-login on")
+        try:
+            sync_cycles(api, pid, board, load_map(board)[0])
+        except ApiError as e:
+            print(f"cycles: not written ({e}) — the plan holds without them")
     elif push:
         print("no prds/.plane.env — plan saved locally, not pushed")
+    lpath = ganttlib.write(board, gantt_payload(board, prds, mp, settings))
+    print(f"gantt (local): {lpath}")
 
 
 def cmd_status(board):
@@ -970,12 +1123,14 @@ def main():
         workers = next((int(f.split("=")[1]) for f in flags
                         if f.startswith("--workers=")), None)
         cmd_plan(board, workers, push="--no-push" not in flags)
+    elif cmd == "gantt":
+        cmd_gantt(board, open_after="--open" in flags)
     elif cmd == "status":
         cmd_status(board)
     elif cmd == "prune":
         cmd_prune(board, apply="--apply" in flags)
     else:
-        die(f"unknown command '{cmd}' — sync | plan | status | prune")
+        die(f"unknown command '{cmd}' — sync | plan | gantt | status | prune")
 
 
 if __name__ == "__main__":

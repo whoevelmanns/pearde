@@ -74,6 +74,21 @@ paragraphs are correct, per `references/language.md`. Compress them.
 decision, and six months on nobody can tell whether the other road was walked
 and rejected or never seen.
 
+## An external source
+
+A repo whose decisions already live in another system does not move them —
+one fact, one home, and the other system's gate owns its files. Point
+`memos:` in `prds/settings.md` at that dir instead:
+
+```yaml
+memos: ../.mi/docs/memos
+```
+
+The dir is mirrored to Plane read-only, every scalar frontmatter key rendered
+as-is. The check then verifies only what is universal — the file parses, the
+required five are present — and leaves the foreign vocabulary alone. The
+closed set below applies only to the board's own `memos/`.
+
 ## The check
 
 `doctor.sh` reports `memos`; `python3 <skill>/memos.py check [board]` is the

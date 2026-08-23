@@ -26,6 +26,7 @@ plane: auto
 | `est-default` | 4h           | weight of an unestimated PRD while no PRD on the board has `est`  |
 | `gantt-day`   | 8h           | est-hours one day represents in the Plane Gantt. Lower it to stretch a small board's timeline |
 | `plane`       | auto         | `auto` mirrors whenever Plane is reachable, bootstrapping this board on first sight. `off` never mirrors and never reports |
+| `memos`       | `memos/`     | where the board's decision records live, relative to `prds/`. Point it at another system's memo dir (`../.mi/docs/memos`) to mirror those read-only — the strict format gate then applies only to the board's own `memos/`, per `references/memo.md` |
 
 A key missing from the live copy reads at its default.
 

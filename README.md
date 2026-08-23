@@ -22,7 +22,7 @@ commands can work the board. The board is `prds/` at the repo root.
 | `memos.py`                      | reads and checks the memos — the only reader of that format      |
 | `doctor.sh`                     | installed, wired, mirroring? `--fix` repairs                     |
 | `statusline.sh`                 | renders the progress numbers continuously                        |
-| `plane/`                        | the board as live tickets in a self-hosted Plane, and the wave planner. Optional — `plane/plane.md` |
+| `plane/`                        | the board as live tickets in a self-hosted Plane, the live service, and the wave planner. Optional — `plane/plane.md` |
 
 ## Roles
 
@@ -242,10 +242,14 @@ the command that repairs it.
 - It reads the config `$CLAUDE_CONFIG_DIR` names, falling back to `~/.claude` —
   several profiles can live on one machine, and a status line wired into the
   wrong one is correct and inert.
-- `--fix` repairs three things: a missing skill symlink, a dead status-line
-  symlink, and a board Plane is running for that was never bootstrapped.
+- `--fix` repairs four things: a missing skill symlink, a dead status-line
+  symlink, a board Plane is running for that was never bootstrapped, and a
+  live service not watching this board.
 - `--fix` never writes `settings.json`. The status line a user configured is
   theirs, so a missing one is printed as JSON to paste.
+- After repairing, doctor re-checks itself once — the report and exit code
+  describe the state the repairs left behind, so a clean first run is one
+  command: `doctor.sh --fix` ends green, mirrored, and watched.
 
 Run it on the first run, on `doctor`, and whenever a part is silent when it
 should not be.
@@ -437,6 +441,10 @@ Write one when a call is made that the code will not explain: a rule the board
 follows, a road not taken, a constraint that looks arbitrary. Not for what a
 commit message covers. `references/memo.md` is the format and the argument.
 
+Decisions already recorded in another system stay there: `memos: <dir>` in
+`prds/settings.md` mirrors that dir to Plane read-only, and the strict gate
+keeps applying only to the board's own `memos/`.
+
 ## Handles
 
 The spelling follows the setup — `/pearde status` where commands take
@@ -455,6 +463,7 @@ arguments, "pearde status" in plain chat. The meanings are fixed.
 | run one PRD to done          | `run <prd>` — the loop scoped to that PRD's subtree                                                      |
 | record a decision            | `memo <subject>` — creates `prds/memos/<slug>.md` from `references/templates/memo.md`, per **Memos**     |
 | pre-plan parallel waves      | `plan` — `sync.py plan` per **Plane**; print the waves it returns                                        |
+| the adaptive local timeline  | `gantt` — `sync.py gantt --open`: the plan as `prds/.gantt.html`, a now-line and only the rows in the scrolled window |
 | the ticket mirror            | `plane` — `plane/plane.sh boot`: app up + every board synced, per **Plane**                              |
 | is this thing wired?         | `doctor` — `doctor.sh --fix`, per **Install check**; print every line                                    |
 
@@ -498,17 +507,33 @@ Setup, mapping, and the wave planner: `plane/plane.md`. Install:
 `references/install.md` step 3.
 
 ```sh
-python3 <skill>/plane/sync.py sync --quiet   # upsert changed tickets + memo pages
+python3 <skill>/plane/serve.py ensure        # the live service: watch + mirror
+python3 <skill>/plane/sync.py sync --quiet   # one manual mirror pass
 python3 <skill>/plane/sync.py plan           # waves → stdout + `wave: N` labels
+python3 <skill>/plane/sync.py gantt --open   # the plan as prds/.gantt.html
 ```
 
-Both are safe to run any time.
+All three are safe to run any time. `gantt` needs no Plane at all: it renders
+the last plan as one self-contained HTML file, an adaptive condensed timeline —
+a vertical line marks now, and only the tasks whose bars cross the visible
+window get a row, sorted by priority, so scrolling left and right re-forms the
+list around the time under your eyes. `plan` rewrites it and `sync` keeps it
+fresh once it exists; details in `plane/plane.md`.
+
+**The live service first.** Run `serve.py ensure` once at session start: it
+starts the daemon if none runs, registers this board, and from then on every
+disk change mirrors itself within a second — tickets, memo pages, and the
+waves as Plane cycles. It also serves the timeline live at
+`http://127.0.0.1:8443/board/<name>` and takes worker reports as ticket
+comments (`POST /report`) — post each worker's report there on collect, so the
+ticket carries its own evidence. Details: `plane/plane.md` § The live service.
 
 Mirror rule, on `prds/.plane.env` and `plane` from `prds/settings.md`:
 
 | `.plane.env` | Plane            | do                                                        |
 |--------------|------------------|-----------------------------------------------------------|
-| present      | —                | `sync --quiet` after every state change, after the progress line |
+| present      | daemon watching (`serve.py status`) | nothing — it mirrors for you; `POST /report` on collect |
+| present      | daemon not running | `serve.py ensure`; until it runs, `sync --quiet` after every state change |
 | absent       | installed and up | `plane/plane.sh bootstrap` this board, then mirror — a running app mirrors nothing on its own |
 | absent       | not installed    | no mirror; report it once in the round, never again        |
 

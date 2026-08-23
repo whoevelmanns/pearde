@@ -8,6 +8,7 @@ page. The board on disk stays the source of truth; Plane is a live view of it.
 |------------|------------------------------------------------------------------|
 | `plane.sh` | installs and runs the app. Everything it creates stays in `plane-app/` beside it; data lives in docker volumes |
 | `sync.py`  | mirrors the board and computes the wave plan. Python 3 stdlib, no packages |
+| `serve.py` | the live service — one daemon per machine, watching every registered board and mirroring each change as it lands. Stdlib too |
 
 ## Install
 
@@ -86,8 +87,14 @@ PLANE_API_KEY=<the token>
 PLANE_WORKSPACE=<workspace slug from the app URL>
 ```
 
-Add `prds/.plane.env` and `prds/.plane-map.json` to that repo's `.gitignore` —
-the env file holds the token, the map file is machine-local state.
+Add these to that repo's `.gitignore` — all three are machine-local and
+regenerable, and none of them belongs in a commit:
+
+```
+prds/.plane.env        # holds the API token
+prds/.plane-map.json   # ticket and page ids, the last plan
+prds/.gantt.html       # the rendered local timeline
+```
 
 `sync.py status` verifies the whole chain: board found, app reachable, token
 valid. The first `sync` creates the Plane project (named after the repo
@@ -156,6 +163,64 @@ Memo ids and hashes live beside the ticket ids in `prds/.plane-map.json`, so an
 unchanged memo costs no request either. `python3 <skill>/memos.py check` is the
 gate on the frontmatter, and `doctor.sh` reports it as `memos`.
 
+## The live service
+
+```sh
+python3 <skill>/plane/serve.py ensure    # start if needed + register this board
+```
+
+One daemon per machine. `ensure` is idempotent and instant when everything
+already runs — the orchestrator runs it once at session start, and `boot` runs
+it for every board. Singleton by port bind (127.0.0.1:8443, `PLANE_SERVE_PORT`
+overrides): a second daemon cannot start because the bind fails, which is the
+whole locking story.
+
+From then on the board mirrors itself. The daemon stat-sweeps every registered
+board's `.md` files once a second and, within about a second of a change
+landing on disk:
+
+- pushes tickets and memo pages (`sync.py`'s own mirror, unchanged)
+- rewrites the waves as **cycles** when the plan changed — one Plane cycle per
+  wave, dated like the Gantt bars, members assigned, stale waves deleted. The
+  Cycles view then reads as the plan's sprints
+- refreshes the live timeline and wakes every `/wait` long-poller
+
+Direction is disk → Plane only, and the daemon never writes PRD state: the
+orchestrator stays the only writer, and a running daemon on a board another
+session is working is safe — it mirrors that session's writes, it makes none
+of its own.
+
+| command                        | does                                            |
+|--------------------------------|--------------------------------------------------|
+| `serve.py ensure [board]`      | start if needed, register the board (cwd walk-up) |
+| `serve.py status`              | the daemon and every board: last sync, last error |
+| `serve.py forget <name>`       | stop watching one board — nothing in Plane changes |
+| `serve.py stop`                | stop the daemon                                   |
+| `plane.sh serve <cmd>`         | the same, routed through plane.sh                 |
+
+The HTTP API, all JSON on 127.0.0.1 — what "full agentic integration" means
+in practice:
+
+| route                              | does                                              |
+|------------------------------------|----------------------------------------------------|
+| `GET /status`                      | boards, sequence numbers, last sync, last error    |
+| `GET /board/<name>`                | the adaptive timeline, **live** — the page long-polls `/wait` and reloads on every board change |
+| `GET /data?board=<name>`           | the timeline payload + the board's sequence number |
+| `GET /wait?board=<name>&seq=<n>`   | long-poll: 200 on change, 204 after 25 quiet seconds. An agent parks here instead of polling |
+| `POST /register {"cwd": path}`     | what `ensure` calls                               |
+| `POST /sync {"board": name}`       | force a mirror pass now                           |
+| `POST /report {"board","prd","text"}` | the worker's report as a **comment on the ticket**, markdown rendered — the ticket carries its own verify output |
+
+The live view needs no Plane at all — it renders from disk, so `/board/<name>`
+works on a board that was never bootstrapped; only the pushes are skipped, and
+`/status` names that. A board whose push fails keeps its error in `/status`
+and heals on the next change.
+
+With the daemon running, `--no-push` on `plan` only defers: the daemon mirrors
+whatever is on disk, the saved plan included. The registry and log are
+`plane-app/serve.json` and `plane-app/serve.log` — machine-local, gitignored,
+and the registry survives daemon restarts.
+
 ## The plan
 
 ```sh
@@ -218,3 +283,31 @@ session API, which `start`'s auto-login signs in for; with `PLANE_AUTOLOGIN=0`
 the view is skipped and the switcher does the same job in two clicks.
 
 Both fill themselves: `sync` carries every PRD in, `plan` orders them.
+
+## The local timeline
+
+```sh
+python3 <skill>/plane/sync.py gantt [board] [--open]
+```
+
+The same plan as one self-contained HTML file — `prds/.gantt.html`, no Plane,
+no server, no dependencies. Plane's timeline shows every ticket a row forever;
+this one is **adaptive and condensed**: a magenta vertical line marks *now*,
+and the row list holds only the tasks whose bars cross the visible window,
+sorted by priority. Scroll left or right and rows appear, drop out, and
+re-sort — a row without a visible bar does not exist, so what is on screen is
+always the work that matters around the time under your eyes. Edge pills count
+what lies off-screen each way and jump to it; `fit` shows the whole plan,
+`now` centers the line; zoom with the buttons or ctrl+wheel. A table view sits
+under the chart for reading the plan as numbers.
+
+Bars are the plan's schedule at `gantt-day` hours per day, anchored at plan
+time. Pipeline states deepen through one blue ramp (`open → analyzing →
+specced → claimed`, `refine` hollow), exception states wear status colors
+(`question` amber, `blocked` orange, `failed` red); `done` and parked PRDs
+carry no bar, only a count in the header.
+
+No plan on record? `gantt` runs `plan --no-push` first. `plan` rewrites the
+file on every run and `sync` refreshes it once it exists, so its states and
+bars track the board; the now-line tracks the clock by itself. `--open` opens
+it in the browser.

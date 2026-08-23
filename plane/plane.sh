@@ -218,7 +218,13 @@ BOARDS="$APP_DIR/boards.list"
 
 register_board() { # one prds/ path per line, machine-local
   mkdir -p "$APP_DIR"; touch "$BOARDS"
-  grep -qxF "$1" "$BOARDS" 2>/dev/null || echo "$1" >> "$BOARDS"
+  # canonical absolute path or nothing — a relative entry can never be found
+  # again, and /tmp vs /private/tmp would register one board twice. A board on
+  # an ephemeral filesystem is a fixture: it works now, it is gone on reboot,
+  # so it never enters the permanent registry
+  local canon; canon=$(cd "$1" 2>/dev/null && pwd -P) || return 0
+  case "$canon" in /tmp/*|/private/tmp/*|/var/folders/*|/private/var/folders/*) return 0 ;; esac
+  grep -qxF "$canon" "$BOARDS" 2>/dev/null || echo "$canon" >> "$BOARDS"
 }
 
 discover_boards() {
@@ -392,6 +398,13 @@ cmd_boot() {
   # bootstrapped into its own project and filled with its PRDs
   cmd_install
   cmd_start
+  # self-heal the registry first: keep only absolute paths that still exist
+  if [ -f "$BOARDS" ]; then
+    local keep; keep=$(grep '^/' "$BOARDS" \
+      | grep -vE '^(/private)?(/tmp|/var/folders)/' | while IFS= read -r b; do
+      [ -d "$b" ] && (cd "$b" && pwd -P); done | sort -u)
+    printf '%s\n' "$keep" > "$BOARDS"
+  fi
   local all
   all=$({ [ -f "$BOARDS" ] && cat "$BOARDS"; discover_boards; } | sort -u)
   if [ -z "$all" ]; then
@@ -403,6 +416,7 @@ cmd_boot() {
     [ -n "$b" ] && [ -d "$b" ] || continue
     echo "── $b"
     if (cmd_bootstrap "$b") && python3 "$DIR/sync.py" sync "$b"; then
+      python3 "$DIR/serve.py" ensure "$b" || true  # live from here on
       ok=$((ok + 1))
     else
       failed=$((failed + 1)); echo "plane: $b failed — fix and re-run: $0 boot"
@@ -438,6 +452,7 @@ case "${1:-status}" in
   bootstrap) shift; cmd_bootstrap "$@" ;;
   open)      shift; cmd_open "$@" ;;
   stop)      cmd_stop ;;
+  serve)     shift; exec python3 "$DIR/serve.py" "${@:-status}" ;;
   upgrade)   cmd_upgrade ;;
   status)    shift || true; cmd_status "$@" ;;
   url)       configured_url ;;
