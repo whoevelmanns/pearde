@@ -10,7 +10,9 @@ time:
   # claim: <worker> <started>   # orchestrator-only, present while a worker holds the PRD
 ---
 <!-- add your own keys freely, at any nesting; nothing outside state, priority,
-     est, actual, claim and repo is read, and nothing you add is ever dropped -->
+     est, actual, claim, repo and needs is read, and nothing you add is ever
+     dropped. needs: — optional list of PRD dir names this one depends on,
+     read by `plan` for wave order -->
 
 # <Title — what exists when this is done>
 
@@ -26,7 +28,7 @@ second PRD — or let the analyst split it via refine.>
 
 ## Questions
 <!-- analyst-only, when blocked on the user: one round in the format of
-     DRILL.md — numbered, each with the analyst's recommended answer. Only
+     drill.md — numbered, each with the analyst's recommended answer. Only
      real forks the user must settle (naming, scope, cost) — never facts a
      worker could look up. -->
 

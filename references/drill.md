@@ -43,7 +43,7 @@ The session is done when the frontier is empty: every branch of the design tree
 visited, nothing left silently assumed. Do not act on it until the user confirms  
 you have reached a shared understanding.
 
-The tree you record is the board's own shape (see `README.md`): one directory
+The tree you record is the board's own shape (see the skill's `README.md`): one directory
 per decision holding a `prd.md`, the decisions hanging off it as subdirectories
 with their own. Write it there — settled contract in the body, `state: open` —
 and the loop takes it from there.

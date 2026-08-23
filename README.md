@@ -1,4 +1,4 @@
-# prd — the PRD board
+# pearde — the PRD board
 
 One session orchestrates a board of PRDs — product requirement definitions.
 It specs them ahead, dispatches implementers on the specced ones, puts blocking
@@ -8,13 +8,17 @@ All state is on disk. Anything that can read files, write files, and run
 commands can work the board.
 
 - `SKILL.md` — entry point where skills are discovered from a directory
-- `SYSTEM.md` — the same pointer as a drop-in block, where instructions are read from a file
-- `INSTALL.md` — what installed means. Not wired up yet? Start there
-- `DRILL.md` — how to ask. Missing, unclear, or the user's call: drill, don't guess
-- `LANGUAGE.md` — how to write. Everything on the board follows it
-- `PRD_TEMPLATE.md` — one PRD
-- `SPEC_TEMPLATE.md` — one implementable unit
+- `references/system.md` — the same pointer as a drop-in block, where instructions are read from a file
+- `references/install.md` — what installed means. Not wired up yet? Start there
+- `references/drill.md` — how to ask. Missing, unclear, or the user's call: drill, don't guess
+- `references/language.md` — how to write. Everything on the board follows it
+- `references/settings.md` — every board-wide knob. The live copy is `prds/settings.md`
+- `references/templates/prd.md` — one PRD
+- `references/templates/spec.md` — one implementable unit
+- `doctor.sh` — is it installed, wired, and mirroring? Repairs with `--fix`
 - `statusline.sh` — renders the progress numbers continuously
+- `plane/` — the board as live tickets in a self-hosted Plane, and the wave
+  planner. Optional; see `plane/plane.md`
 
 The board lives at `prds/` in the repo root.
 
@@ -31,12 +35,14 @@ Workers do the work; the orchestrator moves the states.
 ## The board
 
 ```
-prds/<prd-name>/
-  prd.md            # the PRD: frontmatter state + the request
-  specs/            # written by the analyst; one implementable unit per file
-    spec-<name>.md
-  <child-prd>/      # a sub-PRD produced by refine; a dir with its own prd.md
-    prd.md
+prds/
+  settings.md       # board settings — language, workers, pipeline; per references/settings.md
+  <prd-name>/
+    prd.md          # the PRD: frontmatter state + the request
+    specs/          # written by the analyst; one implementable unit per file
+      spec-<name>.md
+    <child-prd>/    # a sub-PRD produced by refine; a dir with its own prd.md
+      prd.md
 ```
 
 A directory holding `prd.md` is a PRD. A subdirectory holding its own `prd.md`
@@ -60,6 +66,8 @@ yours, and no tool touches it.
 | `actual`   | orchestrator                   | calibration                  |
 | `claim`    | orchestrator                   | the sweep, elapsed on `done` |
 | `repo`     | user                           | the worker brief; optional   |
+| `needs`    | user                           | `plan` wave order; a list of PRD dir names; optional |
+| `footprint`| user / orchestrator            | the overlap check in step 5 and `plan`'s waves, when specs carry none — a list of paths; optional |
 
 `specNN.md`:
 
@@ -100,19 +108,38 @@ Never take a worker's word for a transition. `specced` requires spec files on
 disk. `done` requires the verify commands actually run, output in the report —
 spot-check the cheap ones.
 
+A `state` outside this table is the user's own and **parked**: the loop never
+dispatches it, `plan` never schedules it, the progress line and the status line
+leave it out of their counts, and it gets its own Plane state rather than
+borrowing `open`'s. Report parked PRDs by name in the round; they are neither
+progress nor backlog.
+
 ## The loop
 
 Run until the board is drained or everything left is blocked on the user.
 `once` = one round. `status` = step 1 plus the progress report, change nothing.
 
-1. **Scan** — `find prds -type f -name prd.md`, parse every
+1. **Scan** — read `prds/settings.md`. Missing means first run: run
+   `bash <skill>/doctor.sh --fix`, print every line it printed, and create
+   `settings.md` per `references/settings.md`, asking the user for the board
+   language. Then `find prds -type f -name prd.md`, parse every
    frontmatter. No board? Create `prds/`, report it empty, stop.
    Once per session, sweep a dead session's leftovers: `analyzing` with no live
    worker → `open`; `claimed` with no live worker → `failed`. Partial code may
    exist — a human look is cheaper than a blind retry.
 
+   A worker its infrastructure killed — an API error, a lost network, a full
+   disk — is not a failed attempt. Resume THAT worker if it can be resumed: it
+   holds the context, and its acceptance boxes are almost always empty because
+   the evidence for them died with the process. Before it continues, establish
+   whether the tree is left **deliberately** broken: a spec that asks for a
+   break watched to fail leaves the break applied for as long as it takes to
+   read the failure, and a worker killed in that window leaves broken code that
+   `claimed` does not hint at. Ask the worker which edit was in flight — it
+   knows and the board does not.
+
 2. **Answer** — collect `## Questions` from every `question` PRD and put them
-   to the user as one round per `DRILL.md`: the whole frontier, numbered, each
+   to the user as one round per `references/drill.md`: the whole frontier, numbered, each
    with your recommended answer. Questions from different PRDs share a round.
    A question that depends on another still open belongs to the next round.
    Write answers under `## Answers`, set those PRDs `open`. No reply: leave
@@ -121,28 +148,72 @@ Run until the board is drained or everything left is blocked on the user.
 3. **Refine** — the analyst left the proposed split in its report. Create each
    child dir + `prd.md` (`state: open`, the child's contract as body), set the
    parent `open`. No usable split proposal means nobody understands the PRD
-   yet: drill it per `DRILL.md`, then write that tree as the children. Never
+   yet: drill it per `references/drill.md`, then write that tree as the children. Never
    invent a split to keep the board moving.
 
-4. **Spec ahead** — while count(`specced`) < **pipeline** (default 3) and
-   dispatchable `open` PRDs exist (leaf, unclaimed, priority desc): mark each
-   `analyzing` + `claim: <worker> <started>`, dispatch analysts, in one
-   parallel batch.
+4. **Spec ahead** — while count(*dispatchable* `specced`) < **pipeline**
+   (`prds/settings.md`) and dispatchable `open` PRDs exist (leaf, unclaimed,
+   priority desc): mark each `analyzing` + `claim: <worker> <started>`, dispatch
+   analysts, in one parallel batch.
 
-5. **Implement** — while count(`claimed`) < **workers** (default 3) and
-   `specced` PRDs exist: pick by priority, skip any whose spec footprint
-   overlaps a PRD already `claimed`, mark `claimed` + `claim: <worker>
-   <started>`, dispatch an implementer.
+   Dispatchable is the same test as step 5: `needs:` all `done`, no footprint
+   clash with a `claimed` PRD. A `specced` PRD that cannot be handed to anyone
+   is not pipeline — counting it starves the analyst stage exactly when the
+   board is most stuck, and the highest-priority `open` PRD is usually the one
+   that would unstick it.
+
+5. **Implement** — while count(`claimed`) < **workers** (`prds/settings.md`) and
+   `specced` PRDs exist: pick by priority, skip any whose `needs:` are not all
+   `done`, skip any whose footprint overlaps a PRD already `claimed`, mark
+   `claimed` + `claim: <worker> <started>`, dispatch an implementer.
+
+   Both skips are real work, not bookkeeping: a footprint clash makes two
+   workers edit one file, and an unmet `needs:` sends a worker at code its
+   dependency has not written yet. A PRD skipped for either reason stays
+   `specced` — say which of the two is holding it, so a board that looks stalled
+   reads as a queue rather than a bug. The footprint is the union of the specs'
+   `footprint:` and the PRD's own.
 
 6. **Collect** — on each finished worker: validate the result (specs on disk /
    verify output present), write the transition, write `actual:` on a clean
-   `done` per **Calibration**, clear `claim:`, print the progress line, return
-   to step 2. A finished analyst refills the pipeline; a finished implementer
+   `done` per **Calibration**, clear `claim:`, print the progress line, mirror
+   per **Plane**, return to step 2. A finished analyst refills the pipeline; a finished implementer
    frees a worker slot. Do not poll if results are pushed to you.
 
 7. **Stop** — nothing in flight and nothing dispatchable: report per-state
    counts, every `question`/`refine`/`failed` PRD by name with what it needs,
    and the final progress line.
+
+## Install check
+
+An install that is present and broken looks exactly like an install that is
+absent: both do nothing. `doctor.sh` is what tells them apart. It reports four
+parts for one board, each `ok`, `off`, or `broken`, and a broken part carries
+the command that repairs it:
+
+```sh
+bash <skill>/doctor.sh [board]         # report; exit 1 when one part is broken
+bash <skill>/doctor.sh --fix [board]   # report, then repair
+```
+
+| part         | `off`                        | `broken`                                        |
+|--------------|------------------------------|-------------------------------------------------|
+| `skill`      | discovered nowhere           | the skills symlink resolves to no skill folder  |
+| `statusline` | no `statusLine` in the config in force | configured there, and its command does not resolve, or renders nothing |
+| `board`      | no board                     | off the contract path, or no `language`          |
+| `plane`      | not installed                | installed and not reachable, or reachable and this board never bootstrapped |
+
+It reads the config `$CLAUDE_CONFIG_DIR` names, falling back to `~/.claude` —
+several profiles can live on one machine, and a status line wired into the wrong
+one is correct and inert.
+
+`--fix` repairs three things: the missing skill symlink, a dead status-line
+symlink, and a board Plane is running for that was never bootstrapped. It never
+writes `settings.json` — the status line a user configured is theirs, so a
+missing one is printed as JSON to paste.
+
+Run it on the first run, on `doctor`, and whenever a part of the board is
+silent when it should not be.
 
 ## Progress line
 
@@ -153,17 +224,36 @@ Print on EVERY state change:
 ```
 
 - weight = the PRD's `est`. No `est` yet counts at the average est of estimated
-  PRDs, 4h if none are estimated.
+  PRDs, `est-default` from `prds/settings.md` if none are estimated.
 - `<p>` = Σ est(done) / Σ est(all). `failed` counts as remaining.
 - `<o>` = PRDs still `open` — untouched, no analyst on them. `<q>` = `<o>/<n>`.
   Both are counts, never est-weighted: an `open` PRD has no `est` to weight by.
 - `<q>` and `<p>` do not sum to 100. `<q>` is how much of the board is
   untouched, `<p>` how much of the work is done.
+- `<n>` counts the states in the table only. A parked PRD is in neither
+  numerator nor denominator — name it in the report instead of diluting the
+  percentage with work nobody will do.
 - `~<h>h left` = Σ est(not done) ÷ active workers. An estimate — label jumps
   honestly; a refine split that adds children moves it up.
 
 `statusline.sh` renders the same numbers continuously where a status line can
-run a command. Optional.
+run a command, plus what the working tree owes and a link to the board:
+
+```
+<dir> <branch> *<dirty> ↑<ahead> ↓<behind> · <model>
+▸pearde <d>/<n> <p>% · open <o> <q>% · ▸board
+```
+
+Two rows: the board is what is being read, and sharing a row with the path
+pushed it off the edge of a narrow terminal. No board in scope, no second row —
+a blank row reads as a broken status line, not an empty board.
+
+`*<dirty>` is uncommitted entries, `↑`/`↓` commits against the upstream, and a
+branch with no upstream reads `no-upstream` rather than `↑0` — nothing to push
+to is not the same as nothing to push. `▸board` links to the Plane timeline,
+from the `gantt` key `plan` writes into `.plane-map.json`; it is an OSC-8
+hyperlink, and `PRD_STATUS_LINK=off` prints the label bare for a terminal that
+shows the escape raw. Optional.
 
 ## Calibration
 
@@ -202,7 +292,8 @@ Give each worker exactly its brief with the placeholders filled in —
 `<skill>` is this folder's path. Workers
 never edit frontmatter, never touch other PRDs, and never write outside their
 PRD folder — implementers also write the target repo. What they write follows
-`LANGUAGE.md`. If a report is incomplete or the worker stopped mid-task,
+`references/language.md`, in the board `language` from `prds/settings.md` —
+name the language in the brief. If a report is incomplete or the worker stopped mid-task,
 continue THAT worker; it holds the context. Never respawn it.
 
 **Analyst** — one per `open` PRD being specced:
@@ -210,7 +301,7 @@ continue THAT worker; it holds the context. Never respawn it.
 > Read `prds/<prd>/prd.md`, including `## Answers`, and explore
 > `<repo>` as needed. Return exactly one verdict:
 > - **SPECCED** — write `specs/specNN.md` files, template
->   `<skill>/SPEC_TEMPLATE.md`, each one implementable unit:
+>   `<skill>/references/templates/spec.md`, each one implementable unit:
 >   goal, `est:` and `footprint:` in frontmatter, `- [ ]` acceptance boxes a
 >   check can fail, and a verify command. Calibrate `est` against the
 >   `est`/`actual` pairs of done PRDs on the board, per **Calibration**. Report
@@ -222,7 +313,7 @@ continue THAT worker; it holds the context. Never respawn it.
 > - **QUESTION** — a real fork only the user can settle: naming, scope, cost.
 >   Never a fact you could look up — find facts yourself. Write `## Questions`
 >   into prd.md in the round format of
->   `<skill>/DRILL.md` and report them.
+>   `<skill>/references/drill.md` and report them.
 
 SPECCED: confirm the spec files exist, write `est:`, set `specced`.
 REFINE/QUESTION: set the state, keep the report.
@@ -240,6 +331,12 @@ REFINE/QUESTION: set the state, keep the report.
 DONE with every box ticked and verify output shown: set `done`.
 Anything less: `failed` — or answer a BLOCKED worker and let it finish.
 
+A spec that asks to change **another** PRD's body — a child correcting a
+parent's acceptance box is the usual case — is the orchestrator's edit on that
+transition, not the worker's. The worker reports the wording; one writer per
+file holds, and a worker reaching into a sibling folder is how two of them
+collide.
+
 ## Without parallel workers
 
 Run the same loop single-file: scan → answer → refine → pick the
@@ -253,23 +350,26 @@ leaves.
 
 ## Handles
 
-The spelling follows the setup — `/prd status` where commands take
-arguments, "prd status" in plain chat. The meanings are fixed.
+The spelling follows the setup — `/pearde status` where commands take
+arguments, "pearde status" in plain chat. The meanings are fixed.
 
 | Want                        | Say                                                                                                            |
 |-----------------------------|------------------------------------------------------------------------------------------------------------------|
 | report only, change nothing | `status`                                                                                                       |
 | one round, then stop        | `once`                                                                                                         |
-| more implementers           | `workers=5`                                                                                                    |
-| deeper spec pipeline        | `pipeline=5`                                                                                                   |
-| new PRD                     | `add <title>` — creates the dir + `prd.md` from `PRD_TEMPLATE.md`, `state: open`                                |
-| work out what is wanted     | `drill <prd>` — interview per `DRILL.md`; with no `<prd>`, into a new tree                                      |
+| more implementers           | `workers=5` — written to `prds/settings.md`, persists                                                          |
+| deeper spec pipeline        | `pipeline=5` — written to `prds/settings.md`, persists                                                         |
+| new PRD                     | `add <title>` — creates the dir + `prd.md` from `references/templates/prd.md`, `state: open`                    |
+| work out what is wanted     | `drill <prd>` — interview per `references/drill.md`; with no `<prd>`, into a new tree                           |
 | retry a failed PRD          | `retry <prd>` — moves `## Failure` into the body as history, sets `open`                                        |
 | run one PRD to done         | `run <prd>` — the loop scoped to that PRD's subtree                                                             |
+| pre-plan parallel waves     | `plan` — `sync.py plan` per **Plane**; print the waves it returns                                               |
+| the ticket mirror           | `plane` — `plane/plane.sh boot`: app up + every board synced, per **Plane**                                       |
+| is this thing wired?        | `doctor` — `doctor.sh --fix`, per **Install check**; print every line                                            |
 
 `add` takes the title as written. A one-line title is too thin to spec, so the
 analyst returns REFINE or QUESTION and the drill happens then. Use `drill` to
-settle it first: it runs `DRILL.md` to completion and leaves a tree the loop
+settle it first: it runs `references/drill.md` to completion and leaves a tree the loop
 picks up — settled contract as the body, each branch a child dir with its own
 `prd.md`, `state: open`. Dispatch nothing while a drill is running.
 
@@ -286,3 +386,64 @@ One orchestrator per board. On start, if the scan shows fresh
 `analyzing`/`claimed` claims you did not make, their workers may be alive in
 another session: say so and run `status` only. Never sweep another live
 session's claims.
+
+## Plane
+
+Optional. The board mirrors to a self-hosted Plane running inside the skill:
+one ticket per `prd.md` — title, body, `state`, `priority` mapped, every other
+frontmatter scalar a `key: value` label, child PRDs as sub-tickets. Setup,
+mapping, and the wave planner: `plane/plane.md`; install: `references/install.md` step 3.
+
+The two commands, both safe to run any time:
+
+```sh
+python3 <skill>/plane/sync.py sync --quiet   # upsert changed tickets
+python3 <skill>/plane/sync.py plan           # waves → stdout + `wave: N` labels
+```
+
+Mirror rule, on `prds/.plane.env` and `plane` from `prds/settings.md`:
+
+| `.plane.env` | Plane            | do                                                        |
+|--------------|------------------|-----------------------------------------------------------|
+| present      | —                | `sync --quiet` after every state change, after the progress line |
+| absent       | installed and up | `plane/plane.sh bootstrap` this board, then mirror — a running app mirrors nothing on its own |
+| absent       | not installed    | no mirror; report it once in the round, never again        |
+
+`plane: off` in `prds/settings.md` stops all three: no bootstrap, no sync, no
+report. The board on disk is the source of truth; ticket edits made in Plane
+are overwritten on the next sync.
+
+`plan` orders the undone PRDs into waves — as parallel as `needs:`
+frontmatter, parent-after-children, and footprints allow — labels each ticket
+`wave: N`, and dates it so Plane's Timeline view is the Gantt of the plan
+(kanban is the Board layout, grouped by State). It reads `workers` and
+`est-default` from `prds/settings.md`; `--workers=N` overrides. Run it on
+`plan`, and re-run it when a refine adds children or specs land with
+conflicting footprints.
+
+What it guarantees:
+
+- **Two constraints, one fixed point.** A footprint clash bumps the lower
+  priority to the next wave, and every bump re-applies the `needs` floor — so a
+  bumped PRD never ends up level with, or ahead of, a parent that waits on it.
+- **A footprint comes from the specs, or from the PRD.** `footprint:` on
+  `prd.md` counts too, so a PRD plans correctly before it is specced and while
+  an implementer holds its spec files.
+- **A parent weighs nothing.** Its hours are its children's; counting both
+  bills the same work twice. It still waits for them.
+- **Only real work is scheduled.** `done` and parked PRDs are named, not
+  planned, and a PRD that leaves the plan loses its Gantt bar on the next sync.
+- **The timeline is a saved view.** `plan` prints the URL of a `Gantt — waves`
+  view whose layout is the timeline, so the plan opens as a Gantt instead of a
+  list. It needs auto-login on; without it, the layout is two clicks.
+
+`plane` runs `plane/plane.sh boot`: install and start if needed, then every
+board on the machine — this one, the registry, every Claude session folder
+holding a `prds/`, and any board one level below one of those — bootstrapped
+into its own Plane project and synced. A board off the contract path is
+mirrored, not skipped; `doctor.sh` is what says move it. No browser step
+anywhere.
+
+`plane/plane.sh status [board]` answers both halves: the app, and whether that
+board mirrors. To look at a board in the app: `plane/plane.sh open` — the
+browser, straight into the workspace, no login.

@@ -1,7 +1,8 @@
 # Language
 
 How everything here is written: this definition, the PRDs, the specs, the
-reports workers hand back.
+reports workers hand back. In the board `language` from `prds/settings.md`;
+every rule below holds in any language.
 
 Short. On the point. Precise.
 
@@ -12,7 +13,7 @@ it is two sentences.
 set to specced".
 
 **Name the thing.** The file, the state, the command, the field. Never "the
-relevant config" when you mean `PRD_TEMPLATE.md`.
+relevant config" when you mean `templates/prd.md`.
 
 **No hedging.** No "might", "probably", "if you like", "consider". A rule is a
 rule. If something is genuinely a choice, say who chooses and when.
