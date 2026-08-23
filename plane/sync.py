@@ -25,6 +25,9 @@ import time
 import urllib.error
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import memos as memolib  # noqa: E402 — the skill root, one dir up
+
 # ── board ─────────────────────────────────────────────────────────────────────
 
 def find_board(arg):
@@ -256,13 +259,13 @@ class ApiError(Exception):
 STATE_GROUP = {
     "open": "unstarted", "analyzing": "started", "refine": "unstarted",
     "question": "unstarted", "specced": "unstarted", "claimed": "started",
-    "done": "completed", "failed": "cancelled",
+    "blocked": "started", "done": "completed", "failed": "cancelled",
 }
 # The states the loop moves work through. A board state outside STATE_GROUP is
 # the user's own and terminal to the loop: it gets its own Plane state rather
 # than borrowing `open`'s, and the wave planner does not schedule it.
 LIVE_STATES = {"open", "analyzing", "refine", "question", "specced",
-               "claimed", "failed"}
+               "claimed", "blocked", "failed"}
 PRIO = [(8, "urgent"), (5, "high"), (3, "medium"), (1, "low")]
 
 
@@ -325,6 +328,20 @@ def ensure_states(api, pid, extra=()):
     return out
 
 
+def session_call(api, method, url, payload=None):
+    """The session API — `/api/workspaces/...`, not `/api/v1`. Views and pages
+    live only here. Reachable because `start` signs anonymous requests in as
+    the service account, so there is no cookie jar and no CSRF token to carry;
+    with auto-login off it 403s, which is why every caller is best-effort."""
+    req = urllib.request.Request(
+        url, method=method,
+        data=json.dumps(payload).encode() if payload is not None else None,
+        headers={"Content-Type": "application/json", "Referer": api.base + "/"})
+    with urllib.request.urlopen(req, timeout=15) as r:
+        raw = r.read()
+        return json.loads(raw) if raw else {}
+
+
 GANTT_VIEW = "Gantt — waves"
 
 
@@ -337,13 +354,7 @@ def ensure_gantt_view(api, pid):
     root = f"{api.base}/api/workspaces/{api.ws}/projects/{pid}/views/"
 
     def session(method, payload=None):
-        req = urllib.request.Request(
-            root, method=method,
-            data=json.dumps(payload).encode() if payload is not None else None,
-            headers={"Content-Type": "application/json", "Referer": api.base + "/"})
-        with urllib.request.urlopen(req, timeout=15) as r:
-            raw = r.read()
-            return json.loads(raw) if raw else {}
+        return session_call(api, method, root, payload)
 
     try:
         for v in session("GET") or []:
@@ -414,13 +425,171 @@ def md_html(md):
     return "\n".join(out)
 
 
+# ── memos → pages ─────────────────────────────────────────────────────────────
+
+# A memo is a document, not a work item: it belongs in Plane's wiki, where it
+# stays out of the issue list, the Gantt and the progress count.
+#
+# Flat, not nested, and not by choice. Plane's page tree exists — `parent` is a
+# real field — but this build drops a page out of the project's page collection
+# the moment one is set, and 404s its detail route with it. A page nobody can
+# list or open is worse than a page at the top level, so every memo page is a
+# sibling and the prefix does the grouping the tree would have done.
+MEMO_INDEX = "Memos"
+MEMO_PREFIX = "Memo · "
+
+MEMO_ORDER = {"open": 0, "decided": 1, "superseded": 2}
+
+
+def memo_page_name(m):
+    """`Memo · <slug> — <subject>`. The prefix sorts every memo together in a
+    flat sidebar and keeps them clear of anyone else's pages; the slug leads
+    the rest because Plane truncates a long title."""
+    subj = str(m["subject"] or "").strip()
+    name = f"{m['slug']} — {subj}" if subj else m["slug"]
+    return (MEMO_PREFIX + name)[:240]
+
+
+def memo_index_html(board, ms):
+    """The parent page: a fold of the frontmatter, never a second home for it.
+    Superseded memos sort last and say what replaced them."""
+    rows = []
+    for m in sorted(ms.values(),
+                    key=lambda x: (MEMO_ORDER.get(x["status"], 9),
+                                   str(x["date"]), x["slug"])):
+        fm = m["fm"]
+        sup = fm.get("superseded_by") or ""
+        sup = ", ".join(sup) if isinstance(sup, list) else sup
+        prds = fm.get("prds") or []
+        prds = prds if isinstance(prds, list) else [prds]
+        cells = [
+            html.escape(m["slug"]),
+            html.escape(str(m["kind"])),
+            html.escape(str(m["status"])) + (f" → {html.escape(sup)}" if sup else ""),
+            html.escape(str(m["date"])),
+            html.escape(str(m["subject"])),
+            ", ".join(f"<code>{html.escape(x)}</code>" for x in prds) or "—",
+        ]
+        rows.append("<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
+    head = "".join(f"<th>{h}</th>" for h in
+                   ("memo", "kind", "status", "date", "subject", "PRDs"))
+    return (
+        "<p>What was decided on this board, and what it beat. One "
+        "<em>Memo ·</em> page beside this one for each row; this table is a "
+        "fold of their frontmatter, so it is never edited here — edit the "
+        "memo on disk and re-sync.</p>"
+        f"<table><thead><tr>{head}</tr></thead><tbody>"
+        + "".join(rows) + "</tbody></table>"
+        f"<p><code>{html.escape(os.path.basename(os.path.dirname(board)))}"
+        "/prds/memos/</code> is the source.</p>")
+
+
+def memo_body_html(m):
+    fm = m["fm"]
+    facts = [(k, fm[k]) for k in ("kind", "status", "date", "updated",
+                                  "supersedes", "superseded_by") if fm.get(k)]
+    prds = fm.get("prds") or []
+    prds = prds if isinstance(prds, list) else [prds]
+    head = " · ".join(f"<strong>{html.escape(k)}</strong> {html.escape(str(v))}"
+                      for k, v in facts)
+    out = [f"<p>{head}</p>"] if head else []
+    if prds:
+        out.append("<p><strong>governs</strong> "
+                   + ", ".join(f"<code>{html.escape(x)}</code>" for x in prds)
+                   + "</p>")
+    out.append(md_html(m["body"]))
+    out.append(f"<p><code>prds/memos/{html.escape(m['slug'])}.md</code></p>")
+    return "\n".join(out)
+
+
+def sync_memos(api, pid, board, mp, mp_path, quiet=False):
+    """Mirror prds/memos/ into the project's pages. Best-effort, like the Gantt
+    view and for the same reason: pages are session-API only. Returns the count
+    written, or None when the API is out of reach."""
+    ms = memolib.scan(board)
+    mp.setdefault("memos", {})
+    if not ms and not mp["memos"]:
+        return 0
+    root = f"{api.base}/api/workspaces/{api.ws}/projects/{pid}/pages/"
+
+    def call(method, url=None, payload=None):
+        return session_call(api, method, url or root, payload)
+
+    try:
+        existing = call("GET") or []
+    except Exception as e:
+        if not quiet:
+            print(f"  memos: pages unreachable ({e}) — mirror skipped",
+                  file=sys.stderr)
+        return None
+
+    by_name = {p["name"]: p["id"] for p in existing if not p.get("archived_at")}
+    alive = {p["id"] for p in existing if not p.get("archived_at")}
+
+    def upsert(key, name, body):
+        """One page per key, adopted by title when the map lost its id — the
+        project is the record of what exists, the map only caches it."""
+        ent = mp["memos"].get(key, {})
+        if ent.get("id") not in alive:
+            ent = {"id": by_name.get(name)} if by_name.get(name) else {}
+        payload = {"name": name, "description_html": body}
+        digest = hashlib.sha1(
+            json.dumps(payload, sort_keys=True).encode()).hexdigest()
+        if ent.get("id") and ent.get("hash") == digest:
+            return ent["id"], False
+        if ent.get("id"):
+            call("PATCH", root + ent["id"] + "/", payload)
+        else:
+            ent["id"] = call("POST", None, payload)["id"]
+        ent["hash"] = digest
+        mp["memos"][key] = ent
+        save_map(mp, mp_path)
+        return ent["id"], True
+
+    changed = 0
+    if ms:
+        _, wrote = upsert("__index__", MEMO_INDEX, memo_index_html(board, ms))
+        changed += wrote
+        for slug in sorted(ms):
+            _, wrote = upsert(slug, memo_page_name(ms[slug]),
+                              memo_body_html(ms[slug]))
+            changed += wrote
+            if wrote and not quiet:
+                print(f"  ▤ memos/{slug}")
+
+    # A memo deleted on disk leaves a page claiming a decision still stands.
+    # Archive it rather than delete: archiving is one click to undo in the app,
+    # and the record of having decided is the thing least safe to destroy.
+    for key in [k for k in mp["memos"] if k != "__index__" and k not in ms]:
+        pgid = mp["memos"][key].get("id")
+        if pgid in alive:
+            try:
+                call("POST", root + pgid + "/archive/")
+                if not quiet:
+                    print(f"  ▤ archived memos/{key} — gone from disk")
+            except Exception:
+                pass
+        del mp["memos"][key]
+        changed += 1
+    if not ms and mp["memos"].get("__index__"):
+        pgid = mp["memos"]["__index__"].get("id")
+        if pgid in alive:
+            try:
+                call("POST", root + pgid + "/archive/")
+            except Exception:
+                pass
+        del mp["memos"]["__index__"]
+    save_map(mp, mp_path)
+    return changed
+
+
 # ── map file ──────────────────────────────────────────────────────────────────
 
 def load_map(board):
     path = os.path.join(board, ".plane-map.json")
     if os.path.isfile(path):
         return json.load(open(path, encoding="utf-8")), path
-    return {"issues": {}, "waves": {}, "schedule": {}}, path
+    return {"issues": {}, "memos": {}, "waves": {}, "schedule": {}}, path
 
 
 def save_map(mp, path):
@@ -554,9 +723,15 @@ def cmd_sync(board, quiet=False):
     for r in gone:
         del mp["issues"][r]
     save_map(mp, mp_path)
+    memo_n = sync_memos(api, pid, board, mp, mp_path, quiet)
     if not quiet or changed:
-        print(f"plane-sync: {changed} updated, {len(prds) - changed} unchanged"
-              + (f", {len(gone)} unmapped" if gone else ""))
+        line = (f"plane-sync: {changed} updated, {len(prds) - changed} unchanged"
+                + (f", {len(gone)} unmapped" if gone else ""))
+        if memo_n is None:
+            line += " · memos not mirrored (pages need auto-login)"
+        elif memo_n:
+            line += f" · {memo_n} memo page(s)"
+        print(line)
 
 
 # ── plan ──────────────────────────────────────────────────────────────────────
@@ -723,7 +898,13 @@ def cmd_plan(board, workers, push):
 def cmd_status(board):
     cfg, cfg_path = load_cfg(board)
     prds = scan(board)
-    print(f"board: {board} · {len(prds)} PRDs")
+    ms = memolib.scan(board)
+    bad = memolib.check(board) if ms else []
+    memo_note = ""
+    if ms:
+        memo_note = (f" · {len(ms)} memos"
+                     + (f" ({len(bad)} failing the check)" if bad else ""))
+    print(f"board: {board} · {len(prds)} PRDs{memo_note}")
     if cfg is None:
         print(f"not configured — write {cfg_path}:\n{ENV_TEMPLATE}")
         return

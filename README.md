@@ -13,8 +13,11 @@ commands can work the board.
 - `references/drill.md` — how to ask. Missing, unclear, or the user's call: drill, don't guess
 - `references/language.md` — how to write. Everything on the board follows it
 - `references/settings.md` — every board-wide knob. The live copy is `prds/settings.md`
+- `references/memo.md` — how a decision is recorded. Not a PRD, and why
 - `references/templates/prd.md` — one PRD
 - `references/templates/spec.md` — one implementable unit
+- `references/templates/memo.md` — one decision
+- `memos.py` — reads and checks the memos; the only reader of that format
 - `doctor.sh` — is it installed, wired, and mirroring? Repairs with `--fix`
 - `statusline.sh` — renders the progress numbers continuously
 - `plane/` — the board as live tickets in a self-hosted Plane, and the wave
@@ -37,6 +40,8 @@ Workers do the work; the orchestrator moves the states.
 ```
 prds/
   settings.md       # board settings — language, workers, pipeline; per references/settings.md
+  memos/            # decision records — not PRDs, invisible to the loop; per references/memo.md
+    <slug>.md
   <prd-name>/
     prd.md          # the PRD: frontmatter state + the request
     specs/          # written by the analyst; one implementable unit per file
@@ -46,7 +51,8 @@ prds/
 ```
 
 A directory holding `prd.md` is a PRD. A subdirectory holding its own `prd.md`
-is a child PRD; `specs/` holds none, so it is private material.
+is a child PRD; `specs/` holds none, so it is private material. `memos/` holds
+none either, so scan walks past it — see **Memos**.
 
 A parent with children is **not dispatchable** until every child is `done`.
 Work flows to the leaves.
@@ -101,12 +107,24 @@ beside them are yours.
 | `question`  | blocked on the user                | orchestrator (analyst verdict) | answers written        → `open`                              |
 | `specced`   | specs exist, ready to implement    | orchestrator                   | implementer dispatched → `claimed`                           |
 | `claimed`   | implementer working it             | orchestrator                   | returns                → `done` \| `failed`                  |
+| `blocked`   | work done, boxes waiting on a named event | orchestrator            | the event lands           → `claimed` \| `done`             |
 | `done`      | specs implemented and verified     | orchestrator                   | terminal                                                     |
 | `failed`    | attempt failed, needs revisit      | orchestrator                   | `retry <prd>` → `open`                                       |
 
 Never take a worker's word for a transition. `specced` requires spec files on
 disk. `done` requires the verify commands actually run, output in the report —
 spot-check the cheap ones.
+
+`blocked` is for the case `failed` misreads: the worker did the work, and a box
+it cannot close is waiting on something named — another PRD landing, a commit,
+a machine. It carries `needs:` naming what it waits for, and the body says which
+boxes are open and what closes each. It is live work, so it counts in the
+progress line and the plan, and it never invites a blind retry. The distinction
+is whose problem the open box is: `failed` means the attempt did not produce the
+work; `blocked` means it did, and the box is not the worker's to tick.
+
+Do not reach for it to avoid a hard `failed`. A worker that guessed, or whose
+own checks are red, is `failed`.
 
 A `state` outside this table is the user's own and **parked**: the loop never
 dispatches it, `plan` never schedules it, the progress line and the status line
@@ -187,7 +205,7 @@ Run until the board is drained or everything left is blocked on the user.
 ## Install check
 
 An install that is present and broken looks exactly like an install that is
-absent: both do nothing. `doctor.sh` is what tells them apart. It reports four
+absent: both do nothing. `doctor.sh` is what tells them apart. It reports five
 parts for one board, each `ok`, `off`, or `broken`, and a broken part carries
 the command that repairs it:
 
@@ -201,6 +219,7 @@ bash <skill>/doctor.sh --fix [board]   # report, then repair
 | `skill`      | discovered nowhere           | the skills symlink resolves to no skill folder  |
 | `statusline` | no `statusLine` in the config in force | configured there, and its command does not resolve, or renders nothing |
 | `board`      | no board                     | off the contract path, or no `language`          |
+| `memos`      | no `memos/`                  | a memo fails the frontmatter check in `references/memo.md` |
 | `plane`      | not installed                | installed and not reachable, or reachable and this board never bootstrapped |
 
 It reads the config `$CLAUDE_CONFIG_DIR` names, falling back to `~/.claude` —
@@ -329,7 +348,16 @@ REFINE/QUESTION: set the state, keep the report.
 > write `## Failure` into prd.md.
 
 DONE with every box ticked and verify output shown: set `done`.
+DONE with the open boxes waiting on something named, and everything the worker
+owns proven: `blocked` + `needs:`.
 Anything less: `failed` — or answer a BLOCKED worker and let it finish.
+
+Two shapes of unclosable box are worth naming, because both cost a worker real
+time before anyone notices. A box that asks for a **commit message** cannot be
+closed by an implementer — committing is not its act. A `verify:` that runs the
+**whole workspace** inherits every other node's flake, so the box measures the
+tree's worst neighbour rather than this node's work. Catch both when the specs
+land, not after a worker has spent hours on them.
 
 A spec that asks to change **another** PRD's body — a child correcting a
 parent's acceptance box is the usual case — is the orchestrator's edit on that
@@ -348,6 +376,44 @@ after → print the progress line → repeat. Effectively `workers=1`,
 Every rule still holds: one writer, verify before `done`, work flows to the
 leaves.
 
+## Memos
+
+A PRD says what to build. A **memo** says what was decided and what it beat.
+Different documents, different lifetimes: a PRD goes `done` and stops
+mattering, a memo outlives the work it governed and is what you read when
+someone asks why it is like this.
+
+```
+prds/memos/<slug>.md
+```
+
+A memo has no `state`. It is never claimed, specced, or dispatched; scan walks
+past `memos/` because it holds no `prd.md`, so it never enters the progress
+line. It is on the board anyway, because a decision recorded where the next
+session does not look is a decision nobody has.
+
+Its frontmatter is a **closed set** — `memo`, `kind`, `status`, `subject`,
+`date` required, `updated`, `prds`, `supersedes`, `superseded_by` optional, and
+anything else is a typo that fails `doctor`. That is the one place the board
+inverts its own rule: a `prd.md` keeps every key you add, a memo does not,
+because the memo table is a fold of the frontmatter and a fold cannot be
+computed from keys nobody declared.
+
+`references/memo.md` is the format and the argument for it.
+`references/templates/memo.md` is the shape — Decision, Why, **Alternatives
+considered**, Consequences. Alternatives is not optional: a memo with no
+alternatives is a claim, not a decision, and later nobody can tell whether the
+other road was walked and rejected or never seen.
+
+```sh
+python3 <skill>/memos.py list [board]    # slug · kind · status · date · subject
+python3 <skill>/memos.py check [board]   # what doctor reports for `memos`
+```
+
+Write one when a call is made that the code will not explain: a rule the board
+follows, a road not taken, a constraint that looks arbitrary. Not for what a
+commit message covers.
+
 ## Handles
 
 The spelling follows the setup — `/pearde status` where commands take
@@ -362,10 +428,16 @@ arguments, "pearde status" in plain chat. The meanings are fixed.
 | new PRD                     | `add <title>` — creates the dir + `prd.md` from `references/templates/prd.md`, `state: open`                    |
 | work out what is wanted     | `drill <prd>` — interview per `references/drill.md`; with no `<prd>`, into a new tree                           |
 | retry a failed PRD          | `retry <prd>` — moves `## Failure` into the body as history, sets `open`                                        |
+| a blocked PRD's event landed | `unblock <prd>` — re-runs only the open boxes, per **States**; `done` when they close                          |
 | run one PRD to done         | `run <prd>` — the loop scoped to that PRD's subtree                                                             |
 | pre-plan parallel waves     | `plan` — `sync.py plan` per **Plane**; print the waves it returns                                               |
 | the ticket mirror           | `plane` — `plane/plane.sh boot`: app up + every board synced, per **Plane**                                       |
 | is this thing wired?        | `doctor` — `doctor.sh --fix`, per **Install check**; print every line                                            |
+| record a decision           | `memo <subject>` — creates `prds/memos/<slug>.md` from `references/templates/memo.md`, per **Memos**             |
+
+`memo <subject>` slugs the subject — lowercase, spaces to hyphens — and that
+slug is both the filename and the `memo:` key; `doctor` fails if they ever
+disagree. Write the memo when the call is made, not when the work lands.
 
 `add` takes the title as written. A one-line title is too thin to spec, so the
 analyst returns REFINE or QUESTION and the drill happens then. Use `drill` to
@@ -391,8 +463,10 @@ session's claims.
 
 Optional. The board mirrors to a self-hosted Plane running inside the skill:
 one ticket per `prd.md` — title, body, `state`, `priority` mapped, every other
-frontmatter scalar a `key: value` label, child PRDs as sub-tickets. Setup,
-mapping, and the wave planner: `plane/plane.md`; install: `references/install.md` step 3.
+frontmatter scalar a `key: value` label, child PRDs as sub-tickets — and one
+**page** per memo, because a memo is a document and belongs in the wiki, not in
+the work list. Setup, mapping, and the wave planner: `plane/plane.md`; install:
+`references/install.md` step 3.
 
 The two commands, both safe to run any time:
 
@@ -412,6 +486,21 @@ Mirror rule, on `prds/.plane.env` and `plane` from `prds/settings.md`:
 `plane: off` in `prds/settings.md` stops all three: no bootstrap, no sync, no
 report. The board on disk is the source of truth; ticket edits made in Plane
 are overwritten on the next sync.
+
+`sync` also mirrors `prds/memos/` into the project's **Pages**: a `Memos` index
+whose table is a fold of the frontmatter, and one `Memo · <slug>` page each.
+They are pages, not work items, so they stay out of the issue list, the Gantt
+and the progress count. A memo deleted on disk has its page **archived**, not
+deleted — archiving undoes in one click, and the record of having decided is
+the thing least safe to destroy.
+
+Pages live on Plane's session API rather than `/api/v1`, so the memo mirror is
+best-effort exactly like the `Gantt — waves` view: with auto-login off it is
+skipped, `sync` says so on its last line, and the tickets still mirror. They
+are flat rather than nested under the index, because this Plane build drops a
+page out of the project's page collection the moment a `parent` is set and
+404s its detail route with it — the `Memo · ` prefix does the grouping the
+tree would have done.
 
 `plan` orders the undone PRDs into waves — as parallel as `needs:`
 frontmatter, parent-after-children, and footprints allow — labels each ticket

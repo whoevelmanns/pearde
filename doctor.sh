@@ -148,6 +148,29 @@ else
   fi
 fi
 
+# ── memos: the board's decision records, and their frontmatter ────────────────
+if [ -n "$BOARD" ]; then
+  if [ ! -d "$BOARD/memos" ]; then
+    row memos off "no memos/ — a decision gets one when there is a decision"
+  elif ! command -v python3 >/dev/null 2>&1; then
+    row memos broken "memos/ present, no python3 to read it"
+    fix "install python3 — memos.py is the only reader of the format"
+  else
+    M=$(find "$BOARD/memos" -maxdepth 1 -type f -name '*.md' ! -name README.md 2>/dev/null | wc -l | tr -d ' ')
+    PROBLEMS=$(python3 "$DIR/memos.py" check "$BOARD" 2>&1)
+    if [ -z "$PROBLEMS" ]; then
+      row memos ok "$M memos · frontmatter checks out"
+    else
+      NP=$(echo "$PROBLEMS" | wc -l | tr -d ' ')
+      row memos broken "$M memos · $NP problem$([ "$NP" = 1 ] || echo s)"
+      echo "$PROBLEMS" | while IFS= read -r l; do
+        [ -n "$l" ] && printf '  %-11s %-7s %s\n' "" "" "$l"
+      done
+      fix "edit them to match references/memo.md — the keys are a closed set"
+    fi
+  fi
+fi
+
 # ── plane: installed, running, configured for THIS board ──────────────────────
 PL="$DIR/plane/plane.sh"
 if [ ! -f "$DIR/plane/plane-app/plane.env" ]; then

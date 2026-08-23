@@ -10,7 +10,7 @@ and broken does nothing, exactly like one that is absent.
 
 `<skill>` is the skill folder, the one holding `README.md`. It holds
 everything: the definition (`README.md`), the docs and templates in
-`references/`, the status line, `plane/`.
+`references/`, the status line, `memos.py`, `plane/`.
 
 ## 1. The skill
 

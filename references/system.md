@@ -20,5 +20,9 @@ Not wired up yet? `references/install.md` says what installed means.
 No parallel workers? Run the single-agent mode the README describes.
 
 Handles: `status`, `once`, `add <title>`, `drill <prd>`, `retry <prd>`,
-`run <prd>`, `plan`, `plane`, `workers=N`, `pipeline=N`.
+`run <prd>`, `memo <subject>`, `plan`, `plane`, `workers=N`, `pipeline=N`.
+
+Decisions the code will not explain go in `prds/memos/<slug>.md`, not in a PRD:
+closed frontmatter, an Alternatives section that is never empty, checked by
+`doctor`. `references/memo.md` is the format.
 <!-- pearde:end -->

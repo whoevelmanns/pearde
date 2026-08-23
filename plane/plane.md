@@ -1,8 +1,9 @@
 # Plane
 
 The board mirrors to [Plane](https://github.com/makeplane/plane), self-hosted
-inside this folder. Every `prd.md` is one ticket. The board on disk stays the
-source of truth; Plane is a live view of it.
+inside this folder. Every `prd.md` is one ticket, and every `memos/<slug>.md`
+is one page. The board on disk stays the source of truth; Plane is a live view
+of it.
 
 - `plane.sh` — installs and runs the app. Everything it creates stays in
   `plane-app/` beside it; data lives in docker volumes.
@@ -120,6 +121,42 @@ hashes, so an unchanged PRD costs no request. The orchestrator runs
 `sync --quiet` after every state change, right after the progress line, when
 `prds/.plane.env` exists. Tickets edited in Plane get overwritten on the next
 sync of that PRD: fix the `prd.md`, not the ticket.
+
+## Memos
+
+The same `sync` mirrors `prds/memos/` into the project's **Pages**. A memo is a
+document, not a work item — it has no state, nobody claims it, and putting it
+in the issue list would put a decision in the middle of a work queue.
+
+| memo                      | page                                              |
+|---------------------------|----------------------------------------------------|
+| the set of them           | one `Memos` index page — a table folded from the frontmatter |
+| `<slug>.md`               | a `Memo · <slug> — <subject>` page                 |
+| `kind` `status` `date` `updated` `supersedes` `superseded_by` | the fact line at the top of the page |
+| `prds:`                   | a **governs** line naming the PRD dirs             |
+| body                      | the page, plus a `prds/memos/<slug>.md` footer     |
+| deleted on disk           | the page is **archived**, never deleted            |
+
+The index sorts `open` first, then `decided`, then `superseded`, and a
+superseded row says what replaced it. It is a fold, not a second home: edit the
+memo on disk and re-sync, never the table.
+
+Two constraints worth knowing, both from Plane rather than from here:
+
+- **Pages are session-API only** (`/api/workspaces/…`, not `/api/v1`), which is
+  reachable because `start` signs anonymous requests in as the service account.
+  With auto-login off the memo mirror is skipped, `sync` says so on its last
+  line, and the tickets mirror as usual. Same best-effort contract as the
+  `Gantt — waves` view.
+- **The pages are flat, not nested** under the index. Plane has a page tree and
+  `parent` is a real field, but this build drops a page out of the project's
+  page collection the moment one is set, and 404s its detail route with it. A
+  page nobody can list or open is worse than one at the top level, so the
+  `Memo · ` prefix does the grouping the tree would have done.
+
+Memo ids and hashes live beside the ticket ids in `prds/.plane-map.json`, so an
+unchanged memo costs no request either. `python3 <skill>/memos.py check` is the
+gate on the frontmatter, and `doctor.sh` reports it as `memos`.
 
 ## The plan
 
