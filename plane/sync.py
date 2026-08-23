@@ -5,13 +5,22 @@
     sync.py plan [board] [--workers N] [--no-push]
                                         compute the most-parallel wave plan,
                                         print it, push `wave: N` labels
+    sync.py reconcile [board]           re-order the waves in place, keeping
+                                        the anchor — what a change in one
+                                        member board triggers on a master
     sync.py gantt [board] [--open]      render the plan as prds/.gantt.html —
                                         the adaptive local timeline
+    sync.py members [board]             the member boards a master merges
     sync.py status [board]              config + connectivity check
 
 board = the prds/ directory, a directory holding one, or omitted to walk up
 from the cwd. Config in prds/.plane.env (see plane.md beside this script).
 Ticket ids and pushed waves persist in prds/.plane-map.json.
+
+A board whose settings.md carries `members:` is a **master board**: every
+member board's PRDs join its scan as `@<member>/<rel>`, so one plan, one
+timeline and one Plane project span several repos. The files never move — the
+member keeps its own prds/, and state is written where the PRD lives.
 
 Python 3 stdlib only.
 """
@@ -101,26 +110,116 @@ def parse_prd(path):
     return fm, title, body
 
 
-def scan(board):
-    """{relpath-of-dir: prd} for every dir holding prd.md."""
+# ── master boards ─────────────────────────────────────────────────────────────
+# A master board merges other boards into one plan. The PRDs never move: each
+# member keeps its own prds/, its own settings, its own Plane project, and the
+# orchestrator writes state into the member's own prd.md. Only the plan — the
+# waves, the schedule, the merged mirror — lives at the master.
+#
+# A member PRD is addressed `@<member>/<rel>` board-wide. The sigil is what
+# makes one flat namespace safe: a PRD directory is never named `@…`, so a
+# qualified rel can never collide with a master's own PRD.
+MEMBER_SIGIL = "@"
+
+MEMBER_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+
+def members(board):
+    """[(name, path)] — the member boards a master board merges.
+
+    `members:` in prds/settings.md, one `- <path>` or `- <name>: <path>` per
+    line. A relative path resolves against the board dir, so a master beside
+    its members reads `- ../model/prds`; a path at a repo root gains `/prds`
+    when that exists. The name is the address, so it defaults to the same
+    walk-up that names the Plane project and is suffixed rather than replaced
+    on a collision — two members must never share a key."""
+    raw = board_settings(board).get("members", [])
+    if isinstance(raw, str):
+        raw = [raw]
+    out, seen = [], set()
+    for item in raw:
+        head, sep, tail = str(item).partition(":")
+        if sep and MEMBER_NAME_RE.match(head.strip()):
+            name, path = head.strip(), tail
+        else:
+            name, path = "", str(item)
+        path = os.path.expanduser(path.strip())
+        # absolute always: this path is handed to the daemon, which walks it
+        # from a working directory that has nothing to do with the board's
+        path = os.path.abspath(os.path.join(board, path))
+        if os.path.basename(path) != "prds" and os.path.isdir(
+                os.path.join(path, "prds")):
+            path = os.path.join(path, "prds")
+        name = name or re.sub(r"[^A-Za-z0-9_.-]", "-", project_name(path))
+        base, n = name, 2
+        while name in seen:
+            name, n = f"{base}-{n}", n + 1
+        seen.add(name)
+        out.append((name, path))
+    return out
+
+
+def is_master(board):
+    return bool(members(board))
+
+
+def members_missing(board):
+    """Declared members that are not on disk — an unmounted volume, a repo
+    moved, a typo. They read exactly like a board that shrank, so nothing that
+    removes anything runs while one of them is unresolved."""
+    return [n for n, p in members(board) if not os.path.isdir(p)]
+
+
+def qualify_paths(prd, paths):
+    """A member's footprint is written relative to its own repo, so two
+    projects both touching `src/lib.ts` are not touching the same file:
+    qualify it with the member name before anything compares two of them. An
+    absolute path is left as written — that is how a deliberate cross-repo
+    overlap still clashes."""
+    b = prd.get("board")
+    if not b:
+        return paths
+    return [p if p.startswith("/") else f"{MEMBER_SIGIL}{b}/{p}" for p in paths]
+
+
+def _scan_one(board, prefix="", bname=None):
     prds = {}
     for root, dirs, files in os.walk(board):
         dirs[:] = [d for d in dirs if d not in ("specs", ".plane")]
         if "prd.md" in files and root != board:
-            rel = os.path.relpath(root, board)
+            local = os.path.relpath(root, board)
+            rel = prefix + local
             fm, title, body = parse_prd(os.path.join(root, "prd.md"))
             prds[rel] = {
                 "rel": rel,
-                "name": os.path.basename(rel),
+                "local": local,
+                "name": os.path.basename(local),
                 "fm": fm,
-                "title": title or os.path.basename(rel),
+                "title": title or os.path.basename(local),
                 "body": body,
                 "state": fm.get("state", "open"),
                 "dir": root,
+                "board": bname,            # None on the board's own PRDs
+                "board_path": board,
+                # where a reader finds the file: the real path for a member,
+                # the contract path for the board's own
+                "footer": (os.path.join(root, "prd.md") if bname
+                           else f"prds/{local}/prd.md"),
             }
+    return prds
+
+
+def scan(board):
+    """{rel: prd} for every dir holding prd.md — the board's own, and every
+    member board's when this is a master, addressed `@<member>/<rel>`."""
+    prds = _scan_one(board)
+    for name, path in members(board):
+        if os.path.isdir(path):
+            prds.update(_scan_one(path, f"{MEMBER_SIGIL}{name}/", name))
     for rel, p in prds.items():
         p["children"] = [r for r in prds if os.path.dirname(r) == rel]
-        p["parent"] = os.path.dirname(rel) or None
+        parent = os.path.dirname(rel)
+        p["parent"] = parent if parent in prds else None
     return prds
 
 
@@ -140,7 +239,7 @@ def spec_data(prd):
                 fp = fm.get("footprint", [])
                 feet += fp if isinstance(fp, list) else [fp]
                 est += hours(fm.get("est", ""))
-    return est, [f.rstrip("/") for f in feet if f]
+    return est, qualify_paths(prd, [f.rstrip("/") for f in feet if f])
 
 
 def hours(v):
@@ -294,6 +393,50 @@ def project_name(board):
     return "board"
 
 
+def infer_name(board):
+    """A master board's name from its members — `mitosys+model+realm+shared`.
+
+    A master board is named for what it owns, and until somebody names it the
+    members are the only honest description of that. Long lists fold: past
+    four names the join is a wall of text nobody reads, and the count carries
+    the same information."""
+    names = [n for n, _ in members(board)]
+    if not names:
+        return project_name(board)
+    joined = "+".join(names)
+    if len(joined) <= 40 and len(names) <= 4:
+        return joined
+    return f"{names[0]}+{len(names) - 1} more"
+
+
+def board_name(board):
+    """What the board calls itself: `name:` in prds/settings.md, else inferred
+    — from the members on a master board, from the directory walk-up on a
+    plain one.
+
+    A master board is the case that needs the key: it is named for what it owns
+    rather than for the directory it sits in, and `PLANE_PROJECT_NAME` in
+    .plane.env put that name in a machine-local file the board's own settings
+    could not see. Identity belongs beside membership.
+
+    Inference is a placeholder, not an answer. The first round that meets an
+    unnamed master board asks the user for the name and writes it — the same
+    way the first run asks for the board language — because what a group of
+    projects is called is the user's call, not a join of directory names."""
+    raw = str(board_settings(board).get("name", "")).strip()
+    return re.sub(r"[^A-Za-z0-9_. -]", "-", raw) or infer_name(board)
+
+
+def plane_project_name(name):
+    """Plane rejects a project name holding anything but letters, digits,
+    spaces and underscores — `-`, `+` and `.` all 400 as "special
+    characters". A board named for a directory (`my-app`) or for its members
+    (`mitosys+model`) has to be spelled for that rule at the API boundary,
+    not in the board's own idea of its name."""
+    return re.sub(r"\s+", " ", re.sub(r"[^A-Za-z0-9 _]", " ", name)).strip() \
+        or "board"
+
+
 def ensure_project(api, cfg, cfg_path, board):
     pid = cfg.get("PLANE_PROJECT_ID")
     if pid:
@@ -304,7 +447,7 @@ def ensure_project(api, cfg, cfg_path, board):
             if e.code not in (403, 404):
                 raise
             pid = None  # deleted in the app — find or create anew
-    name = cfg.get("PLANE_PROJECT_NAME") or project_name(board)
+    name = plane_project_name(cfg.get("PLANE_PROJECT_NAME") or board_name(board))
     for p in api.listing(f"/workspaces/{api.ws}/projects/"):
         if p["name"] == name:
             pid = p["id"]
@@ -467,6 +610,19 @@ def memo_page_name(m):
     return (MEMO_PREFIX + name)[:240]
 
 
+def scan_memos(board):
+    """{slug: memo} — the board's own memos, plus every member board's when
+    this is a master, slugged `@<member>/<slug>`. The file never moves: a
+    decision belongs to the repo it governs, and the master only folds them
+    into one index the way it folds the plan into one timeline."""
+    ms = dict(memolib.scan(board))
+    for name, path in members(board):
+        for slug, m in memolib.scan(path).items():
+            q = f"{MEMBER_SIGIL}{name}/{slug}"
+            ms[q] = dict(m, slug=q)
+    return ms
+
+
 def memo_index_html(board, ms):
     """The parent page: a fold of the frontmatter, never a second home for it.
     Superseded memos sort last and say what replaced them."""
@@ -497,8 +653,11 @@ def memo_index_html(board, ms):
         "memo on disk and re-sync.</p>"
         f"<table><thead><tr>{head}</tr></thead><tbody>"
         + "".join(rows) + "</tbody></table>"
-        f"<p><code>{html.escape(memolib.memos_dir(board)[0])}"
-        "</code> is the source.</p>")
+        + "<p>"
+        + " · ".join(f"<code>{html.escape(s)}</code>" for s in
+                     [memolib.memos_dir(board)[0]]
+                     + [memolib.memos_dir(p)[0] for _, p in members(board)])
+        + " is the source.</p>")
 
 
 def memo_body_html(m):
@@ -526,7 +685,7 @@ def sync_memos(api, pid, board, mp, mp_path, quiet=False):
     """Mirror prds/memos/ into the project's pages. Best-effort, like the Gantt
     view and for the same reason: pages are session-API only. Returns the count
     written, or None when the API is out of reach."""
-    ms = memolib.scan(board)
+    ms = scan_memos(board)
     mp.setdefault("memos", {})
     if not ms and not mp["memos"]:
         return 0
@@ -580,7 +739,16 @@ def sync_memos(api, pid, board, mp, mp_path, quiet=False):
     # A memo deleted on disk leaves a page claiming a decision still stands.
     # Archive it rather than delete: archiving is one click to undo in the app,
     # and the record of having decided is the thing least safe to destroy.
-    for key in [k for k in mp["memos"] if k != "__index__" and k not in ms]:
+    #
+    # And not at all while a member board is missing: every memo of an
+    # unmounted repo would read as deleted, and one bad path in `members:`
+    # would archive a whole project's decisions.
+    missing = members_missing(board)
+    if missing and not quiet:
+        print(f"  memos: member(s) missing ({', '.join(missing)})"
+              " — nothing archived this pass", file=sys.stderr)
+    for key in ([] if missing else
+                [k for k in mp["memos"] if k != "__index__" and k not in ms]):
         pgid = mp["memos"][key].get("id")
         if pgid in alive:
             try:
@@ -638,6 +806,10 @@ def label_names(prd, wave):
         names.add(name)
     if wave:
         names.add(f"wave: {wave}")
+    if prd.get("board"):
+        # the one label the mirror invents: in a master's merged project a
+        # ticket has to say which project it came from
+        names.add(f"board: {prd['board']}")
     return names
 
 
@@ -690,16 +862,21 @@ def gantt_payload(board, prds, mp, settings):
         needs = needs if isinstance(needs, list) else [needs]
         tasks.append({
             "rel": rel, "name": p["name"], "title": p["title"],
+            "board": p.get("board"),
             "state": st,
             "prio": int(prio) if prio == int(prio) else prio,
             "est": round(s["end"] - s["start"], 2),
             "startDay": round(s["start"] / day_h, 4),
             "endDay": round(s["end"] / day_h, 4),
             "wave": mp.get("waves", {}).get(rel),
-            "needs": [os.path.basename(str(n)) for n in needs],
+            # full rels, not basenames: a dependency arrow has to land on a
+            # row, and across a master's members a basename names nothing
+            "needs": [resolve_need(prds, p, str(n)) or str(n) for n in needs],
         })
     return {
-        "board": os.path.basename(os.path.dirname(board)),
+        "board": board_name(board),
+        # a master's members, in plan order — the renderer groups by them
+        "boards": [n for n, _ in members(board)],
         "anchor": mp.get("planned_at") or datetime.date.today().isoformat(),
         "dayHours": day_h,
         "workers": str(settings.get("workers", "3")),
@@ -816,7 +993,7 @@ def cmd_sync(board, quiet=False):
         payload = {
             "name": p["title"][:250],
             "description_html": md_html(p["body"]) +
-                f"\n<p><code>prds/{rel}/prd.md</code></p>",
+                f"\n<p><code>{html.escape(p['footer'])}</code></p>",
             "state": states.get(p["state"], states["open"]),
             "priority": plane_priority(p["fm"].get("priority")),
             "labels": sorted(labels[n] for n in lnames if n in labels),
@@ -861,7 +1038,14 @@ def cmd_sync(board, quiet=False):
         if not quiet:
             print(f"  ↑ {rel} [{p['state']}]")
 
-    gone = [r for r in mp["issues"] if r not in prds]
+    # Same rule as the memo archive: a member that is not on disk is not a
+    # member whose PRDs were deleted. Unmapping them would hand every ticket
+    # back to title-adoption on the next pass, for a path typo.
+    missing = members_missing(board)
+    if missing and not quiet:
+        print(f"  member(s) missing ({', '.join(missing)}) — their tickets left"
+              " mapped, nothing unmapped this pass", file=sys.stderr)
+    gone = [] if missing else [r for r in mp["issues"] if r not in prds]
     for r in gone:
         del mp["issues"][r]
     save_map(mp, mp_path)
@@ -896,37 +1080,86 @@ def board_settings(board):
     return {}
 
 
-def cmd_plan(board, workers, push):
-    settings = board_settings(board)
-    if workers is None:
-        try:
-            workers = int(settings.get("workers", 3))
-        except ValueError:
-            workers = 3
-    prds = scan(board)
-    todo = {r: p for r, p in prds.items() if p["state"] in LIVE_STATES}
-    parked = sorted(r for r, p in prds.items()
-                    if p["state"] not in LIVE_STATES and p["state"] != "done")
-    if not todo:
-        print("plan: nothing to do — no undone PRDs")
-        return
+def plan_workers(board, workers):
+    if workers is not None:
+        return workers
+    try:
+        return int(board_settings(board).get("workers", 3))
+    except ValueError:
+        return 3
 
-    # resolve `needs` to relpaths; a need on a done PRD is satisfied.
-    # A parent implicitly needs its undone children — work flows to the leaves.
-    by_name = {}
-    for r in prds:
-        by_name.setdefault(os.path.basename(r), r)
+
+def needs_index(prds):
+    """(by dir name, by (board, name-or-rel)) — what a `needs:` entry is
+    looked up in."""
+    by_name, local = {}, {}
+    for r in sorted(prds):
+        by_name.setdefault(os.path.basename(r), []).append(r)
+        local.setdefault((prds[r]["board"], os.path.basename(r)), r)
+        local.setdefault((prds[r]["board"], prds[r]["local"]), r)
+    return by_name, local
+
+
+def resolve_need(prds, prd, d, idx=None):
+    """The rel one `needs:` entry names, or None.
+
+    Own board first, so a member's `needs: sibling` keeps meaning its own
+    sibling and joining a master rewrites no member PRD. Across boards the
+    form is qualified — `@<member>/<prd>`. A bare name matching PRDs on two
+    boards resolves to nothing on purpose: guessing which was meant is how a
+    worker gets sent at code another repo has not written."""
+    by_name, local = idx or needs_index(prds)
+    d = str(d).strip().rstrip("/")
+    if d in prds:
+        return d
+    if (prd.get("board"), d) in local:
+        return local[(prd.get("board"), d)]
+    same = by_name.get(os.path.basename(d), [])
+    return same[0] if len(same) == 1 else None
+
+
+def resolve_needs(prds, todo, warn=True):
+    """rel → the rels it waits on. A parent implicitly needs its undone
+    children — work flows to the leaves — and a need on a `done` PRD is
+    satisfied."""
+    idx = needs_index(prds)
     needs = {}
     for r, p in todo.items():
         deps = p["fm"].get("needs", [])
         deps = deps if isinstance(deps, list) else [deps]
         needs[r] = [c for c in p["children"] if c in todo]
         for d in deps:
-            t = by_name.get(d, d if d in prds else None)
+            t = resolve_need(prds, p, d, idx)
             if t is None:
-                print(f"plan: {r} needs '{d}' — no such PRD, ignored", file=sys.stderr)
+                same = idx[0].get(os.path.basename(str(d).strip()), [])
+                if warn and len(same) > 1:
+                    print(f"plan: {r} needs '{d}' — {len(same)} PRDs of that "
+                          f"name ({', '.join(same)}); qualify it as "
+                          f"@<board>/<prd>", file=sys.stderr)
+                elif warn:
+                    print(f"plan: {r} needs '{d}' — no such PRD, ignored",
+                          file=sys.stderr)
             elif t in todo and t not in needs[r]:
                 needs[r].append(t)
+    return needs
+
+
+def compute_plan(board, workers=None, warn=True):
+    """The wave plan as data — None when there is nothing to schedule.
+
+    Separate from the printing because a master board's plan is a function of
+    every member's state: it has to be recomputable on a file change, not only
+    when somebody remembers to run `plan`. `cmd_plan` prints and pushes what
+    this returns; `reconcile` only saves it."""
+    settings = board_settings(board)
+    workers = plan_workers(board, workers)
+    prds = scan(board)
+    todo = {r: p for r, p in prds.items() if p["state"] in LIVE_STATES}
+    parked = sorted(r for r, p in prds.items()
+                    if p["state"] not in LIVE_STATES and p["state"] != "done")
+    if not todo:
+        return None
+    needs = resolve_needs(prds, todo, warn)
 
     est, feet = {}, {}
     for r, p in todo.items():
@@ -984,42 +1217,91 @@ def cmd_plan(board, workers, push):
                 wave[r] = floor
                 moved = True
 
-    nwaves = max(wave.values())
-    print(f"plan: {len(todo)} PRDs in {nwaves} wave(s)"
-          f" · workers={workers} · unspecced est'd at {avg:.1f}h"
-          + (f" · {len(parked)} parked: " + ", ".join(
-              f"{os.path.basename(r)} [{prds[r]['state']}]" for r in parked)
-             if parked else ""))
     # schedule each PRD onto a worker slot — the offsets feed the Gantt dates
-    schedule, t0 = {}, 0.0
+    nwaves = max(wave.values())
+    schedule, order, t0 = {}, [], 0.0
     for n in range(1, nwaves + 1):
-        members = sorted((r for r in wave if wave[r] == n),
-                         key=lambda x: (-prio(x), x))
-        if not members:
+        ms = sorted((r for r in wave if wave[r] == n),
+                    key=lambda x: (-prio(x), x))
+        order.append(ms)
+        if not ms:
             continue
-        load = sum(est[r] for r in members)
         slots = [0.0] * max(workers, 1)
-        for r in members:
+        for r in ms:
             i = min(range(len(slots)), key=lambda k: slots[k])
             schedule[r] = {"start": t0 + slots[i], "end": t0 + slots[i] + est[r]}
             slots[i] += est[r]
-        wall = max(slots)
-        print(f"\nwave {n} — {len(members)} in parallel · Σ{load:.1f}h · ~{wall:.1f}h wall")
-        for r in members:
-            p = todo[r]
+        t0 += max(slots)
+    return {"prds": prds, "todo": todo, "parked": parked, "settings": settings,
+            "workers": workers, "needs": needs, "est": est, "feet": feet,
+            "waves": wave, "schedule": schedule, "order": order,
+            "nwaves": nwaves, "wall": t0, "avg": avg,
+            "prio": {r: prio(r) for r in todo}}
+
+
+def reconcile(board):
+    """Recompute the waves in place, keeping the anchor day. True when they
+    moved.
+
+    A master board's plan spans repos nobody re-plans by hand: a state written
+    in one member re-orders the whole board, and a Gantt still drawing
+    yesterday's order is worse than one drawn a second late. Re-anchoring is
+    what `plan` does; this only re-orders, so the bars keep the day the plan
+    was made."""
+    r = compute_plan(board, None, warn=False)
+    if not r:
+        return False
+    mp, mp_path = load_map(board)
+    if (mp.get("waves") == r["waves"] and mp.get("schedule") == r["schedule"]
+            and mp.get("planned_at")):
+        return False
+    mp["waves"], mp["schedule"] = r["waves"], r["schedule"]
+    mp.setdefault("planned_at", datetime.date.today().isoformat())
+    save_map(mp, mp_path)
+    if os.path.isfile(os.path.join(board, ganttlib.GANTT_FILE)):
+        ganttlib.write(board, gantt_payload(board, r["prds"], mp, r["settings"]))
+    return True
+
+
+def cmd_plan(board, workers, push):
+    r = compute_plan(board, workers)
+    if not r:
+        print("plan: nothing to do — no undone PRDs")
+        return
+    prds, todo, parked = r["prds"], r["todo"], r["parked"]
+    est, feet, needs, wave = r["est"], r["feet"], r["needs"], r["waves"]
+    mem = [n for n, _ in members(board)]
+    print(f"plan: {len(todo)} PRDs in {r['nwaves']} wave(s)"
+          f" · workers={r['workers']} · unspecced est'd at {r['avg']:.1f}h"
+          + (f" · master of {len(mem) + 1} boards: "
+             + ", ".join([os.path.basename(os.path.dirname(board))] + mem)
+             if mem else "")
+          + (f" · {len(parked)} parked: " + ", ".join(
+              f"{os.path.basename(r_)} [{prds[r_]['state']}]" for r_ in parked)
+             if parked else ""))
+    for n, ms in enumerate(r["order"], start=1):
+        if not ms:
+            continue
+        load = sum(est[x] for x in ms)
+        wall = max(r["schedule"][x]["end"] for x in ms) - min(
+            r["schedule"][x]["start"] for x in ms)
+        print(f"\nwave {n} — {len(ms)} in parallel · Σ{load:.1f}h"
+              f" · ~{wall:.1f}h wall")
+        for x in ms:
+            p = todo[x]
             why = []
-            if needs[r]:
-                why.append("needs " + ", ".join(os.path.basename(d) for d in needs[r]))
-            if not feet[r]:
+            if needs[x]:
+                why.append("needs " + ", ".join(os.path.basename(d)
+                                                for d in needs[x]))
+            if not feet[x]:
                 why.append("unspecced")
-            print(f"  · {r} [{p['state']}] p{p['fm'].get('priority', 0)}"
-                  f" {est[r]:.1f}h" + (f"  ({'; '.join(why)})" if why else ""))
-        t0 += wall
-    print(f"\n≈ {t0:.1f}h wall-clock @ {workers} workers")
+            print(f"  · {x} [{p['state']}] p{p['fm'].get('priority', 0)}"
+                  f" {est[x]:.1f}h" + (f"  ({'; '.join(why)})" if why else ""))
+    print(f"\n≈ {r['wall']:.1f}h wall-clock @ {r['workers']} workers")
 
     mp, mp_path = load_map(board)
-    mp["waves"] = {r: wave[r] for r in wave}
-    mp["schedule"] = schedule
+    mp["waves"] = r["waves"]
+    mp["schedule"] = r["schedule"]
     mp["planned_at"] = datetime.date.today().isoformat()
     save_map(mp, mp_path)
     cfg, _ = load_cfg(board)
@@ -1044,20 +1326,30 @@ def cmd_plan(board, workers, push):
             print(f"cycles: not written ({e}) — the plan holds without them")
     elif push:
         print("no prds/.plane.env — plan saved locally, not pushed")
-    lpath = ganttlib.write(board, gantt_payload(board, prds, mp, settings))
+    lpath = ganttlib.write(board, gantt_payload(board, prds, mp, r["settings"]))
     print(f"gantt (local): {lpath}")
 
 
 def cmd_status(board):
     cfg, cfg_path = load_cfg(board)
     prds = scan(board)
-    ms = memolib.scan(board)
-    bad = memolib.check(board) if ms else []
+    ms = scan_memos(board)
+    bad = memolib.check(board) if memolib.scan(board) else []
     memo_note = ""
     if ms:
         memo_note = (f" · {len(ms)} memos"
                      + (f" ({len(bad)} failing the check)" if bad else ""))
-    print(f"board: {board} · {len(prds)} PRDs{memo_note}")
+    mem = members(board)
+    print(f"board: {board} · {len(prds)} PRDs{memo_note}"
+          + (f" · master of {len(mem)} member board(s)" if mem else ""))
+    for name, path in mem:
+        if not os.path.isdir(path):
+            print(f"  @{name:14} MISSING — {path}")
+            continue
+        n = len(_scan_one(path))
+        own = "" if os.path.isfile(os.path.join(path, "settings.md")) else \
+            " · no settings.md"
+        print(f"  @{name:14} {n:4} PRDs · {path}{own}")
     if cfg is None:
         print(f"not configured — write {cfg_path}:\n{ENV_TEMPLATE}")
         return
@@ -1123,6 +1415,16 @@ def main():
         workers = next((int(f.split("=")[1]) for f in flags
                         if f.startswith("--workers=")), None)
         cmd_plan(board, workers, push="--no-push" not in flags)
+    elif cmd == "reconcile":
+        moved = reconcile(board)
+        print(f"reconcile: {'waves re-ordered' if moved else 'no change'}")
+    elif cmd == "members":
+        mem = members(board)
+        if not mem:
+            print(f"{board} is not a master board — no members: in settings.md")
+        for name, path in mem:
+            mark = "" if os.path.isdir(path) else "  MISSING"
+            print(f"@{name}\t{path}{mark}")
     elif cmd == "gantt":
         cmd_gantt(board, open_after="--open" in flags)
     elif cmd == "status":
@@ -1130,7 +1432,8 @@ def main():
     elif cmd == "prune":
         cmd_prune(board, apply="--apply" in flags)
     else:
-        die(f"unknown command '{cmd}' — sync | plan | gantt | status | prune")
+        die(f"unknown command '{cmd}' — sync | plan | reconcile | gantt"
+            " | members | status | prune")
 
 
 if __name__ == "__main__":

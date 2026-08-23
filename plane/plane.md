@@ -7,7 +7,7 @@ page. The board on disk stays the source of truth; Plane is a live view of it.
 | file       | does                                                            |
 |------------|------------------------------------------------------------------|
 | `plane.sh` | installs and runs the app. Everything it creates stays in `plane-app/` beside it; data lives in docker volumes |
-| `sync.py`  | mirrors the board and computes the wave plan. Python 3 stdlib, no packages |
+| `sync.py`  | mirrors the board and computes the wave plan — over one board, or over a master board and its members. Python 3 stdlib, no packages |
 | `serve.py` | the live service — one daemon per machine, watching every registered board and mirroring each change as it lands. Stdlib too |
 
 ## Install
@@ -61,6 +61,44 @@ means the union of:
 A board that fails is reported and skipped; the rest boot. From there each
 `/pearde` session keeps its own board live via the mirror rule in `README.md`.
 
+## Master boards
+
+A board whose `settings.md` carries `members:` merges those boards into one —
+see README, **Master boards**, for the contract. What that means for Plane:
+
+| the master gets                | the members keep                                    |
+|--------------------------------|------------------------------------------------------|
+| its own project, holding every member's tickets, each with a `board: <member>` label | their own projects, mirrored exactly as before |
+| the merged wave plan — `wave: N` labels, Gantt dates, one cycle per wave | their own plans, if they run `plan` themselves |
+| one `Memos` index folding every member's memos, each page slugged `@<member>/<slug>` | their memo files, where they live |
+| `prds/.gantt.html` over the whole group | their own `.gantt.html` |
+
+- The master project is a **merged view, not a move**. A member PRD is two
+  tickets in two projects, from one file on disk. Both are overwritten from
+  that file on the next sync, so they cannot disagree for long.
+- The project is named by `name:` in the master's `settings.md`
+  (`PLANE_PROJECT_NAME` in `.plane.env` still wins, because a project already
+  created under that name must not be re-created under another).
+- Nothing here is required: a master board with no `.plane.env` still plans,
+  still renders its local timeline, still serves `/board/<name>`.
+
+```sh
+python3 <skill>/plane/sync.py members [board]     # what it merges, MISSING and all
+python3 <skill>/plane/sync.py plan [board]        # the merged plan
+python3 <skill>/plane/sync.py reconcile [board]   # re-order it, keep the anchor
+```
+
+**Reconcile, not re-plan.** A master's waves are a function of every member's
+state, and nobody re-plans four repos by hand after every transition. The live
+service watches every member's files and calls `reconcile` within about a
+second of a change landing in any of them: the waves and the schedule are
+recomputed, the anchor day is kept, and the timeline is redrawn. `plan` remains
+the thing that re-anchors on today and prints the waves.
+
+`serve.py ensure <master board>` also registers every member as a board in its
+own right — otherwise a member's project would only mirror while a session
+happened to be open on it.
+
 ## The browser
 
 No login screen. `start` injects auto-login into the api container — every
@@ -97,9 +135,9 @@ prds/.gantt.html       # the rendered local timeline
 ```
 
 `sync.py status` verifies the whole chain: board found, app reachable, token
-valid. The first `sync` creates the Plane project (named after the repo
-directory; override with `PLANE_PROJECT_NAME=`) and appends `PLANE_PROJECT_ID=`
-to `.plane.env`.
+valid. The first `sync` creates the Plane project — named by `name:` in
+`prds/settings.md`, else the repo directory, and `PLANE_PROJECT_NAME=` here
+overrides both — and appends `PLANE_PROJECT_ID=` to `.plane.env`.
 
 ## The mirror
 
@@ -112,6 +150,7 @@ to `.plane.env`.
 | `state`                   | a state of the same name, created per group below     |
 | `priority` (int)          | ≥8 urgent · ≥5 high · ≥3 medium · ≥1 low · else none  |
 | every other scalar key    | a `key: value` label — `est: 2h`, `blast-radius: high`|
+| a member of a master board | a `board: <member>` label, and the footer names the file's real path |
 | child PRD                 | sub-ticket (`parent`)                                 |
 | wave from the last `plan` | a `wave: N` label                                     |
 

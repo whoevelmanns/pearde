@@ -101,6 +101,26 @@ The pieces `boot` is made of, when one is needed alone:
   a fresh clone of the skill re-runs `install` on each machine. Data lives in
   docker volumes and survives stop, start, and upgrade.
 
+## 4. A master board
+
+Optional, and nothing to install: a board becomes the parent of several others
+by naming them.
+
+```yaml
+# <parent-repo>/prds/settings.md
+members:
+  - ../mitosys/prds
+  - ../model/prds
+```
+
+- The members stay where they are, boards in their own right. The parent gets
+  the merged scan, the merged plan, and one timeline over all of them.
+- Run the round in the parent from then on. `doctor.sh` grows a `members` row
+  reporting what is merged and what is missing; the status line marks the group
+  `⊞N`.
+- README, **Master boards**, is the contract — addressing, what crosses a board
+  boundary, and what does not.
+
 ## Uninstall
 
 Remove the symlink, delete the `pearde` block, unset the status line.

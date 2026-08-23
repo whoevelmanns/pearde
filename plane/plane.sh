@@ -407,6 +407,15 @@ cmd_boot() {
   fi
   local all
   all=$({ [ -f "$BOARDS" ] && cat "$BOARDS"; discover_boards; } | sort -u)
+  # a master board names boards nothing else may know about: `members:` is the
+  # only record of a board that was never opened in a session of its own
+  local mem
+  mem=$(while IFS= read -r b; do
+    [ -n "$b" ] && [ -d "$b" ] || continue
+    python3 "$DIR/sync.py" members "$b" 2>/dev/null \
+      | awk '$0 !~ /MISSING/ && NF > 1 {print $2}'
+  done <<< "$all")
+  all=$(printf '%s\n%s\n' "$all" "$mem" | grep '^/' | sort -u)
   if [ -z "$all" ]; then
     echo "plane: no boards found — run '$0 bootstrap' once from a repo with prds/"
     return

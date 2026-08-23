@@ -16,6 +16,8 @@ is the whole locking story — no pidfile to go stale.
 
 What it does, per registered board, within about a second of a file changing:
 
+  - re-orders a master board's waves in place, keeping the anchor day, so a
+    state written in one member re-plans the whole board (sync.py's reconcile)
   - mirrors tickets and memo pages (sync.py's own cmd_sync, unchanged)
   - rewrites the waves as cycles when the plan changed (sync_cycles)
   - serves the adaptive timeline live at /board/<name> — the page long-polls
@@ -28,6 +30,10 @@ skipped, and reported in /status, when the board has no .plane.env.
 A board keys by repo name plus any dot-dirs on its path (`racer/.mi/prds` →
 `racer-mi`), so two boards in one repo — or one Plane project mirroring two
 boards on purpose — still get distinct watch entries and /board/ URLs.
+
+A master board (`members:` in its settings.md) is watched over its members'
+files too, and registering one registers every member as a board in its own
+right: the master carries the merged plan, each member keeps its own project.
 
 Disk stays the one source of truth: the daemon reads prds/ and writes Plane,
 never the reverse, and it never writes PRD state — the orchestrator stays the
@@ -86,7 +92,12 @@ def serve_name(path):
     `realm-claude`. Plane's project name (walk-up only, PLANE_PROJECT_NAME
     override) can legitimately collide — realm mirrors two boards into one
     project on purpose — but a daemon key cannot: it is the watch entry and
-    the /board/ URL, and two boards must never share one."""
+    the /board/ URL, and two boards must never share one.
+
+    This is the name that must always exist and always be unique, so it stays a
+    pure function of the path. A board that renamed itself is preferred over it
+    by `register()`, which can see whether that name is free — see
+    `declared_name()`."""
     dots, d = [], os.path.dirname(os.path.abspath(path))
     while d and d != "/":
         base = os.path.basename(d)
@@ -123,12 +134,24 @@ def plan_digest(path):
                            sort_keys=True))
 
 
+def member_paths(path):
+    """The member boards of a master, the live ones only. Read fresh on every
+    pass: `members:` is a setting, and a board joins or leaves a master by one
+    line in settings.md — the daemon must not need a restart for that."""
+    try:
+        return [p for _, p in synclib.members(path) if os.path.isdir(p)]
+    except Exception:
+        return []
+
+
 def digest(path):
     """(rel, mtime, size) over every .md under the board — prd.md, specs,
-    memos, settings. The map file and the rendered gantt are ours and excluded,
-    or every sync would trigger the next."""
+    memos, settings — and under every member board when this is a master: the
+    master's plan is a function of their states, so a change there is a change
+    here. The map file and the rendered gantt are ours and excluded, or every
+    sync would trigger the next."""
     rows = []
-    roots = [path]
+    roots = [path] + member_paths(path)
     mdir, external = memoslib.memos_dir(path)
     if external and os.path.isdir(mdir):
         roots.append(mdir)  # decisions living outside the board still mirror live
@@ -142,8 +165,10 @@ def digest(path):
                         st = os.stat(fp)
                     except OSError:
                         continue
-                    rows.append((os.path.relpath(fp, base), st.st_mtime_ns,
-                                 st.st_size))
+                    # keyed by root too: two boards under one master both
+                    # have a settings.md, and one rel must not shadow the other
+                    rows.append((base + "::" + os.path.relpath(fp, base),
+                                 st.st_mtime_ns, st.st_size))
     return hash(tuple(sorted(rows)))
 
 
@@ -162,7 +187,19 @@ def load_registry():
     return [p for p in rows if not p.startswith(EPHEMERAL)]
 
 
+REGISTRY_LOADED = False   # only the daemon has the whole list — see below
+
+
 def save_registry():
+    """Persist the watch list, but only in a process that read it first.
+
+    `register()` saves as a side effect, so importing this module and calling
+    it — an in-process test of the naming, say — used to write the registry
+    from whatever partial set that process held and drop every board it had
+    not registered. The daemon sets the flag once it has loaded the file; every
+    other process keeps the registry read-only by construction."""
+    if not REGISTRY_LOADED:
+        return
     os.makedirs(APP_DIR, exist_ok=True)
     with BOARDS_LOCK:
         paths = sorted(b.path for b in BOARDS.values()
@@ -170,16 +207,44 @@ def save_registry():
     json.dump(paths, open(REG_PATH, "w", encoding="utf-8"), indent=1)
 
 
+def declared_name(path):
+    """What the board calls itself, or "".
+
+    `PLANE_PROJECT_NAME` is the name a board carries in Plane, so a board that
+    renamed itself should answer to that name here too — one name in the
+    project, the watch entry, and the `/board/<name>` URL. A master board is
+    the case that needs it: it is named for what it owns rather than for the
+    directory it sits in, and a plan that reads `master` everywhere except its
+    own URL is a seam the user has to be told about.
+
+    It is only a *preference*, because unlike a daemon key a project name may
+    legitimately be shared — `realm/.mi/prds` and `realm/.claude/prds` both
+    declare `realm` to mirror into one project on purpose. Two boards must
+    never share a watch key, so `register()` takes this name only when it is
+    free and falls back to the path derivation, which is unique by
+    construction. That is better than suffixing the shared name: the loser
+    keeps its own meaningful `realm-claude` instead of an order-dependent
+    `realm-2`."""
+    declared = str(synclib.board_settings(path).get("name", "")).strip()
+    if not declared:
+        cfg, _ = synclib.load_cfg(path)
+        declared = (cfg or {}).get("PLANE_PROJECT_NAME", "").strip()
+    return re.sub(r"[^A-Za-z0-9_.-]", "-", declared) if declared else ""
+
+
 def register(path):
-    """Add one prds/ dir. The project-dir name keys it, same as the Plane
-    project name — two boards sharing a name is already the collision
-    plane.md tells the user to break with PLANE_PROJECT_NAME."""
+    """Add one prds/ dir. The board's declared name keys it when that name is
+    free, else the project-dir name — two boards sharing a name is already the
+    collision plane.md tells the user to break with PLANE_PROJECT_NAME."""
     path = os.path.abspath(path)
     b = Board(path)
     with BOARDS_LOCK:
         for name, cur in BOARDS.items():
             if cur.path == path:
                 return cur, False
+        want = declared_name(path)
+        if want and want not in BOARDS:
+            b.name = want
         n = 2
         while b.name in BOARDS:  # same key, different path: suffix, never replace
             b.name = f"{serve_name(path)}-{n}"
@@ -212,6 +277,18 @@ def mirror(b, force=False):
     The view's seq bumps regardless, so the local timeline is live even when
     the push fails or the board was never bootstrapped."""
     with b.lock:
+        # A master board re-orders before it mirrors: its waves span repos
+        # nobody re-plans by hand, so a state written in one member has to
+        # re-order the whole board. The anchor day is kept — `plan` re-anchors,
+        # this only re-orders. It runs with or without Plane: the local
+        # timeline is the thing most likely to be read.
+        if synclib.is_master(b.path):
+            try:
+                synclib.reconcile(b.path)
+            except SystemExit:
+                b.last_error = "plan: needs cycle — reconcile skipped"
+            except Exception as e:
+                b.last_error = f"reconcile: {type(e).__name__}: {e}"
         bump(b)
         cfg, cfg_path = synclib.load_cfg(b.path)
         if cfg is None:
@@ -272,7 +349,8 @@ LIVE_JS = """<script>
 
 def board_json(b):
     return {"name": b.name, "path": b.path, "seq": b.seq,
-            "last_sync": b.last_sync, "last_error": b.last_error}
+            "last_sync": b.last_sync, "last_error": b.last_error,
+            "members": [n for n, _ in synclib.members(b.path)]}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -366,7 +444,18 @@ class Handler(BaseHTTPRequestHandler):
             if new:
                 threading.Thread(target=mirror, args=(b, True),
                                  daemon=True).start()
-            return self.reply(200, {"board": board_json(b), "new": new})
+            # Registering a master registers its members too: each member keeps
+            # its own project, and a member nobody watches would mirror only
+            # when its own session happens to be open.
+            brought = []
+            for path in member_paths(board):
+                mb, mnew = register(path)
+                if mnew:
+                    brought.append(mb.name)
+                    threading.Thread(target=mirror, args=(mb, True),
+                                     daemon=True).start()
+            return self.reply(200, {"board": board_json(b), "new": new,
+                                    "members": brought})
         if path == "/sync":
             b = by_name(body.get("board"))
             if not b:
@@ -442,9 +531,11 @@ def cmd_run():
         print(f"serve: port {PORT} is taken — a daemon already runs "
               f"(or set PLANE_SERVE_PORT)", file=sys.stderr)
         return 1
+    global REGISTRY_LOADED
     for p in load_registry():
         if os.path.isdir(p):
             register(p)
+    REGISTRY_LOADED = True   # from here the in-memory set IS the registry
     threading.Thread(target=watch, daemon=True).start()
     print(f"serve: watching on http://127.0.0.1:{PORT} — "
           f"{len(boards())} board(s)")
@@ -475,6 +566,11 @@ def cmd_ensure(arg):
     b = out["board"]
     print(f"serve: {'registered' if out['new'] else 'watching'} {b['name']} "
           f"· {b['path']} · live view http://127.0.0.1:{PORT}/board/{b['name']}")
+    if b.get("members"):
+        print(f"serve: master of {len(b['members'])} board(s) — "
+              + ", ".join(b["members"])
+              + (f" · also registered: {', '.join(out['members'])}"
+                 if out.get("members") else ""))
     return 0
 
 
@@ -488,7 +584,9 @@ def cmd_status():
         age = (f"{int(time.time() - b['last_sync'])}s ago"
                if b["last_sync"] else "never")
         note = f" · {b['last_error']}" if b["last_error"] else ""
-        print(f"  {b['name']:16} synced {age}{note} · {b['path']}")
+        mem = (f" · master of {len(b['members'])}: "
+               + ", ".join(b["members"])) if b.get("members") else ""
+        print(f"  {b['name']:16} synced {age}{note} · {b['path']}{mem}")
     return 0
 
 

@@ -1,5 +1,7 @@
 ---
 state: open        # open|analyzing|refine|question|specced|claimed|blocked|done|failed
+origin: requested  # requested = the user asked | derived = the board found it
+# from:            # derived only — the PRD whose work surfaced this one
 priority: 0        # higher first
 complexity: 0      # 1-100, higher = more complex
 blast-radius:      # high|mid|low
@@ -9,11 +11,16 @@ time:
   actual:          # orchestrator, on a clean done — what that run really took
   # claim: <worker> <started>   # orchestrator-only, present while a worker holds this PRD
 ---
-<!-- Add your own keys freely, at any nesting; nothing outside state, priority,
-     est, actual, claim, repo, needs and footprint is read, and nothing you add
-     is ever dropped.
+<!-- Add your own keys freely, at any nesting; nothing outside state, origin,
+     from, priority, est, actual, claim, repo, needs and footprint is read, and
+     nothing you add is ever dropped.
        needs:     — list of PRD dir names this one depends on; `plan` wave order
-       footprint: — list of paths this PRD touches; the overlap check -->
+       footprint: — list of paths this PRD touches; the overlap check
+
+     A derived PRD states, in the body, which requested PRD it would otherwise
+     get wrong. If it cannot, it is filed `state: deferred` — and if fixing it
+     would change only how loudly the board notices, it is a memo, not a PRD.
+     See README, Derived work. -->
 
 # <Title — what exists when this is done>
 

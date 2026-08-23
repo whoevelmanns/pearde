@@ -3,7 +3,7 @@
 # (see references/install.md beside this script) so every project gets it.
 #
 # Renders line 1:  <dir> <branch> <*dirty ↑ahead ↓behind> · <model>  — always
-#         line 2:  ▸pearde <d>/<n> <p>% · open <o> <q>% · ▸board  — with a board
+#         line 2:  ▸pearde<⊞b> <ad>/<an> <ap>% · +<dn>d · open <o> <q>% · ▸board  — with a board
 #
 # The board gets its own line: it is the thing being read, and sharing a row
 # with the path pushed it off the edge of a narrow terminal. No board, no
@@ -17,8 +17,10 @@
 # renders the label without the escape, for a terminal that shows them raw.
 #
 # The pearde segment mirrors the progress line in README.md beside this script:
-#   d/n = done PRDs / all PRDs, p% = est-weighted done share,
-#   o   = PRDs in state `open`, q% = o/n by count (open PRDs have no est).
+#   ad/an = done / all REQUESTED PRDs, ap% = their est-weighted done share,
+#   +dn   = derived PRD count (origin: derived), suppressed at zero,
+#   o     = PRDs in state `open`, q% = o/n by count (open PRDs have no est),
+#   ⊞b    = boards counted, on a master board only — the board plus its members.
 #
 # It reads two frontmatter keys, `state` and `est`, and matches them by name at
 # any indentation — nested under a parent map reads the same as top level. Every
@@ -72,15 +74,34 @@ while [ -n "$d" ] && [ "$d" != "/" ]; do
   d=$(dirname "$d")
 done
 
+# A master board counts its members too: `members:` in settings.md names the
+# boards it merges, and the numbers a master shows are the group's numbers —
+# that is the whole reason it exists. `⊞N` says how many boards are in them.
+SCAN=(); NB=0
 if [ -n "$BOARD" ]; then
-  STATS=$(find "$BOARD" -type f -name prd.md -print0 2>/dev/null | xargs -0 awk '
-    FNR==1 { ph[FILENAME]=0; st[FILENAME]="?"; es[FILENAME]="" }
+  SCAN=("$BOARD"); NB=1
+  if [ -f "$BOARD/settings.md" ]; then
+    while IFS= read -r m; do
+      [ -n "$m" ] || continue
+      m="${m#*: }"                     # `- <name>: <path>` → the path
+      m="${m/#\~/$HOME}"
+      case "$m" in /*) p="$m" ;; *) p="$BOARD/$m" ;; esac
+      [ -d "$p/prds" ] && p="$p/prds"  # an entry pointing at a repo root
+      if [ -d "$p" ]; then SCAN+=("$p"); NB=$((NB + 1)); fi
+    done <<< "$(awk 'f && $1=="-" {v=$0; sub(/^[ \t]*-[ \t]*/,"",v); sub(/[ \t]*#.*/,"",v); print v; next} f {exit} /^[ \t]*members:/ {f=1}' "$BOARD/settings.md")"
+  fi
+fi
+
+if [ -n "$BOARD" ]; then
+  STATS=$(find "${SCAN[@]}" -type f -name prd.md -print0 2>/dev/null | xargs -0 awk '
+    FNR==1 { ph[FILENAME]=0; st[FILENAME]="?"; es[FILENAME]=""; og[FILENAME]="requested" }
     {
       if (ph[FILENAME]>=2) next
       if ($0 ~ /^---[ \t]*$/) { ph[FILENAME]++; next }
       if (ph[FILENAME]==1) {
         if ($1=="state:") { s=$2; sub(/#.*/,"",s); st[FILENAME]=s }
         else if ($1=="est:") { e=$2; sub(/#.*/,"",e); es[FILENAME]=e }
+        else if ($1=="origin:") { o=$2; sub(/#.*/,"",o); og[FILENAME]=o }
       }
     }
     function hrs(v) {
@@ -98,32 +119,48 @@ if [ -n "$BOARD" ]; then
            || s=="done")
     }
     END {
-      n=0; done=0; open=0; known=0; ksum=0
+      # an+ad are the DELIVERABLE — origin: requested. dn is the derived count,
+      # reported beside it and never folded in: a derived PRD enlarges the
+      # denominator with work the user never asked for, so one combined
+      # percentage cannot answer "how far along are we". See README,
+      # Derived work.
+      n=0; open=0; known=0; ksum=0; an=0; ad=0; dn=0
       for (f in st) {
         if (!live(st[f])) { delete st[f]; continue }
         n++
-        if (st[f]=="done") done++
         if (st[f]=="open") open++
+        if (og[f]=="derived") dn++
+        else { an++; if (st[f]=="done") ad++ }
         h=hrs(es[f]); if (h>=0) { known++; ksum+=h }
       }
-      if (n==0) { print "0 0 0 0 0"; exit }
+      if (n==0) { print "0 0 0 0 0 0" ; exit }
       avg = (known>0) ? ksum/known : 4
-      tot=0; dtot=0
+      atot=0; adtot=0
       for (f in st) {
+        if (og[f]=="derived") continue
         h=hrs(es[f]); if (h<0) h=avg
-        tot+=h
-        if (st[f]=="done") dtot+=h
+        atot+=h
+        if (st[f]=="done") adtot+=h
       }
-      p = (tot>0) ? int(dtot*100/tot + 0.5) : 0
+      ap = (atot>0) ? int(adtot*100/atot + 0.5) : 0
       q = int(open*100/n + 0.5)
-      printf "%d %d %d %d %d\n", n, done, p, open, q
+      printf "%d %d %d %d %d %d\n", an, ad, ap, open, q, dn
     }
   ' 2>/dev/null)
 
   set -- $STATS
-  N=${1:-0}; D=${2:-0}; P=${3:-0}; O=${4:-0}; Q=${5:-0}
+  N=${1:-0}; D=${2:-0}; P=${3:-0}; O=${4:-0}; Q=${5:-0}; DN=${6:-0}
   if [ "$N" -gt 0 ] 2>/dev/null; then
-    BOARD_OUT="\033[38;5;108m▸pearde\033[0m \033[38;5;252m${D}/${N}\033[0m \033[38;5;108m${P}%\033[0m"
+    BOARD_OUT="\033[38;5;108m▸pearde\033[0m"
+    # attached to the label, not appended to the row: it qualifies what the
+    # numbers are counted over, and a master with no marker reads as one board
+    [ "$NB" -gt 1 ] 2>/dev/null && \
+      BOARD_OUT="$BOARD_OUT\033[38;5;108m⊞${NB}\033[0m"
+    BOARD_OUT="$BOARD_OUT \033[38;5;252m${D}/${N}\033[0m \033[38;5;108m${P}%\033[0m"
+    # suppressed at zero: a board with nothing derived should not carry the
+    # vocabulary, and an always-present +0d teaches the eye to skip it.
+    [ "$DN" -gt 0 ] 2>/dev/null && \
+      BOARD_OUT="$BOARD_OUT \033[38;5;240m·\033[0m \033[38;5;209m+${DN}d\033[0m"
     BOARD_OUT="$BOARD_OUT \033[38;5;240m·\033[0m \033[38;5;252mopen ${O}\033[0m \033[38;5;214m${Q}%\033[0m"
   fi
 

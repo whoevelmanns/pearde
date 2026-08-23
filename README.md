@@ -28,7 +28,7 @@ commands can work the board. The board is `prds/` at the repo root.
 
 | role             | does                                                        |
 |------------------|-------------------------------------------------------------|
-| **orchestrator** | works the board. The ONLY writer of PRD state — nothing to race, so no locking. One per board |
+| **orchestrator** | works the board. The ONLY writer of PRD state — nothing to race, so no locking. One per board, and on a master board that one owns every member it merges |
 | **analyst**      | turns one `open` PRD into specs, a split, or questions       |
 | **implementer**  | turns one `specced` PRD's specs into verified code           |
 
@@ -55,6 +55,88 @@ prds/
 - A parent with children is **not dispatchable** until every child is `done`.
   Work flows to the leaves.
 
+## Master boards
+
+A **master board** merges other boards into one. It exists to plan across
+projects: one scan, one wave plan, one timeline, one progress line over several
+repos.
+
+```yaml
+# prds/settings.md, at the master
+---
+name: master
+language: English
+workers: 6
+pipeline: 4
+members:
+  - ../mitosys/prds
+  - model: ../model/prds
+  - ../realm/.mi/prds
+---
+```
+
+- A board whose `settings.md` carries `members:` **is** a master board. Nothing
+  else marks one, and it is otherwise an ordinary board: it can hold its own
+  PRDs, its own memos, its own Plane project.
+- An entry is `- <path>` or `- <name>: <path>`. A relative path resolves
+  against the master's `prds/`; a path at a repo root gains `/prds`.
+- The name defaults to the walk-up that names the Plane project — `realm/.mi/prds`
+  is `realm`. Write `<name>: <path>` to hold a name against a move.
+- **Nothing moves.** Every member keeps its own `prds/`, `settings.md`,
+  `memos/`, `.plane.env` and Plane project. PRDs, specs and memos are written
+  where they live.
+- What lives at the master: the plan, the merged mirror, the progress line.
+
+**Addressing.** A member PRD is `@<member>/<rel>` board-wide — `@model/nucleus`,
+`@mitosys/gate/child`. The sigil is what makes one flat namespace safe: a PRD
+directory is never named `@…`, so a qualified address can never collide with
+one of the master's own PRDs. Every handle takes it: `run @model/nucleus`,
+`retry @model/nucleus`, `needs: @model/nucleus`.
+
+**The parent is where you work.** One orchestrator, on the master. It scans
+every member, dispatches their workers, and writes each transition into that
+PRD's own `prd.md` at its real path. Nothing is copied, staged, or mirrored on
+disk — there is exactly one file per PRD, and it is the member's.
+
+A member session working its own board while a master session works the group
+is the two-orchestrators case the loop already forbids. Same rule, wider board:
+one orchestrator per PRD, and the master owns every PRD it merges.
+
+**Reconcile.** A master's plan is a function of every member's state, so a
+transition written in one project re-orders the whole board:
+
+```sh
+python3 <skill>/plane/sync.py reconcile [board]   # waves recomputed, anchor kept
+```
+
+The live service does it by itself — it watches every member's files and
+reconciles within about a second of a change landing in any of them, so the
+timeline is never drawing yesterday's order. `plan` is still what re-anchors
+the schedule on today; `reconcile` only re-orders.
+
+**What crosses a board boundary, and what does not:**
+
+| thing                            | scope                                                                                  |
+|----------------------------------|-----------------------------------------------------------------------------------------|
+| `prd.md`, specs, memos, `state`  | the member. Written where the PRD lives, never at the master                             |
+| `needs:`                         | the whole master board. Resolved in the PRD's own board first, so a member's `needs: sibling` keeps meaning its sibling; across boards it is `@<member>/<prd>`. A bare name matching PRDs on two boards is ambiguous, reported, and ignored |
+| `footprint:`                     | qualified with the member name before any overlap check — two repos both touching `src/lib.ts` are not touching one file. An **absolute** path is left as written, which is how a deliberate cross-repo overlap still clashes |
+| `language`                       | the PRD's own board. A member's PRD, spec and report are written in that member's `language`; the master's is for its own PRDs and for the round |
+| `workers`, `pipeline`            | the master. It is the one dispatching                                                   |
+| `est` / `actual` calibration     | the member. Read the pairs from the board the PRD lives on — one repo's hours do not estimate another's |
+| `repo` for a worker brief        | the PRD's own `repo:`, else the member's repo root — the directory holding its `prds/`   |
+
+**Naming.** A master board is named for what it owns, not for the directory it
+sits in. The first round that meets a master board with no `name:` asks the
+user for one and writes it to `settings.md`, exactly as the first run asks for
+the board language. Until then the name is inferred from the members
+(`mitosys+model+realm`), which keeps the board working and is not an answer.
+
+**What belongs on the master's own board:** a PRD that spans more than one
+member. True of one member alone → it belongs on that member's board, however
+large it is. The master sees and schedules every member's work; it implements
+none of it that a member could own.
+
 ## Frontmatter contract
 
 Tools read the keys below. Every other key in a `prd.md` or a spec is yours and
@@ -72,6 +154,8 @@ no tool touches it.
 | `repo`      | user                           | the worker brief. Optional                        |
 | `needs`     | user                           | `plan` wave order. A list of PRD dir names. Optional |
 | `footprint` | user / orchestrator            | the overlap check in step 5, and `plan`'s waves when specs carry none. A list of paths. Optional |
+| `origin`    | whoever creates the PRD        | the split in the progress line, and the tripwire in **Derived work**. `requested` \| `derived` |
+| `from`      | orchestrator                   | which PRD's work surfaced a `derived` one. A PRD dir name |
 
 `specNN.md`:
 
@@ -82,6 +166,9 @@ no tool touches it.
 
 - `state` is the only key the loop cannot run without.
 - Missing `priority` sorts at 0. Missing `est` weighs at the board average.
+- Missing `origin` reads as `requested`. That default is deliberate: a board
+  that predates this key keeps its numbers, and the only way to get counted as
+  derived is to say so.
 - Match a key by name, at any indentation, anywhere in the frontmatter. A
   `time:` map holding `est` and `actual` reads the same as both at top level.
   Names are unique within one file.
@@ -128,6 +215,58 @@ dispatched, never scheduled by `plan`, left out of the progress line and the
 status line, and given its own Plane state rather than borrowing `open`'s.
 Report parked PRDs by name in the round — neither progress nor backlog.
 
+## Derived work
+
+A board holds two kinds of PRD, and conflating them is how a board stops
+delivering what it was opened for.
+
+- **`origin: requested`** — the user asked for it. The deliverable.
+- **`origin: derived`** — the board found it while working. A wrong claim in a
+  PRD, a gate that cannot fail, a check whose selector is the wrong set.
+
+Derived work is real and often the best work on the board. It is also
+**self-generating**: a gate written to prove a requested PRD can itself be
+defective, and the PRD that fixes it grows a gate of its own. Nothing in the
+loop bounds that, so it has to be bounded here.
+
+**Filing a derived PRD is not free.** Two rules, both at creation time:
+
+1. **State the consequence for a requested PRD.** Name which one, and what it
+   gets wrong if this is not fixed. A derived PRD whose body cannot name that
+   consequence is filed **`state: deferred`** — parked, per **States**: never
+   dispatched, never scheduled, out of the progress line, reported by name.
+   Not `open`. `open` means the board intends to do it.
+2. **A defect in an instrument is a memo, not a PRD.** If the finding changes
+   no verdict about the deliverable — a check that would pass too quietly, a
+   count that is a reading rather than a measurement, a census whose predicate
+   was narrow — write it per **Memos** and move on. That knowledge is exactly
+   what a memo is for: it outlives the work, and it costs no worker.
+
+The test between them is one question: **would fixing this change what ships,
+or only how loudly the board would have noticed?** The first is a PRD. The
+second is a memo.
+
+**The tripwire.** When open+`analyzing`+`specced`+`claimed` derived PRDs reach
+the same count as requested ones, the board is working on itself. The loop
+stops filing derived PRDs, reports the split with both counts, and puts it to
+the user in the round: continue, defer the derived tree, or drop it. Do not
+decide this alone — the trade between a finished deliverable and a perfect
+record is the user's, and it is invisible to them until someone says the two
+numbers out loud.
+
+Two derived PRDs may not depend on each other more than one level deep. A
+derived PRD filed against a derived PRD is the loop feeding on itself; fold the
+second into the first, or write the memo.
+
+**Measured, on a real board.** A dotfiles port ran to 34 of 54 requested PRDs
+`done` with roughly 37h of requested work left — and 52 derived PRDs `done`
+against 25 still open, 11 of those about the checking machinery rather than the
+configuration. Derived `done` outnumbered requested `done`. The progress line
+read `done 92/145 · 63%` throughout, which was true of the board and wrong
+about the deliverable, and the user found out by asking why a port was taking
+so long. Both rules above and the split in the **Progress line** exist because
+that board could not report the difference.
+
 ## The loop
 
 Run until the board is drained, or everything left is blocked on the user.
@@ -141,10 +280,18 @@ nothing.
   `settings.md` per `references/settings.md`, asking the user for the board
   language.
 - `find prds -type f -name prd.md`, parse every frontmatter.
+- `members:` in `settings.md` means a **master board**: scan every member the
+  same way and address its PRDs `@<member>/<rel>`, per **Master boards**. With
+  no `name:` on it, ask the user what the group is called and write it before
+  the round goes on — a name inferred from directory names is a placeholder.
 - No board: create `prds/`, report it empty, stop.
 - Once per session, sweep a dead session's leftovers — `analyzing` with no live
   worker → `open`; `claimed` with no live worker → `failed`. Partial code may
   exist, and a human look is cheaper than a blind retry.
+- Read the worker's **output** before writing that sweep. `analyzing` with spec
+  files on disk is an analyst that finished and an orchestrator that died: the
+  transition is `specced` with the specs' `est` summed, not `open`. Sweeping it
+  to `open` throws away work that is sitting right there.
 
 A worker its infrastructure killed — API error, lost network, full disk — is
 not a failed attempt:
@@ -209,6 +356,13 @@ present), write the transition, write `actual:` on a clean `done` per
 **Calibration**, clear `claim:`, print the progress line, mirror per **Plane**,
 return to step 2.
 
+A worker reports defects outside its own scope — that is what a worker is for,
+and it must not reach into a sibling's files to fix them. Deciding what becomes
+of each report is the orchestrator's, per **Derived work**: a consequence for a
+requested PRD makes it a derived PRD, `origin: derived` and `from:` naming the
+PRD that surfaced it; a defect in an instrument makes it a memo; neither makes
+it `open` by default. Check the tripwire before filing, not after.
+
 A finished analyst refills the pipeline; a finished implementer frees a worker
 slot. Do not poll if results are pushed to you.
 
@@ -217,6 +371,12 @@ slot. Do not poll if results are pushed to you.
 Nothing in flight and nothing dispatchable: report per-state counts, every
 `question` / `refine` / `failed` PRD by name with what it needs, and the final
 progress line.
+
+Report the two origins separately, and name what remains of the **deliverable**
+first — the requested PRDs still not `done`, with their `est`. A closing report
+that leads with a board-wide percentage tells the user how busy the board was,
+not whether the thing they asked for exists. Every `deferred` derived PRD is
+listed by name in the same breath, so parking is visible rather than quiet.
 
 ## Install check
 
@@ -228,14 +388,16 @@ bash <skill>/doctor.sh [board]         # report; exit 1 when a part is broken
 bash <skill>/doctor.sh --fix [board]   # report, then repair
 ```
 
-Five parts for one board, each `ok`, `off`, or `broken`. A broken part carries
-the command that repairs it.
+One part per line for one board, each `ok`, `off`, or `broken`. A broken part
+carries the command that repairs it. `members` reports only on a master board;
+the rest always report.
 
 | part         | `off`                                  | `broken`                                                        |
 |--------------|----------------------------------------|------------------------------------------------------------------|
 | `skill`      | discovered nowhere                     | the skills symlink resolves to no skill folder                   |
 | `statusline` | no `statusLine` in the config in force | configured, and its command does not resolve or renders nothing  |
 | `board`      | no board                               | off the contract path, or no `language`                          |
+| `members`    | not a master board — no `members:`     | a `members:` entry that is not a board on disk, or an empty list  |
 | `memos`      | no `memos/`                            | a memo fails the check in `references/memo.md`                   |
 | `plane`      | not installed                          | installed and unreachable, or reachable and this board never bootstrapped |
 
@@ -259,20 +421,33 @@ should not be.
 Print on EVERY state change:
 
 ```
-▸ <prd>: <from> → <to> · done <d>/<n> · <p>% · open <o>/<n> · <q>% · ~<h>h left @<w> workers
+▸ <prd>: <from> → <to> · asked <ad>/<an> · <ap>% · derived <dd>/<dn> · open <o>/<n> · <q>% · ~<h>h left @<w> workers
 ```
 
-| term      | is                                                                         |
-|-----------|----------------------------------------------------------------------------|
-| weight    | the PRD's `est`. No `est` counts at the average est of estimated PRDs, `est-default` from `prds/settings.md` if none are estimated |
-| `<p>`     | Σ est(done) / Σ est(all). `failed` counts as remaining                      |
-| `<o>`     | PRDs still `open` — untouched, no analyst on them                           |
-| `<q>`     | `<o>/<n>`. A count, never est-weighted — an `open` PRD has no `est` to weight by |
-| `<n>`     | the states in the **States** table only                                     |
-| `~<h>h`   | Σ est(not done) ÷ active workers                                            |
+| term       | is                                                                        |
+|------------|---------------------------------------------------------------------------|
+| weight     | the PRD's `est`. No `est` counts at the average est of estimated PRDs, `est-default` from `prds/settings.md` if none are estimated |
+| `<ad>/<an>`| `done` / all PRDs with `origin: requested` — **the deliverable**            |
+| `<ap>`     | Σ est(done, requested) / Σ est(all requested). `failed` counts as remaining |
+| `<dd>/<dn>`| `done` / all PRDs with `origin: derived`. Counts, never est-weighted        |
+| `<o>`      | PRDs still `open` — untouched, no analyst on them, both origins            |
+| `<q>`      | `<o>/<n>`. A count, never est-weighted — an `open` PRD has no `est` to weight by |
+| `<n>`      | the states in the **States** table only                                    |
+| a master   | every member's PRDs and its own, in one set — the numbers are the group's, and a member named in a line is named `@<member>/<prd>` |
+| `~<h>h`    | Σ est(not done) ÷ active workers, both origins — it is the whole queue      |
 
+- **The `asked` figure is the answer to "how far along are we".** A single
+  combined percentage cannot answer it, because derived PRDs enlarge the
+  denominator with work the user never requested: a board 90% through its
+  deliverable reads 63% once its own findings are counted alongside. Report
+  both or neither.
+- Omit the `derived` term on a board that has none. An empty term reads as a
+  broken line, and a board with nothing derived should not carry the vocabulary.
+- When the **Derived work** tripwire is live — derived in flight matching
+  requested — say so on the line and in the round. A ratio nobody states is a
+  ratio nobody acts on.
 - `<q>` and `<p>` do not sum to 100. `<q>` is how much of the board is
-  untouched, `<p>` how much of the work is done.
+  untouched, `<ap>` how much of the requested work is done.
 - A parked PRD is in neither numerator nor denominator. Name it in the report
   instead of diluting the percentage with work nobody will do.
 - `~<h>h left` is an estimate. Label jumps honestly — a refine split that adds
@@ -283,13 +458,17 @@ run a command, plus what the working tree owes and a link to the board:
 
 ```
 <dir> <branch> *<dirty> ↑<ahead> ↓<behind> · <model>
-▸pearde <d>/<n> <p>% · open <o> <q>% · ▸board
+▸pearde <ad>/<an> <ap>% · +<dn>d · open <o> <q>% · ▸board
 ```
 
 - Two rows. The board is what is being read, and sharing a row with the path
   pushed it off the edge of a narrow terminal.
 - No board in scope, no second row — a blank row reads as a broken status line,
   not an empty board.
+- `<ad>/<an> <ap>%` is the requested work only, matching the progress line.
+  `+<dn>d` is the derived PRD count, suppressed at zero — one glyph, because
+  the status line has no room to argue and its job is to stop a derived tree
+  growing unseen between rounds.
 - `*<dirty>` is uncommitted entries. `↑`/`↓` are commits against the upstream.
   A branch with no upstream reads `no-upstream`, not `↑0` — nothing to push to
   is not nothing to push.
@@ -338,9 +517,19 @@ Rules for every worker:
 - Never edit frontmatter, never touch other PRDs, never write outside the PRD
   folder. Implementers also write the target repo.
 - Write per `references/language.md`, in the board `language` from
-  `prds/settings.md`. Name the language in the brief.
+  `prds/settings.md`. Name the language in the brief. On a master board that is
+  the language of the PRD's **own** board — a member's PRD is written in the
+  member's language, per **Master boards**.
+- Give a member's worker real paths, never `@<member>/…`: the address is the
+  board's, the worker's brief names the file and the repo it lives in. `repo`
+  is the PRD's own, else the member's repo root.
 - A report that is incomplete, or a worker stopped mid-task: continue THAT
   worker — it holds the context. Never respawn it.
+- Report a defect found outside your scope; do not file it and do not fix it.
+  Say what is wrong, what you measured, and which requested PRD it would get
+  wrong if anything. The orchestrator decides whether that becomes a PRD, a
+  memo, or nothing, per **Derived work** — a worker that files its own findings
+  turns one PRD into three and cannot see the board's ratio.
 
 **Analyst** — one per `open` PRD being specced:
 
@@ -360,6 +549,10 @@ Rules for every worker:
 >   Never a fact you could look up — find facts yourself. Write `## Questions`
 >   into `prd.md` in the round format of `<skill>/references/drill.md` and
 >   report them.
+>
+> Spec what this PRD asks for. A wrong claim you find elsewhere, or a check
+> that could not fail, goes in your report as a finding — not into a spec, and
+> not into a new PRD. Widening the contract is REFINE, not initiative.
 
 On return: SPECCED → confirm the spec files exist, write `est:`, set `specced`.
 REFINE / QUESTION → set the state, keep the report.
@@ -456,7 +649,8 @@ arguments, "pearde status" in plain chat. The meanings are fixed.
 | one round, then stop         | `once`                                                                                                   |
 | more implementers            | `workers=5` — written to `prds/settings.md`, persists                                                    |
 | deeper spec pipeline         | `pipeline=5` — written to `prds/settings.md`, persists                                                   |
-| new PRD                      | `add <title>` — creates the dir + `prd.md` from `references/templates/prd.md`, `state: open`             |
+| new PRD                      | `add <title>` — creates the dir + `prd.md` from `references/templates/prd.md`, `state: open`, `origin: requested` |
+| park a derived PRD           | `defer <prd>` — `state: deferred`, per **Derived work**. Reported by name, never dispatched              |
 | work out what is wanted      | `drill <prd>` — interview per `references/drill.md`; with no `<prd>`, into a new tree                    |
 | retry a failed PRD           | `retry <prd>` — moves `## Failure` into the body as history, sets `open`                                 |
 | a blocked PRD's event landed | `unblock <prd>` — re-runs only the open boxes, per **States**; `done` when they close                    |
@@ -465,7 +659,22 @@ arguments, "pearde status" in plain chat. The meanings are fixed.
 | pre-plan parallel waves      | `plan` — `sync.py plan` per **Plane**; print the waves it returns                                        |
 | the adaptive local timeline  | `gantt` — `sync.py gantt --open`: the plan as `prds/.gantt.html`, a now-line and only the rows in the scrolled window |
 | the ticket mirror            | `plane` — `plane/plane.sh boot`: app up + every board synced, per **Plane**                              |
+| plan across projects         | `master <path> …` — writes `members:` in `prds/settings.md`, asks the group's `name:` the first time, per **Master boards**. This board is then the parent every round works in |
+| what a master merges         | `master` with no path — `sync.py members`: every member, its path, and `MISSING` when it is not on disk  |
+| stop merging one             | `master drop <name>` — removes that `members:` entry. Nothing in the member changes; it is a board again |
+| re-order after a member moved| `reconcile` — `sync.py reconcile`: waves recomputed, anchor kept. The live service already does it       |
 | is this thing wired?         | `doctor` — `doctor.sh --fix`, per **Install check**; print every line                                    |
+
+`add` is the user asking, so it writes `origin: requested`. Only the
+orchestrator writes `origin: derived`, and only with `from:` naming the PRD
+whose work surfaced it — see **Derived work** for what must be true before a
+derived PRD is filed `open` rather than `deferred`.
+
+`master <path>` takes one or more paths, each a board or a repo holding one,
+and appends them to `members:`. It creates nothing in the member and moves no
+file — a board joins a master by being named in one list, and leaves the same
+way. Print what the merged board now holds: member count, PRD count, and the
+plan `reconcile` produced.
 
 `memo <subject>` slugs the subject — lowercase, spaces to hyphens. The slug is
 both the filename and the `memo:` key, and `doctor` fails if they disagree.
@@ -502,6 +711,9 @@ Optional. The board mirrors to a self-hosted Plane running inside the skill:
   other frontmatter scalar a `key: value` label, child PRDs as sub-tickets
 - one **page** per memo — a memo is a document, so it belongs in the wiki, not
   the work list
+- a master board mirrors the merged set into **its own** project: every member's
+  tickets carry a `board: <member>` label, and each member keeps its own project
+  as well. The master project is the merged view, not a move
 
 Setup, mapping, and the wave planner: `plane/plane.md`. Install:
 `references/install.md` step 3.
@@ -510,6 +722,7 @@ Setup, mapping, and the wave planner: `plane/plane.md`. Install:
 python3 <skill>/plane/serve.py ensure        # the live service: watch + mirror
 python3 <skill>/plane/sync.py sync --quiet   # one manual mirror pass
 python3 <skill>/plane/sync.py plan           # waves → stdout + `wave: N` labels
+python3 <skill>/plane/sync.py reconcile      # re-order the waves, keep the anchor
 python3 <skill>/plane/sync.py gantt --open   # the plan as prds/.gantt.html
 ```
 

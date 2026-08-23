@@ -4,9 +4,11 @@
 #   doctor.sh [board]        report every part, exit 1 when one is broken
 #   doctor.sh --fix [board]  report, then repair what is unambiguous
 #
-# Five parts, each on one line: `ok`, `off` (installed nowhere, nothing to
-# repair), or `broken` (installed and not working — the failure the loop used
-# to run straight past). A broken part carries its exact fix on the next line.
+# One part per line: `ok`, `off` (installed nowhere, nothing to repair), or
+# `broken` (installed and not working — the failure the loop used to run
+# straight past). A broken part carries its exact fix on the next line.
+# `skill`, `statusline`, `board`, `memos` and `plane` always report; `origin`
+# needs PRDs to read, and `members` only exists on a master board.
 #
 # `--fix` repairs four things and only four: the missing skill symlink, a dead
 # status-line symlink, a board that Plane is running for but has never been
@@ -154,6 +156,75 @@ else
   fi
 fi
 
+# ── members: the boards a master merges ──────────────────────────────────────
+# Only on a master board. A member that is not on disk is the one failure that
+# matters: the plan silently loses a whole project, and the board looks smaller
+# rather than broken.
+if [ -n "$BOARD" ] && grep -qE '^[[:space:]]*members:' "$BOARD/settings.md" 2>/dev/null; then
+  MEM=$(python3 "$DIR/plane/sync.py" members "$BOARD" 2>/dev/null | grep .)
+  NM=$(printf '%s\n' "$MEM" | grep -c . )
+  MISS=$(printf '%s\n' "$MEM" | grep -c MISSING || true)
+  NAMES=$(printf '%s\n' "$MEM" | awk '{print $1}' | tr '\n' ' ')
+  MPRDS=$(printf '%s\n' "$MEM" | awk '$0 !~ /MISSING/ {print $2}' \
+          | while IFS= read -r m; do [ -d "$m" ] && find "$m" -type f -name prd.md; done \
+          | wc -l | tr -d ' ')
+  if [ "$NM" -eq 0 ] 2>/dev/null; then
+    row members broken "members: is empty — a master board with no members"
+    fix "list them, one '- <path>' or '- <name>: <path>' per line, per references/settings.md"
+  elif [ "$MISS" -gt 0 ] 2>/dev/null; then
+    row members broken "$NM member board(s) · $MISS not on disk · $NAMES"
+    printf '%s\n' "$MEM" | grep MISSING | while IFS= read -r l; do
+      printf '  %-11s %-7s %s\n' "" "" "$l"
+    done
+    fix "correct or drop those members: entries in $BOARD/settings.md"
+  else
+    # the name is reported, never repaired: what a group of projects is called
+    # is the user's call, and the first round that meets an unnamed master
+    # board asks for it. Inference keeps the board working until then.
+    BNAME=$(python3 -c "import sys;sys.path.insert(0,'$DIR/plane');import sync;print(sync.board_name('$BOARD'))" 2>/dev/null)
+    if grep -qE '^[[:space:]]*name:' "$BOARD/settings.md" 2>/dev/null; then
+      row members ok "$NM member board(s) · ${NAMES}· $MPRDS member PRDs planned here · name $BNAME"
+    else
+      row members ok "$NM member board(s) · ${NAMES}· $MPRDS member PRDs planned here"
+      printf '  %-11s %-7s %s\n' "" "" "name inferred as '$BNAME' — the round asks the user and writes name: to settings.md"
+    fi
+  fi
+fi
+
+# ── origin: the deliverable against what the board found for itself ──────────
+# A derived PRD that names no `from:` cannot be traced to the work that
+# surfaced it, and a board whose derived tree matches its requested one is
+# working on itself. Both are reports, not repairs — the trade is the user's.
+# See README, Derived work.
+if [ -n "$BOARD" ] && [ "$N" -gt 0 ] 2>/dev/null; then
+  ORIG=$(find "$BOARD" -type f -name prd.md -print0 2>/dev/null | xargs -0 awk '
+    FNR==1 { ph=0; og="requested"; fr=""; st="?" }
+    { if (ph>=2) next
+      if ($0 ~ /^---[ \t]*$/) { ph++; if (ph==2) {
+          if (og=="derived") { d++; if (fr=="") nofrom++
+            if (st!="done" && st!="deferred") dlive++ }
+          else { a++; if (st!="done" && st!="deferred") alive++ } }
+        next }
+      if (ph==1) {
+        if ($1=="origin:") { og=$2; sub(/#.*/,"",og) }
+        else if ($1=="from:") { fr=$2; sub(/#.*/,"",fr) }
+        else if ($1=="state:") { st=$2; sub(/#.*/,"",st) } } }
+    END { printf "%d %d %d %d %d\n", a+0, d+0, nofrom+0, alive+0, dlive+0 }')
+  set -- $ORIG
+  A=${1:-0}; D=${2:-0}; NOFROM=${3:-0}; ALIVE=${4:-0}; DLIVE=${5:-0}
+  if [ "$D" -eq 0 ] 2>/dev/null; then
+    row origin ok "$A requested · nothing derived"
+  elif [ "$NOFROM" -gt 0 ] 2>/dev/null; then
+    row origin broken "$D derived · $NOFROM with no from:"
+    fix "add from: <prd> naming the PRD whose work surfaced each one"
+  elif [ "$DLIVE" -ge "$ALIVE" ] 2>/dev/null && [ "$DLIVE" -gt 0 ] 2>/dev/null; then
+    row origin broken "$DLIVE derived in flight vs $ALIVE requested — the board is working on itself"
+    fix "put the split to the user: continue, defer the derived tree, or drop it"
+  else
+    row origin ok "$A requested ($ALIVE live) · $D derived ($DLIVE live)"
+  fi
+fi
+
 # ── memos: the board's decision records, and their frontmatter ────────────────
 if [ -n "$BOARD" ]; then
   MDIR=$(python3 -c "import sys;sys.path.insert(0,'$DIR');import memos;d,e=memos.memos_dir('$BOARD');print(f'{d}\t{e}')" 2>/dev/null)
@@ -199,7 +270,12 @@ else
     case "$CODE" in
       200)
         SRV_PORT="${PLANE_SERVE_PORT:-8443}"
-        if curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null | grep -q "\"$(basename "$(dirname "$BOARD")")\""; then
+        # match on the registered path, never on a name: a board that renamed
+        # its project keys by that name in the daemon, and grepping the
+        # directory name reports a watched board as unwatched
+        SRV=$(curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
+        if printf '%s' "$SRV" | grep -qF "\"$BOARD\"" \
+           || printf '%s' "$SRV" | grep -qF "\"$PBOARD\""; then
           row plane ok "up at $URL · this board mirrors · live service watching"
         elif [ "$FIX" = 1 ] && python3 "$DIR/plane/serve.py" ensure "$BOARD" >/dev/null 2>&1; then
           row plane ok "up at $URL · this board mirrors · live service watching"
