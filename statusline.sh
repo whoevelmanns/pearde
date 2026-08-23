@@ -94,7 +94,8 @@ if [ -n "$BOARD" ]; then
       # user'"'"'s own is not board progress and not board backlog: it leaves the
       # counts entirely, the same way the wave planner skips it.
       return (s=="open" || s=="analyzing" || s=="refine" || s=="question" \
-           || s=="specced" || s=="claimed" || s=="failed" || s=="done")
+           || s=="specced" || s=="claimed" || s=="blocked" || s=="failed" \
+           || s=="done")
     }
     END {
       n=0; done=0; open=0; known=0; ksum=0
