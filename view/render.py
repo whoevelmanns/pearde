@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """pearde gantt — the plan as distance to the vision, not as a calendar.
 
-One self-contained HTML file: `plan.py gantt` writes it to `prds/.gantt.html`
+One self-contained HTML file: `plan.py gantt` writes it to `prds/.view.html`
 from the schedule `plan` saved in `.plan.json`, and the live service
 serves the same render at `/board/<name>`.
 

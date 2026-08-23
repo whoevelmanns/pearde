@@ -173,7 +173,7 @@ if [ -n "$BOARD" ]; then
   # Matched on the daemon's registered PATH, never the directory name: a
   # board keys in the service by its declared name, and grepping the directory
   # would report a watched board as unwatched.
-  SRV_PORT="${PLANE_SERVE_PORT:-8443}"
+  SRV_PORT="${PEARDE_PORT:-8443}"
   LINK=""
   SRV=$(curl -fsS -m 1 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
   if [ -n "$SRV" ]; then

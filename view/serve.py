@@ -11,7 +11,7 @@ every registered board and serving the view that reads and writes it.
     serve.py forget <name>    stop watching one board
     serve.py stop             stop the daemon
 
-Singleton by port bind: the daemon owns 127.0.0.1:8443 (PLANE_SERVE_PORT
+Singleton by port bind: the daemon owns 127.0.0.1:8443 (PEARDE_PORT
 overrides), and a second `run` refuses to start because the bind fails. That
 is the whole locking story — no pidfile to go stale.
 
@@ -76,7 +76,7 @@ import render as renderlib  # noqa: E402
 import memos as memoslib  # noqa: E402
 import edit as editlib  # noqa: E402
 
-PORT = int(os.environ.get("PLANE_SERVE_PORT", "8443"))
+PORT = int(os.environ.get("PEARDE_PORT", "8443"))
 DIR = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.join(DIR, "state")
 REG_PATH = os.path.join(APP_DIR, "serve.json")
@@ -666,7 +666,7 @@ def cmd_run():
         srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     except OSError:
         print(f"serve: port {PORT} is taken — a daemon already runs "
-              f"(or set PLANE_SERVE_PORT)", file=sys.stderr)
+              f"(or set PEARDE_PORT)", file=sys.stderr)
         return 1
     global REGISTRY_LOADED
     for p in load_registry():

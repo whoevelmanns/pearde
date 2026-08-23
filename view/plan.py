@@ -280,17 +280,8 @@ def infer_name(board):
 def board_name(board):
     """What the board calls itself: `name:` in prds/settings.md, else inferred
     — from the members on a master board, from the directory walk-up on a
-    plain one.
-
-    A master board is the case that needs the key: it is named for what it owns
-    rather than for the directory it sits in, and `PLANE_PROJECT_NAME` in
-    a machine-local file put that name outside the board's own settings
-    could not see. Identity belongs beside membership.
-
-    Inference is a placeholder, not an answer. The first round that meets an
-    unnamed master board asks the user for the name and writes it — the same
-    way the first run asks for the board language — because what a group of
-    projects is called is the user's call, not a join of directory names."""
+    plain one. Inference is a placeholder: the first round that meets an
+    unnamed master board asks the user and writes `name:`."""
     raw = str(board_settings(board).get("name", "")).strip()
     return re.sub(r"[^A-Za-z0-9_. -]", "-", raw) or infer_name(board)
 
@@ -724,7 +715,7 @@ def cmd_plan(board, workers, push=False):
 def serve_url(board):
     """Where the live view is, if the service is up. The file above always
     works; this one is the same render with the detail pane and the edits."""
-    port = os.environ.get("PLANE_SERVE_PORT", "8443")
+    port = os.environ.get("PEARDE_PORT", "8443")
     return f"http://127.0.0.1:{port}/board/{board_name(board)}"
 
 

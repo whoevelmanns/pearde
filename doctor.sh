@@ -279,7 +279,7 @@ fi
 # path, never the name: a board keys by its declared `name:`, and grepping the
 # directory would report a watched board as unwatched.
 if [ -n "$BOARD" ]; then
-  SRV_PORT="${PLANE_SERVE_PORT:-8443}"
+  SRV_PORT="${PEARDE_PORT:-8443}"
   SRV=$(curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
   if [ -z "$SRV" ]; then
     row view off "not running — the board reads and plans without it"
