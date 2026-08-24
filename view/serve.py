@@ -22,6 +22,11 @@ What it does, per registered board, within about a second of a file changing:
   - writes the day's history row, which is the only memory the board has
   - bumps a per-board sequence number the view and any agent long-poll on
 
+It watches its own source too: edit render.py (or any module here) and the
+daemon re-execs and every open page reloads itself, within about a second. The
+data swap keeps its place; a code reload keeps only what the URL holds — which
+view, which filter, which PRD — because that is where the page writes it.
+
 A board keys by repo name plus any dot-dirs on its path (`racer/.mi/prds` →
 `racer-mi`), or by `name:` in its settings.md when it has one — so two boards
 in one repo still get distinct watch entries and /board/ URLs.
@@ -39,7 +44,10 @@ HTTP API, all JSON, all 127.0.0.1-only:
 
   GET  /status                     daemon + boards: seq, last pass, last error
   GET  /data?board=<name>          the view payload + seq
-  GET  /wait?board=<name>&seq=<n>  long-poll: 200 {seq} on change, 204 quiet
+  GET  /wait?board=<name>&seq=<n>[&boot=<s>]
+                                   long-poll: 200 {seq, boot} on change, 204
+                                   quiet — and 200 at once on a stale boot,
+                                   which tells the page to reload its code
   GET  /board/<name>               the view itself
   GET  /prd?board=<name>&rel=<rel> one PRD in full: frontmatter, body, specs
   GET  /memos?board=<name>         the board's decision records
@@ -91,6 +99,24 @@ LOG_PATH = os.path.join(APP_DIR, "serve.log")
 POLL_S = 1.0       # how often each board is stat-swept
 SETTLE_S = 0.4     # a change must hold still this long before a sync
 WAIT_MAX_S = 25    # long-poll ceiling; clients just re-poll
+
+# The board hot-reloads its data. This hot-reloads the page itself: the daemon
+# imported render.py once, so editing it changes nothing until the process is
+# replaced. The watcher stats these files, re-execs when one moves, and the
+# page — which carries the stamp it was rendered from — reloads when the stamp
+# it polls against no longer matches. Always on: this daemon is local.
+SOURCES = [os.path.join(DIR, f)
+           for f in ("serve.py", "render.py", "plan.py", "edit.py")]
+SOURCES.append(os.path.join(os.path.dirname(DIR), "memos.py"))
+
+
+def source_stamp():
+    return ",".join(str(os.stat(p).st_mtime_ns)
+                    for p in SOURCES if os.path.exists(p))
+
+
+BOOT = source_stamp()
+REFUSED = None     # a stamp that would not compile; do not say so twice
 
 
 # ── boards ─────────────────────────────────────────────────────────────────────
@@ -317,8 +343,41 @@ def mirror(b, force=False):
             b.last_error = f"{type(e).__name__}: {e}"
 
 
+def restart(stamp):
+    """This view's own code moved — replace the process with itself.
+
+    Safe because nothing lives in memory that is not also on disk: the
+    registry is state/serve.json and `run` reloads it, the listening socket is
+    not inherited across exec so the port frees itself, and every client parked
+    on /wait reconnects on its own and finds the new BOOT. A file caught
+    half-written does not compile — say so once and keep serving the old code
+    rather than exec'ing into a daemon that cannot start."""
+    global REFUSED
+    time.sleep(SETTLE_S)              # an editor mid-save settles first
+    if source_stamp() != stamp:
+        return                        # still moving; the next tick finds it
+    for p in SOURCES:
+        try:
+            with open(p, "rb") as fh:
+                compile(fh.read(), p, "exec")
+        except SyntaxError as e:
+            REFUSED = stamp
+            print(f"serve: {os.path.basename(p)}:{e.lineno}: {e.msg} "
+                  f"— not reloading", flush=True)
+            return
+        except OSError:
+            return
+    print("serve: source changed — reloading", flush=True)
+    sys.stdout.flush()
+    os.execv(sys.executable,
+             [sys.executable, os.path.abspath(__file__), "run"])
+
+
 def watch():
     while True:
+        stamp = source_stamp()
+        if stamp != BOOT and stamp != REFUSED:
+            restart(stamp)
         for b in boards():
             try:
                 d = digest(b.path)
@@ -341,15 +400,25 @@ LIVE_JS = """<script>
 /* The board moved. Fetch the payload and hand it to the page, which swaps it
    in where it stands — scroll, zoom, selection and the open inspector all
    survive. A page too old to know how (or a payload that will not parse)
-   falls back to the reload it used to do. */
+   falls back to the reload it used to do.
+
+   The view's own code moving is the other case, and there a swap cannot help:
+   the daemon re-execs and answers with a boot stamp this page does not carry,
+   so the page reloads outright. The URL is the view, so it lands where it
+   stood — the hash restores which view, which filter, which PRD. */
 (async () => {
   let seq = __SEQ__;
+  const boot = "__BOOT__";   // the code this page was rendered from
   for (;;) {
     try {
       const r = await fetch((window.__BASE || "") +
-        "/wait?board=__NAME__&seq=" + seq);
+        "/wait?board=__NAME__&seq=" + seq + "&boot=" + boot);
       if (r.status === 200) {
-        seq = (await r.json()).seq;
+        const out = await r.json();
+        // the daemon is running newer code than this page is: the payload
+        // swap cannot help — the markup and the script are what changed
+        if (out.boot && out.boot !== boot) { location.reload(); return; }
+        seq = out.seq;
         // never write over someone typing in the inspector — the page is
         // live, but a half-written body is not the board's to throw away.
         // Hold, and pick the change up when the field is clean.
@@ -405,6 +474,7 @@ class Handler(BaseHTTPRequestHandler):
         path, q = self.q()
         if path == "/status":
             return self.reply(200, {"pid": os.getpid(), "port": PORT,
+                                    "boot": BOOT,
                                     "boards": [board_json(b) for b in boards()]})
         if path == "/data":
             b = by_name(q.get("board"))
@@ -435,10 +505,13 @@ class Handler(BaseHTTPRequestHandler):
                 if not f.endswith(".md"):
                     continue
                 fm, title, body = planlib.parse_prd(os.path.join(sdir, f))
+                closed, total = planlib.acceptance_of(body)
                 specs.append({"file": f, "title": title or f,
                               "est": fm.get("est", ""),
+                              "complexity": fm.get("complexity", ""),
                               "state": fm.get("state", ""),
                               "footprint": fm.get("footprint", []),
+                              "boxes": [closed, total],
                               "body": body})
             return self.reply(200, {
                 "rel": rel, "title": prd["title"], "state": prd["state"],
@@ -472,12 +545,16 @@ class Handler(BaseHTTPRequestHandler):
                 since = int(q.get("seq", "-1"))
             except ValueError:
                 since = -1
+            # a page from an older incarnation is answered now, not in 25s:
+            # it has nothing to wait for, it has to reload
+            if q.get("boot") not in (None, BOOT):
+                return self.reply(200, {"seq": b.seq, "boot": BOOT})
             with b.cond:
                 if b.seq == since:
                     b.cond.wait(WAIT_MAX_S)
                 if b.seq == since:
                     return self.reply(204, b"")
-                return self.reply(200, {"seq": b.seq,
+                return self.reply(200, {"seq": b.seq, "boot": BOOT,
                                         "last_error": b.last_error})
         ROUTES = ("/", "/status", "/data", "/wait", "/prd", "/memos")
         want = None
@@ -499,7 +576,8 @@ class Handler(BaseHTTPRequestHandler):
                     f'window.__BOARD={json.dumps(b.name)};</script>')
             live = "" if q.get("nolive") else (
                 LIVE_JS.replace("__NAME__", b.name)
-                       .replace("__SEQ__", str(b.seq)))
+                       .replace("__SEQ__", str(b.seq))
+                       .replace("__BOOT__", BOOT))
             # into the head: the page's own script reads __BOARD/__BASE at
             # module level, so they have to exist before it runs
             html = (renderlib.render(payload)

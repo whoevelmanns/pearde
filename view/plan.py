@@ -237,6 +237,85 @@ def spec_data(prd):
     return est, qualify_paths(prd, [f.rstrip("/") for f in feet if f])
 
 
+BOX_RE = re.compile(r"^\s*[-*]\s+\[([ xX])\]", re.M)
+
+
+def acceptance_of(text):
+    """(closed, total) acceptance boxes in one spec's text.
+
+    `## Acceptance` only. A box anywhere else in a spec is a note the analyst
+    left itself, and counting it would make the number say something other
+    than "how much of the contract is standing"."""
+    closed = total = 0
+    for sec in re.split(r"(?m)^##\s+", text)[1:]:
+        head = sec.split("\n", 1)[0].strip().lower()
+        if not head.startswith("acceptance"):
+            continue
+        for box in BOX_RE.findall(sec):
+            total += 1
+            closed += box.lower() == "x"
+    return closed, total
+
+
+def acceptance(prd):
+    """(closed, total) over every spec of one PRD.
+
+    This is the only thing on the board that moves while a worker works.
+    Everything else — the state, the est, the report — is written at the
+    transitions either side of it, so a plan that reads nothing else stands
+    still for the whole of the run it is supposed to be showing."""
+    sdir = os.path.join(prd["dir"], "specs")
+    closed = total = 0
+    for f in sorted(os.listdir(sdir)) if os.path.isdir(sdir) else []:
+        if not f.endswith(".md"):
+            continue
+        try:
+            text = open(os.path.join(sdir, f), encoding="utf-8").read()
+        except OSError:
+            continue
+        c, t = acceptance_of(text)
+        closed, total = closed + c, total + t
+    return closed, total
+
+
+# The states in which a worker holds the PRD and its acceptance boxes are the
+# live record of the run. `analyzing` holds it too, but an analyst writes the
+# boxes rather than closing them — its progress is the spec files appearing.
+HOLDING_STATES = {"claimed", "blocked"}
+
+CLAIM_TS_RE = re.compile(
+    r"(\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?"
+    r"(?:Z|[+-]\d{2}:?\d{2})?)")
+
+
+def claim_of(fm):
+    """`claim: <worker> <started>` → {"who", "since"}, or None.
+
+    The timestamp is whatever ISO-ish thing the orchestrator wrote; the worker
+    name is the rest. Neither is required — a claim with no timestamp still
+    says who holds the PRD."""
+    raw = fm.get("claim")
+    if not raw or isinstance(raw, list):
+        return None
+    raw = str(raw).strip()
+    m = CLAIM_TS_RE.search(raw)
+    who = (raw[:m.start()] + raw[m.end():]).strip() if m else raw
+    return {"who": who, "since": m.group(1) if m else ""}
+
+
+def standing(prd):
+    """(fraction closed, closed, total, collect) for one PRD.
+
+    `collect` is the whole point of reading the boxes: a PRD whose every
+    acceptance box is closed while a worker still holds it is finished work
+    waiting to be committed and set `done`. Until that happens every PRD
+    behind it waits too, so it is the most valuable thing on the board."""
+    closed, total = acceptance(prd)
+    frac = (closed / total) if total else 0.0
+    held = prd["state"] in HOLDING_STATES
+    return frac, closed, total, bool(held and total and closed == total)
+
+
 def hours(v):
     if not v or isinstance(v, list):
         return 0.0
@@ -355,6 +434,11 @@ def gantt_payload(board, prds, mp, settings):
             prio = 0.0
         needs = p["fm"].get("needs", [])
         needs = needs if isinstance(needs, list) else [needs]
+        # what the run itself has closed so far, and who is holding it. Read
+        # per PRD rather than once at plan time: this is the half of the
+        # payload that moves between two transitions, and a view that only
+        # learns it when `plan` runs is not live.
+        frac, closed, total, ready_to_collect = standing(p)
         tasks.append({
             "rel": rel, "name": p["name"], "title": p["title"],
             "board": p.get("board"),
@@ -364,6 +448,11 @@ def gantt_payload(board, prds, mp, settings):
             "startDay": round(s["start"] / day_h, 4),
             "endDay": round(s["end"] / day_h, 4),
             "wave": mp.get("waves", {}).get(rel),
+            "boxes": [closed, total],
+            "part": round(frac, 4),
+            "held": st in HOLDING_STATES or st == "analyzing",
+            "collect": ready_to_collect,
+            "claim": claim_of(p["fm"]),
             # full rels, not basenames: a dependency arrow has to land on a
             # row, and across a master's members a basename names nothing
             "needs": [resolve_need(prds, p, str(n)) or str(n) for n in needs],
@@ -380,6 +469,11 @@ def gantt_payload(board, prds, mp, settings):
             prio = float(p["fm"].get("priority", 0))
         except (TypeError, ValueError):
             prio = 0.0
+        # boxes for live PRDs only: a `done` PRD's specs are history, and
+        # reading every one of them is the plan-time cost this loop avoids
+        closed, total, held = 0, 0, p["state"] in HOLDING_STATES
+        if p["state"] in LIVE_STATES:
+            closed, total = acceptance(p)
         everything.append({
             "rel": rel, "name": p["name"], "title": p["title"],
             "state": p["state"], "board": p.get("board"),
@@ -387,6 +481,8 @@ def gantt_payload(board, prds, mp, settings):
             "prio": int(prio) if prio == int(prio) else prio,
             "est": round(hours(p["fm"].get("est", "")), 2),
             "actual": round(hours(p["fm"].get("actual", "")), 2),
+            "boxes": [closed, total],
+            "collect": bool(held and total and closed == total),
             "kids": len(p.get("children") or []),
         })
     return {
@@ -401,7 +497,9 @@ def gantt_payload(board, prds, mp, settings):
         "anchor": mp.get("planned_at") or datetime.date.today().isoformat(),
         "dayHours": day_h,
         "workers": str(settings.get("workers", "3")),
-        "counts": {"done": done, "parked": parked, "containers": containers},
+        "counts": {"done": done, "parked": parked, "containers": containers,
+                   "collect": sum(1 for t in tasks if t["collect"]),
+                   "held": sum(1 for t in tasks if t["held"])},
         "unplanned": unplanned,
         "tasks": tasks,
     }
@@ -595,6 +693,21 @@ def compute_plan(board, workers=None, warn=True):
         if not est[r] and not any(c in todo for c in p["children"]):
             est[r] = avg
 
+    # In flight, a PRD weighs only what is LEFT of it. An implementer closes an
+    # acceptance box as it lands the check behind it, so the specs on disk say
+    # how much of a held PRD is already standing — and a plan that keeps
+    # weighing the whole of it stands still exactly while the board is moving
+    # fastest. The floor is a twentieth: collecting the work is itself work,
+    # and a bar of zero width is a PRD that vanished off the timeline.
+    boxes, collect = {}, []
+    for r, p in todo.items():
+        frac, closed, total, ready_to_collect = standing(p)
+        boxes[r] = (closed, total)
+        if ready_to_collect:
+            collect.append(r)
+        if total and p["state"] in HOLDING_STATES:
+            est[r] = max(est[r] * (1 - frac), est[r] * 0.05)
+
     # wave = longest needs-chain; cycles are an error
     wave, visiting = {}, set()
     def w(r):
@@ -651,6 +764,7 @@ def compute_plan(board, workers=None, warn=True):
         t0 += max(slots)
     return {"prds": prds, "todo": todo, "parked": parked, "settings": settings,
             "workers": workers, "needs": needs, "est": est, "feet": feet,
+            "boxes": boxes, "collect": sorted(collect),
             "waves": wave, "schedule": schedule, "order": order,
             "nwaves": nwaves, "wall": t0, "avg": avg,
             "prio": {r: prio(r) for r in todo}}
@@ -696,6 +810,14 @@ def cmd_plan(board, workers, push=False):
           + (f" · {len(parked)} parked: " + ", ".join(
               f"{os.path.basename(r_)} [{prds[r_]['state']}]" for r_ in parked)
              if parked else ""))
+    # Before the waves, because it comes before them: every PRD here is
+    # finished work, and every PRD waiting on one of them waits until it is
+    # committed and set `done`.
+    if r["collect"]:
+        print(f"\ncollect: {len(r['collect'])} finished, waiting to be closed")
+        for x in r["collect"]:
+            c, t = r["boxes"][x]
+            print(f"  ✓ {x} [{todo[x]['state']}] {c}/{t} boxes closed")
     for n, ms in enumerate(r["order"], start=1):
         if not ms:
             continue

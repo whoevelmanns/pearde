@@ -50,8 +50,8 @@ def cpm(tasks):
         ls lf      latest start / finish that still hits the finish
         slack      ls - es. 0 means critical
         critical   on a longest chain
-        ready      dispatchable now — starts at zero: no dependency and no
-                   earlier wave in front of it
+        ready      dispatchable now — starts at zero, no dependency and no
+                   earlier wave in front of it, and nobody already holding it
         unblocks   est-hours of work waiting downstream, transitively. The
                    frontier sorts by this: it is the size of the door the
                    task opens
@@ -135,7 +135,10 @@ def cpm(tasks):
         t["ls"], t["lf"] = round(ls[r], 3), round(lf[r], 3)
         t["slack"] = round(ls[r] - es[r], 3)
         t["critical"] = t["slack"] < 0.01
-        t["ready"] = es[r] < 0.01
+        # A PRD a worker already holds is not a PRD to dispatch. The frontier
+        # is the dispatch order, so anything in flight belongs in `collect`
+        # below or nowhere — offering it twice is how one PRD gets two workers.
+        t["ready"] = es[r] < 0.01 and not t.get("held")
         t["unblocks"] = round(sum(est[s] for s in down[r]), 2)
         t["downstream"] = len(down[r])
         t["blocks"] = sorted(feeds[r])
@@ -161,6 +164,10 @@ def cpm(tasks):
         "chain": chain,
         "ready": sorted((r for r in by if by[r]["ready"]),
                         key=lambda r: (-by[r]["unblocks"], -by[r]["prio"], r)),
+        # finished work, still open on the board. Ordered by what closing it
+        # releases, because that is the whole reason to close it first
+        "collect": sorted((r for r in by if by[r].get("collect")),
+                          key=lambda r: (-by[r]["unblocks"], -by[r]["prio"], r)),
         "waves": {},
     }
     for r, t in by.items():
@@ -751,6 +758,12 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
   color:var(--ink2)}
 #drawer .facts b{color:var(--ink);font-weight:590;
   font-variant-numeric:tabular-nums}
+#drawer .track2{height:3px;border-radius:2px;background:var(--fill);
+  margin:5px 0 2px;overflow:hidden}
+#drawer .track2 span{display:block;height:100%;background:var(--ink2)}
+#drawer .hint2{font-size:12px;line-height:1.55;color:var(--ink2);
+  background:var(--accent-wash);border-radius:var(--r-sm);padding:8px 10px}
+#drawer .hint2 b{color:var(--ink);font-weight:600}
 #drawer .chips{display:flex;flex-wrap:wrap;gap:5px}
 #drawer .chip2{font-size:11.5px;background:var(--fill);border-radius:99px;
   padding:2px 10px;cursor:pointer;border:.5px solid transparent;
@@ -862,6 +875,7 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
   <input type="search" id="q" placeholder="filter  /" autocomplete="off">
   <button id="onlycrit" title="only the tasks that set the finish">critical</button>
   <button id="onlyready" title="only what is dispatchable now">ready</button>
+  <button id="onlycollect" title="only finished work waiting to be closed">collect</button>
 </div>
 <section data-view="timeline" class="on">
 <canvas id="mini" aria-hidden="true"></canvas>
@@ -990,6 +1004,19 @@ const esc = s => String(s).replace(/[&<>"']/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/* how long a worker has held this PRD, off the `claim:` stamp. Computed in
+   the page rather than shipped in the payload: it changes every minute, and
+   the board does not write a file every minute. */
+function heldFor(t) {
+  const c = t.claim, ts = c && c.since ? Date.parse(
+    /[Zz]|[+-]\d{2}:?\d{2}$/.test(c.since) ? c.since : c.since + "Z") : NaN;
+  if (!c) return "";
+  if (isNaN(ts)) return c.who ? " · " + esc(c.who) : "";
+  const m = Math.max(0, (Date.now() - ts) / 60000);
+  const ago = m < 90 ? Math.round(m) + "m" : (m / 60).toFixed(1) + "h";
+  return " · " + (c.who ? esc(c.who) + " " : "") + "holding " + ago;
+}
+
 let tasks = [], byRel = new Map(), ALL = [], allByRel = new Map(), HIST = [];
 function hydrate() {
   CPM = DATA.cpm;
@@ -1055,6 +1082,7 @@ if ((DATA.boards || []).length)
 let groupBy = (DATA.boards || []).length ? "board" : "wave";
 const collapsed = new Set();
 let selected = null, filter = "", critOnly = false, readyOnly = false;
+let collectOnly = false;
 let stateSel = new Set();          // set by clicking the legend
 let hover = -1;                    // row index under the pointer
 
@@ -1065,13 +1093,15 @@ $("grp").value = groupBy;
 function matches(t) {
   if (critOnly && !t.critical) return false;
   if (readyOnly && !t.ready) return false;
+  if (collectOnly && !t.collect) return false;
   if (stateSel.size && !stateSel.has(t.state)) return false;
   if (!filter) return true;
   const f = filter.toLowerCase();
   return t.rel.toLowerCase().includes(f) || t.state.includes(f) ||
     (t.title || "").toLowerCase().includes(f) || ("wave " + t.wave) === f;
 }
-const anyFilter = () => filter || critOnly || readyOnly || stateSel.size;
+const anyFilter = () =>
+  filter || critOnly || readyOnly || collectOnly || stateSel.size;
 
 /* ── the row list ─────────────────────────────────────────────────────────
    One flat array, rebuilt on grouping, filter and collapse — never on scroll
@@ -1144,11 +1174,12 @@ document.addEventListener("click", e => {
      state  a state, or the pseudo-states live / parked / hot
      board  a member board's name
      q      free text for the view's own filter
-     crit ready group mode   the timeline's own controls
+     crit ready collect group mode   the timeline's own controls
      clear expand            the two undo-doors filters need           */
 function go(d) {
   if (d.clear) {
-    filter = ""; $("q").value = ""; critOnly = readyOnly = false;
+    filter = ""; $("q").value = "";
+    critOnly = readyOnly = collectOnly = false;
     stateSel.clear(); syncToggles(); build();
     return toast("filters cleared");
   }
@@ -1159,6 +1190,9 @@ function go(d) {
   }
   if (d.crit !== undefined) { critOnly = !!d.crit; syncToggles(); build(); }
   if (d.ready !== undefined) { readyOnly = !!d.ready; syncToggles(); build(); }
+  if (d.collect !== undefined) {
+    collectOnly = !!d.collect; syncToggles(); build();
+  }
   if (d.tstate !== undefined) {                    // the legend's own filter
     if (d.tstate === null) stateSel.clear();
     else stateSel.has(d.tstate) ? stateSel.delete(d.tstate)
@@ -1249,7 +1283,13 @@ function text(s, x0, y, c, font, right) {
 }
 
 /* a bar: the fill, a highlight down its top, a shade at its foot, and — for
-   the chain that sets the finish — an ink outline with a glow behind it */
+   the chain that sets the finish — an ink outline with a glow behind it.
+
+   `part` is the one live thing on the page: the fraction of this PRD's
+   acceptance boxes an implementer has already closed. The bar is drawn whole
+   and then the part NOT yet closed is ghosted back toward the page, so the
+   solid length is evidence — checks that ran — and the edge between them
+   moves while you watch. */
 function drawBar(x0, w, y, h, c, o) {
   o = o || {};
   const r = Math.min(5, h / 2);
@@ -1270,6 +1310,25 @@ function drawBar(x0, w, y, h, c, o) {
     g.addColorStop(0.5, "rgba(0,0,0,0)");
     g.addColorStop(1, T.lo);
     ctx.fillStyle = g; ctx.fill();
+  }
+  const part = o.part === undefined ? -1 : Math.max(0, Math.min(1, o.part));
+  if (o.ring && part > 0.001) {
+    // a ring is a wall, not work in flight — but a wall whose boxes are
+    // closing still says how much of it is already built
+    ctx.save();
+    rr(x0, y, w, h, r); ctx.clip();
+    ctx.globalAlpha = (o.dim ? 0.5 : 1) * 0.32;
+    ctx.fillStyle = c; ctx.fillRect(x0, y, w * part, h);
+    ctx.restore();
+  } else if (!o.ring && part >= 0 && part < 0.999) {
+    const px = x0 + w * part;
+    ctx.save();
+    rr(x0, y, w, h, r); ctx.clip();
+    ctx.globalAlpha = (o.dim ? 0.5 : 1) * 0.68;
+    ctx.fillStyle = T.content;
+    ctx.fillRect(px, y, x0 + w - px, h);
+    ctx.restore();
+    if (part > 0.001) line(px, y + 1, px, y + h - 1, T.ink, 1);
   }
   if (o.crit) {
     rr(x0 - 0.5, y - 0.5, w + 1, h + 1, r + 0.5);
@@ -1388,7 +1447,8 @@ function draw() {
       ctx.restore();
     }
     drawBar(x0, w, y + 6, 14, col(t.state),
-            {ring:stRing(t.state), crit:t.critical, dim:dim});
+            {ring:stRing(t.state), crit:t.critical, dim:dim,
+             part:t.held && t.boxes && t.boxes[1] ? t.part : undefined});
   }
   if (selected) arrows(rowY);
   ctx.restore();
@@ -1481,8 +1541,15 @@ function draw() {
       rr(cx, mid - 4, 8, 8, 3); ctx.fillStyle = col(t.state); ctx.fill();
     }
     cx += 15;
-    if (t.critical) { text("★", cx, mid, T.ink, F.small); cx += 12; }
-    const meta = fmtH(t.est) + (t.unblocks ? " ▸" + fmtH(t.unblocks) : "");
+    // finished work still open on the board: the mark that says "this one is
+    // yours to close", and the only glyph on the column that asks for an act
+    if (t.collect) { text("✓", cx, mid, T.accent, F.small); cx += 12; }
+    else if (t.critical) { text("★", cx, mid, T.ink, F.small); cx += 12; }
+    // in flight, the boxes ARE the meta: how much of the contract stands.
+    // The weight is already what is left of it, so printing both twice-counts
+    const meta = t.held && t.boxes && t.boxes[1]
+      ? t.boxes[0] + "/" + t.boxes[1]
+      : fmtH(t.est) + (t.unblocks ? " ▸" + fmtH(t.unblocks) : "");
     ctx.font = F.meta;
     const mw = ctx.measureText(meta).width;
     text(fit(t.name, LEFT - cx - mw - 20, F.cell), cx, mid,
@@ -1690,6 +1757,13 @@ function showTip(e, t) {
     '<div class="r"><span class="k">unblocks</span> ' + fmtH(t.unblocks) +
       " across " + t.downstream + " PRD(s)" +
       (t.ready ? ' · <span class="k">ready now</span>' : "") + "</div>" +
+    (t.held && t.boxes && t.boxes[1] ?
+      '<div class="r"><span class="k">boxes</span> ' + t.boxes[0] + "/" +
+        t.boxes[1] + " closed" + heldFor(t) + "</div>" : "") +
+    (t.collect ?
+      '<div class="r"><span class="k">✓ collect</span> every box closed — ' +
+        "commit it and set done, and " + (t.downstream || "no") +
+        " PRD(s) behind it move</div>" : "") +
     (t.deps.length ? '<div class="r"><span class="k">needs</span> ' +
       esc(t.deps.map(d => d.name).join(", ")) + "</div>" : "") +
     (t.feeds.length ? '<div class="r"><span class="k">blocks</span> ' +
@@ -1775,6 +1849,8 @@ function setMode(next) {
 function syncToggles() {
   $("onlycrit").classList.toggle("on", critOnly);
   $("onlyready").classList.toggle("on", readyOnly);
+  $("onlycollect").classList.toggle("on", collectOnly);
+  $("onlycollect").hidden = !(CPM.collect || []).length;
 }
 
 /* ── controls ─────────────────────────────────────────────────────────── */
@@ -1794,6 +1870,9 @@ $("grp").onchange = () => { groupBy = $("grp").value; collapsed.clear();
 $("q").oninput = () => { filter = $("q").value.trim(); build(); };
 $("onlycrit").onclick = () => { critOnly = !critOnly; syncToggles(); build(); };
 $("onlyready").onclick = () => { readyOnly = !readyOnly; syncToggles(); build(); };
+$("onlycollect").onclick = () => {
+  collectOnly = !collectOnly; syncToggles(); build();
+};
 
 let rt = 0;
 addEventListener("resize", () => {
@@ -1843,6 +1922,7 @@ addEventListener("keydown", e => {
   else if (e.key === "v") setMode(mode === "vision" ? "dates" : "vision");
   else if (e.key === "c") $("onlycrit").click();
   else if (e.key === "r") $("onlyready").click();
+  else if (e.key === "x") $("onlycollect").click();
   else if (e.key === "+" || e.key === "=") glide(ppu * 1.4);
   else if (e.key === "-") glide(ppu / 1.4);
   else if (e.key === "Escape") {
@@ -1895,6 +1975,12 @@ function drawHeader() {
   if (cal > CPM.length * 1.05)
     bits.push(lnk("at " + DATA.workers + " workers: " + fmtH(cal),
                   {view:"timeline", mode:"dates"}));
+  const collect = (CPM.collect || []).map(r => byRel.get(r)).filter(Boolean);
+  if (collect.length)
+    bits.push(lnk('<b>' + collect.length + "</b> to collect",
+                  {view:"timeline", collect:1, mode:"vision"},
+                  "finished work still open — commit it and set it done, " +
+                  "and everything behind it moves"));
   if (asks.length)
     bits.push(lnk("<b>" + asks.length + "</b> waiting on you",
                   {view:"asks", hot:1}, "answer them"));
@@ -1915,7 +2001,22 @@ function drawHeader() {
   // the frontier: everything dispatchable now, biggest door first. This is
   // the dispatch order — take from the left and the vision arrives soonest.
   const ready = (CPM.ready || []).map(r => byRel.get(r)).filter(Boolean);
-  $("front").innerHTML = '<button class="lnk h" data-go="' +
+  // collect comes first, and not for emphasis: closing a finished PRD costs
+  // one commit and can free a whole wave, which no dispatch can do.
+  $("front").innerHTML = (collect.length ?
+    '<button class="lnk h" data-go="' +
+      esc(JSON.stringify({view:"timeline", collect:1})) +
+      '" title="finished work waiting to be committed and closed">' +
+      "to collect</button>" +
+    collect.slice(0, 6).map(t =>
+      '<button class="p" data-go="' + esc(JSON.stringify({prd:t.rel})) +
+      '" title="' + esc(t.title || t.name) + '">✓ <b>' + esc(t.name) +
+      "</b> <em>" + t.boxes[0] + "/" + t.boxes[1] +
+      (t.unblocks ? " ▸" + fmtH(t.unblocks) : "") + "</em></button>").join("") +
+    (collect.length > 6 ? lnk("+" + (collect.length - 6) + " more",
+      {view:"timeline", collect:1}) : "") +
+    '<span class="sep">·</span>' : "") +
+    '<button class="lnk h" data-go="' +
     esc(JSON.stringify({view:"timeline", ready:1})) +
     '" title="keep only these on the timeline">ready now</button>' +
     (ready.length ? ready.slice(0, 14).map(t =>
@@ -1957,7 +2058,8 @@ function drawLegend() {
     "<span><b></b>now · vision</span>" +
     '<span class="keys">drag to pan · ctrl+wheel zoom · ' +
     "<kbd>/</kbd> filter · <kbd>v</kbd> axis · <kbd>c</kbd> critical · " +
-    "<kbd>r</kbd> ready · <kbd>f</kbd> fit · <kbd>↑↓</kbd> select</span>";
+    "<kbd>r</kbd> ready · <kbd>x</kbd> collect · <kbd>f</kbd> fit · " +
+    "<kbd>↑↓</kbd> select</span>";
 }
 
 /* ── the inspector ────────────────────────────────────────────────────────
@@ -2041,6 +2143,10 @@ function drawBody() {
     ["unblocks", fmtH(t.unblocks) + " · " + t.downstream + " PRD(s)"],
     ["dates", fmtD(t.startDay) + " → " + fmtD(t.endDay)],
   ];
+  // the run's own record, when there is one to read
+  if (!t.plain && t.held && t.boxes && t.boxes[1])
+    facts.push(["boxes", t.boxes[0] + "/" + t.boxes[1] + " closed" +
+                         heldFor(t).replace(/^ · /, " · ")]);
   let h = '<h4>state</h4><div class="fields">' +
     '<select id="dstate">' + STATE_LIST.map(s =>
       `<option${s === t.state ? " selected" : ""}>${s}</option>`).join("") +
@@ -2049,6 +2155,11 @@ function drawBody() {
     "</div>";
   h += '<h4>plan</h4><div class="facts">' + facts.map(([k, v]) =>
     `<span>${k} <b>${esc(v)}</b></span>`).join("") + "</div>";
+  if (t.collect)
+    h += '<h4>collect</h4><p class="hint2">Every acceptance box is closed. ' +
+      "Commit the footprint and set this <b>done</b> — " +
+      (t.downstream ? t.downstream + " PRD(s) behind it are waiting on that."
+                    : "it is the last of its chain.") + "</p>";
   if (t.deps.length || t.feeds.length) {
     h += "<h4>depends</h4><div class=chips>" +
       t.deps.map(x => `<span class="chip2" data-go="${esc(JSON.stringify({prd:x.rel}))}">◂ ${esc(x.name)}</span>`).join("") +
@@ -2091,11 +2202,22 @@ function drawBody() {
     h += '<h4>note</h4><textarea class="say" id="dnote" placeholder="a note for ' +
       'whoever picks this up"></textarea><div class="row2">' +
       '<button id="dnoteadd">append to ## Notes</button></div>';
-  if (d && d.specs && d.specs.length)
-    h += "<h4>specs · " + d.specs.length + "</h4>" + d.specs.map(sp =>
-      `<div class="spec"><div>${esc(sp.title)}</div>` +
-      `<div class="f">${esc(sp.file)}${sp.est ? " · " + esc(sp.est) : ""}` +
-      `${sp.state ? " · " + esc(sp.state) : ""}</div></div>`).join("");
+  if (d && d.specs && d.specs.length) {
+    const bx = d.specs.reduce((a2, sp) =>
+      [a2[0] + ((sp.boxes || [0, 0])[0]), a2[1] + ((sp.boxes || [0, 0])[1])],
+      [0, 0]);
+    h += "<h4>specs · " + d.specs.length +
+      (bx[1] ? " · " + bx[0] + "/" + bx[1] + " boxes closed" : "") + "</h4>" +
+      d.specs.map(sp => {
+        const b2 = sp.boxes || [0, 0];
+        return `<div class="spec"><div>${esc(sp.title)}</div>` +
+          (b2[1] ? '<div class="track2"><span style="width:' +
+            (b2[0] / b2[1] * 100).toFixed(1) + '%"></span></div>' : "") +
+          `<div class="f">${esc(sp.file)}` +
+          (b2[1] ? " · " + b2[0] + "/" + b2[1] : "") +
+          `${sp.state ? " · " + esc(sp.state) : ""}</div></div>`;
+      }).join("");
+  }
   h += '<h4>elsewhere</h4><div id=dlinks>' +
     (d ? `<a href="#" id="dcopy" data-p="${esc(d.file)}">${esc(d.path)}</a>` : "") +
     "</div>";
@@ -2543,6 +2665,7 @@ function drawAnalytics() {
   const pct = Math.round(done.length /
     Math.max(ALL.length - parked.length, 1) * 100);
   const ready = tasks.filter(t => t.ready).length;
+  const collectN = tasks.filter(t => t.collect).length;
   const waiting = ALL.filter(r => r.state === "question").length;
   const blocked = ALL.filter(r => r.state === "blocked").length;
   const cal = Math.max(...tasks.map(t => t.endDay), 0) * (DATA.dayHours || 8);
@@ -2558,6 +2681,8 @@ function drawAnalytics() {
          fmtH(cal), {view:"timeline", mode:"dates"}) +
     tile("ready now", ready, "dispatchable this second",
          {view:"timeline", ready:1, mode:"vision"}) +
+    tile("to collect", collectN, "finished — commit and close",
+         {view:"timeline", collect:1, mode:"vision"}, collectN > 0) +
     tile("waiting on you", waiting + blocked,
          waiting + " question · " + blocked + " blocked", {view:"asks"},
          waiting + blocked > 0);
@@ -2747,6 +2872,7 @@ function syncHash() {
   if (view === "list" && listBoard) p.push("board=" + encodeURIComponent(listBoard));
   if (view === "timeline" && critOnly) p.push("crit=1");
   if (view === "timeline" && readyOnly) p.push("ready=1");
+  if (view === "timeline" && collectOnly) p.push("collect=1");
   const h = p.length ? "#" + p.join("&") : "";
   if (location.hash === h) return;
   hashLock = true;
@@ -2768,6 +2894,7 @@ function readHash() {
     else if (k === "board") { d.board = v; d.view = d.view || "list"; }
     else if (k === "crit") d.crit = 1;
     else if (k === "ready") d.ready = 1;
+    else if (k === "collect") d.collect = 1;
     else if (k === "q") d.q = v;
   }
   if (Object.keys(d).length) go(d);
@@ -2781,7 +2908,12 @@ setMode("vision");
 drawHeader();
 drawLegend();
 readHash();
-setInterval(() => { if (mode === "dates") draw(); }, 60000);
+// the clock ticks for two reasons: the calendar's now-line, and how long a
+// worker has been holding a PRD. Both are read off Date.now(), so both go
+// stale between board changes if nothing repaints.
+setInterval(() => {
+  if (mode === "dates" || tasks.some(t => t.held)) draw();
+}, 60000);
 if (SERVED) setInterval(refresh, 90000);   // a floor under the live loop
 </script>
 </body>

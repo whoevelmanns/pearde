@@ -21,7 +21,9 @@ PRD, without reading the sibling specs.>
 - [ ] <…>
 
 <!-- The implementer ticks a box [x] only for a check it actually ran, quoting
-     the output in its report.
+     the output in its report — and ticks it WHEN it runs it, not in a batch
+     at the end: these boxes are the only thing on the board that moves while
+     a run is in flight, and the plan is drawn from them.
      Never write a box that asks for a commit or a commit message — the
      orchestrator commits the PRD on the transition that lands it. -->
 

@@ -249,7 +249,9 @@ nothing.
   may exist; a human look is cheaper than a blind retry.
 - Read the worker's **output** before sweeping. `analyzing` with spec files on
   disk is an analyst that finished: the transition is `specced` with the
-  specs' `est` summed, not `open`.
+  specs' `complexity` summed, not `open`. `claimed` with every acceptance box
+  `[x]` is an implementer that finished: collect it per step 6, and only then
+  is anything left over a leftover.
 
 A worker its infrastructure killed — API error, lost network, full disk — is
 not a failed attempt:
@@ -308,9 +310,28 @@ dispatch an implementer.
 **6. Collect**
 
 On each finished worker: validate the result (specs on disk / verify output
-present), write the transition, write `actual:` on a clean `done` per
-**Calibration**, clear `claim:`, print the progress line, post the report with
-`POST /report` per **The view**, return to step 2.
+present), write the transition, commit per **Commits**, clear `claim:`, print
+the progress line, post the report with `POST /report` per **The view**, return
+to step 2.
+
+**Collect on the transition, never at the end of the round.** A PRD whose work
+is done and whose state still says `claimed` blocks every PRD that `needs:` it
+and every PRD its footprint clashes with — the board holds a finished thing and
+schedules around it. One worker's result is one collect.
+
+A PRD is **finished** when every acceptance box in its specs is `[x]`. That is
+not a state; it is a condition the board reads off the specs on disk, and it is
+what step 1 sweeps for on a session that starts with work already done:
+
+| what is true                                                      | do                          |
+|-------------------------------------------------------------------|------------------------------|
+| every box `[x]`, verify output in the report, spot-checks run      | commit, `done`               |
+| every box `[x]`, no verify output on record                        | run the verify commands yourself, then commit and `done` |
+| boxes open, the worker is live                                     | leave it — this is progress, not a stall |
+| boxes open, no live worker                                         | the sweep in step 1: `failed` |
+
+`plan` prints the finished set before the waves, and the view leads its
+frontier with it — see **The view**.
 
 A worker reports defects outside its own scope and never fixes them. What each
 report becomes is the orchestrator's call, per **Derived work**: a consequence
@@ -375,7 +396,7 @@ should not be.
 Print on EVERY state change:
 
 ```
-▸ <prd>: <from> → <to> · asked <ad>/<an> · <ap>% · derived <dd>/<dn> · open <o>/<n> · <q>% · ready <r> · blocked <b> @<w> workers
+▸ <prd>: <from> → <to> · asked <ad>/<an> · <ap>% · derived <dd>/<dn> · open <o>/<n> · <q>% · ready <r> · blocked <b> · collect <c> @<w> workers
 ```
 
 | term       | is                                                                        |
@@ -390,6 +411,7 @@ Print on EVERY state change:
 | a master   | every member's PRDs and its own, one set; a member's PRD is named `@<member>/<prd>` |
 | `<r>`      | **ready** — dispatchable right now: `needs:` all `done`, no footprint clash with a `claimed` PRD |
 | `<b>`      | **blocked** — not `done`, not ready. Name what holds the largest group      |
+| `<c>`      | **to collect** — finished work still open: every acceptance box `[x]`, state not yet `done`. Omitted at zero |
 
 - **`asked` is the answer to "how far along are we".** Derived PRDs enlarge
   the denominator with work the user never requested: a board 90% through its
@@ -402,6 +424,10 @@ Print on EVERY state change:
   left and `ready 1` is not slow, it is serial — and the round should say
   which dependency or which footprint holds the other 19. That is a fact a
   reader can act on; an hours estimate is not.
+- **`collect` above zero is the board waiting on itself.** The work is done
+  and the states have not caught up, so `ready` is under-reporting by
+  whatever those PRDs unblock. Close them before reading the rest of the
+  line — loop step 6.
 
 `statusline.sh` renders the same numbers continuously, plus what the working
 tree owes and a link to the board:
@@ -587,11 +613,13 @@ REFINE / QUESTION → set the state, keep the report.
 
 > Read `prds/<prd>/prd.md` and every file in `specs/`. Implement the specs in
 > `<repo>`. Run each spec's `verify:` command and the repo's own gate. Tick a
-> box `[x]` only for a check you actually ran, quoting output. If blocked, STOP
-> and report **BLOCKED** with the exact question or wall — do not guess, do not
-> redefine the spec. Return **DONE** (per-spec box status + verify output) or
-> **FAILED** (what broke, what you tried); on FAILED also write `## Failure`
-> into `prd.md`.
+> box `[x]` only for a check you actually ran, quoting output — and tick it
+> **as you close it**, not in a batch at the end: those boxes are the board's
+> only live view of your run, and the plan is drawn from them. If blocked,
+> STOP and report **BLOCKED** with the exact question or wall — do not guess,
+> do not redefine the spec. Return **DONE** (per-spec box status + verify
+> output) or **FAILED** (what broke, what you tried); on FAILED also write
+> `## Failure` into `prd.md`.
 
 On return:
 
@@ -669,6 +697,7 @@ arguments, "pearde status" in plain chat. The meanings are fixed.
 | work out what is wanted      | `drill <prd>` — interview per `references/drill.md`; with no `<prd>`, into a new tree                    |
 | retry a failed PRD           | `retry <prd>` — moves `## Failure` into the body as history, sets `open`                                 |
 | a blocked PRD's event landed | `unblock <prd>` — re-runs only the open boxes; `done` when they close                                    |
+| close what is finished       | `collect` — every PRD whose acceptance boxes are all `[x]`: verify, commit, `done`. Loop step 6, run on its own |
 | run one PRD to done          | `run <prd>` — the loop scoped to that PRD's subtree                                                      |
 | record a decision            | `memo <subject>` — `prds/memos/<slug>.md` from `references/templates/memo.md`                            |
 | pre-plan parallel waves      | `plan` — `view/plan.py plan`; print the waves it returns                                                 |
@@ -683,6 +712,10 @@ arguments, "pearde status" in plain chat. The meanings are fixed.
 - `add` is the user asking, so `origin: requested`. Only the orchestrator
   writes `origin: derived`, and only with `from:` — see **Derived work** for
   what must be true before it is filed `open` rather than `deferred`.
+- `collect` changes nothing about the gate: a PRD with an open box, or with no
+  verify output on record, is verified first and `failed` if the tree is red.
+  It exists because a board whose finished work is not closed schedules around
+  it, and one command should be able to say so.
 - `master <path>` takes one or more paths, each a board or a repo holding one,
   and appends them to `members:`. It creates nothing in the member and moves
   no file. Print what the merged board now holds: member count, PRD count, the
@@ -750,13 +783,35 @@ right edge the vision reached.
 - **float** is the tail behind a bar: how late it may start before it becomes
   critical.
 - **ready now** is the frontier at zero, ordered by how much work each PRD
-  unblocks. That ordering *is* the dispatch order.
+  unblocks. That ordering *is* the dispatch order. A PRD a worker already
+  holds is not on it — it is in **to collect** or nowhere.
+- **to collect** leads the frontier: finished work still open on the board.
+  It comes first because closing one costs a commit and can free a whole
+  wave, which no dispatch can do. `x` filters to it, `#collect=1` links to it.
 - **wave bands** are the plan's rounds — a wave runs after the one before it,
   because that is what a footprint clash means.
 - The header names the **peak agent count** the fastest path asks for, beside
   what `workers` costs instead. The gap is the decision.
 - **dates** (or `v`) draws the same bars on the worker-limited calendar, at
   `gantt-day` hours per day.
+
+**The plan moves while the work does.** A state is written twice per PRD —
+once on dispatch, once on return — so a view that reads only states stands
+still for the whole of the run it is meant to be showing. The acceptance boxes
+move continuously, and the view reads them:
+
+| on the page                | is                                                                  |
+|----------------------------|----------------------------------------------------------------------|
+| the solid part of a bar    | the fraction of that PRD's acceptance boxes an implementer has closed |
+| the ghosted part           | what it has not proven yet. The edge between them moves as boxes close |
+| `6/8` in the task column   | the same count, for a PRD in flight. It replaces the weight, which is already what is left |
+| a shrinking bar            | a held PRD weighs what is **left** of it, so the chain shortens as the run lands checks |
+| **✓** before a name        | every box closed — this one is yours to collect                      |
+| `implementer-1 holding 40m`| off `claim:`, in the tooltip and the pane. Counted in the page, so it ticks between board changes |
+
+- The signal is evidence, never a guess: a box is `[x]` because a check ran.
+- A worker that ticks nothing shows no progress. That is correct — an
+  unproven run has produced nothing the board can schedule around.
 
 The chart is one canvas, drawn virtualised — only the rows in front of you
 cost anything, so a 40-PRD board and a 4000-PRD one draw the same. Drag to
@@ -774,7 +829,7 @@ writes a new one. Every write goes through `view/edit.py`: one line at a time,
 atomically, frontmatter and body never in the same write. Workers' reports
 land via `POST /report` (`{"board","prd","text"}` → `## Report`).
 
-Deep links: `#prd=<rel>` opens one PRD, `#view=asks` a view, `#state=blocked` a filtered list, `#crit=1` the critical chain.
+Deep links: `#prd=<rel>` opens one PRD, `#view=asks` a view, `#state=blocked` a filtered list, `#crit=1` the critical chain, `#collect=1` the finished work waiting to be closed.
 
 ```sh
 python3 <skill>/view/plan.py plan         # the waves, to stdout
