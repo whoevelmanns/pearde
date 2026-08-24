@@ -683,17 +683,25 @@ machine:
 python3 <skill>/view/serve.py ensure     # start if needed, register this board
 ```
 
-From then on `http://127.0.0.1:8443/board/<name>` is the board, live — it
-re-renders within a second of any file changing. Every registered board is
-listed at `/`. `PEARDE_PORT` moves the port.
+From then on `http://127.0.0.1:8443/board/<name>` is the board, live — within
+a second of any file changing it swaps the new payload in **where it stands**:
+the rows move, and scroll, zoom, selection and half-typed text do not. Every
+registered board is listed at `/`. `PEARDE_PORT` moves the port.
 
 | view          | answers                                                        |
 |---------------|------------------------------------------------------------------|
 | **timeline**  | what is in front of us — see below                                |
 | **board**     | what is where — kanban by state; drag a card to write `state:`    |
+| **asks**      | what is waiting on *you* — every `question` and `blocked` PRD, the question as written, and the box that answers it |
 | **list**      | all of it — sortable, filterable, one row per PRD                 |
 | **analytics** | how this is going — where the work and hours sit, estimates vs reality, hours left over time |
 | **memos**     | what the board decided — `prds/memos/`, rendered                  |
+
+**Every number is a door.** A count, a swatch, a bar, a column head — if it
+names a set of PRDs, clicking it goes there: `5 waiting on you` opens **asks**,
+`189h to the vision` filters the timeline to the critical chain, `137 done`
+opens that list, a legend swatch filters by state. Nothing on the page is a
+dead end, and the URL follows, so where you are is a link you can send.
 
 **The timeline's x axis is not time** — agents start when work is
 dispatchable, so a date on a bar is a staffing guess; the dependency structure
@@ -713,14 +721,23 @@ right edge the vision reached.
 - **dates** (or `v`) draws the same bars on the worker-limited calendar, at
   `gantt-day` hours per day.
 
+The chart is one canvas, drawn virtualised — only the rows in front of you
+cost anything, so a 40-PRD board and a 4000-PRD one draw the same. Drag to
+pan, ctrl/⌘+wheel to zoom at the pointer, drag the column edge to widen the
+names, `↑↓` to move the selection, `⏎` to open it, ⌘1–6 for the views.
+Greyscale carries the plan — state is ink weight, not hue — and the only
+colour on the page is the amber and red of the states that want a person.
+
 **Clicking anything opens the PRD**, and the pane writes back: title, `state`,
 `priority`, the body, a note appended to `## Notes`, and — on a `question` PRD
-— an answer box that writes `## Answers` and sets it `open`. `+ PRD` (or `n`)
+— an answer box that writes `## Answers` and sets it `open`. The **asks** view
+is that same answer box for every waiting PRD at once (⌘⏎ sends), so the board
+can be unblocked without going looking for what blocked it. `+ PRD` (or `n`)
 writes a new one. Every write goes through `view/edit.py`: one line at a time,
 atomically, frontmatter and body never in the same write. Workers' reports
 land via `POST /report` (`{"board","prd","text"}` → `## Report`).
 
-Deep links: `#prd=<rel>` opens one PRD, `#view=board` opens a view.
+Deep links: `#prd=<rel>` opens one PRD, `#view=asks` a view, `#state=blocked` a filtered list, `#crit=1` the critical chain.
 
 ```sh
 python3 <skill>/view/plan.py plan         # the waves, to stdout

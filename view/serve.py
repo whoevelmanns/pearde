@@ -331,21 +331,25 @@ def watch():
 # ── http ───────────────────────────────────────────────────────────────────────
 
 LIVE_JS = """<script>
+/* The board moved. Fetch the payload and hand it to the page, which swaps it
+   in where it stands — scroll, zoom, selection and the open inspector all
+   survive. A page too old to know how (or a payload that will not parse)
+   falls back to the reload it used to do. */
 (async () => {
+  let seq = __SEQ__;
   for (;;) {
     try {
       const r = await fetch((window.__BASE || "") +
-        "/wait?board=__NAME__&seq=__SEQ__");
+        "/wait?board=__NAME__&seq=" + seq);
       if (r.status === 200) {
-        // never reload out from under someone typing in the detail pane —
-        // the page is live, but a half-written body is not the board's to
-        // throw away. Hold, and pick the change up when the field is clean.
-        if (window.__pearde_hold && window.__pearde_hold()) {
-          await new Promise(s => setTimeout(s, 4000));
-          continue;
-        }
-        location.reload();
-        return;
+        seq = (await r.json()).seq;
+        // never write over someone typing in the inspector — the page is
+        // live, but a half-written body is not the board's to throw away.
+        // Hold, and pick the change up when the field is clean.
+        while (window.__pearde_hold && window.__pearde_hold())
+          await new Promise(s => setTimeout(s, 2000));
+        if (window.__pearde_refresh) await window.__pearde_refresh();
+        else { location.reload(); return; }
       }
     } catch (e) { await new Promise(s => setTimeout(s, 3000)); }
   }
@@ -399,9 +403,12 @@ class Handler(BaseHTTPRequestHandler):
             b = by_name(q.get("board"))
             if not b:
                 return self.reply(404, {"error": "unknown board"})
-            payload = planlib.gantt_payload(
+            # enriched, not raw: the critical-path arithmetic is Python's, and
+            # the page swaps this payload in without a reload — so what it gets
+            # here has to be exactly what the initial render embedded.
+            payload = renderlib.enrich(planlib.gantt_payload(
                 b.path, planlib.scan(b.path), planlib.load_map(b.path)[0],
-                planlib.board_settings(b.path))
+                planlib.board_settings(b.path)))
             return self.reply(200, {"seq": b.seq, "payload": payload})
         if path == "/prd":
             # everything the timeline cannot fit on a bar: the PRD itself, its
