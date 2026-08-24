@@ -544,6 +544,14 @@ Rules for every worker:
 - Report a defect found outside your scope; do not file it and do not fix it.
   Say what is wrong, what you measured, and which requested PRD it would get
   wrong. The orchestrator decides what it becomes, per **Derived work**.
+- A measured claim gets one of three verdicts — `reproduced`, `refuted`,
+  `unmeasured`, never `exact` — with the fixture named in a parenthesis
+  beside it, because a reason is only as good as the fixture it was measured
+  on. A claim cheap to run is run twice, with a different input.
+- A census enumerates its population; it never names the members it already
+  knows. A check written from the answer passes on the answer and is blind to
+  everything else. The words catch nothing on their own — only the second run
+  does.
 
 **Analyst** — one per `open` PRD being specced:
 
