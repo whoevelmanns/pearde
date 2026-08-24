@@ -20,6 +20,13 @@ import math
 import os
 import re
 import sys
+# win: a cp1252 console cannot encode the box/greek glyphs this prints,
+# and the trailing summary dies on UnicodeEncodeError. Force UTF-8 out.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 import time
 import urllib.error
 import urllib.request
@@ -226,7 +233,7 @@ def spec_data(prd):
                 fm, _, _ = parse_prd(os.path.join(sdir, f))
                 fp = fm.get("footprint", [])
                 feet += fp if isinstance(fp, list) else [fp]
-                est += hours(fm.get("est", ""))
+                est += float(fm.get("complexity", 0) or 0) or hours(fm.get("est", ""))
     return est, qualify_paths(prd, [f.rstrip("/") for f in feet if f])
 
 
@@ -572,16 +579,18 @@ def compute_plan(board, workers=None, warn=True):
     est, feet = {}, {}
     for r, p in todo.items():
         e, f = spec_data(p)
-        est[r] = e or hours(p["fm"].get("est", ""))
+        # complexity is the weight; est is a legacy fallback and is not asked for
+        est[r] = (e or float(p["fm"].get("complexity", 0) or 0)
+                  or hours(p["fm"].get("est", "")))
         feet[r] = f
     # A parent with live children is a container: the work is in the children,
-    # and weighing it too bills the same hours twice. It still waits for them.
+    # and weighing it too counts the same work twice. It still waits for them.
     for r, p in todo.items():
         if any(c in todo for c in p["children"]):
             est[r] = 0.0
     known = [e for e in est.values() if e > 0]
     avg = (sum(known) / len(known) if known
-           else hours(settings.get("est-default", "4h")) or 4.0)
+           else float(settings.get("weight-default", 50) or 50))
     for r, p in todo.items():
         if not est[r] and not any(c in todo for c in p["children"]):
             est[r] = avg
