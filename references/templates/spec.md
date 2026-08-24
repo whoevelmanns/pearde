@@ -1,10 +1,13 @@
 ---
-est:                 # analyst — wall clock for one implementer run, e.g. 2h
+complexity:          # analyst — 1-100, this unit's share of the PRD's weight
+# est:               # OPTIONAL record. Nothing schedules on time; do not
+#                    #   estimate duration. Price COMPUTE cost here instead,
+#                    #   in the units it is spent in, when it changes scope.
 footprint:           # analyst — every dir/file this spec touches; the
   - <dir/or/file>    #   orchestrator unions a PRD's footprints to avoid
   - <dir/or/file>    #   dispatching overlapping PRDs
 ---
-<!-- Add your own keys freely; nothing outside est and footprint is read. -->
+<!-- Add your own keys freely; nothing outside complexity and footprint is read. -->
 
 # specNN — <one-line goal>
 

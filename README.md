@@ -111,7 +111,7 @@ The live service watches every member and reconciles within about a second.
 | `footprint:`                     | qualified with the member name before any overlap check — two repos touching `src/lib.ts` are not one file. An **absolute** path is left as written, so a deliberate cross-repo overlap still clashes |
 | `language`                       | the PRD's own board. The master's is for its own PRDs and the round                      |
 | `workers`, `pipeline`            | the master — it is the one dispatching                                                   |
-| `est` / `actual` calibration     | the member — one repo's hours do not estimate another's                                  |
+| `complexity` scoring             | the member — one repo's units do not size another's                                      |
 | `repo` for a worker brief        | the PRD's own `repo:`, else the member's repo root — the directory holding its `prds/`   |
 
 **Naming.** The first round that meets a master board with no `name:` asks the
@@ -130,9 +130,11 @@ Tools read the keys below. Every other key is yours and no tool touches it.
 | key         | written by                     | read for                                          |
 |-------------|--------------------------------|---------------------------------------------------|
 | `state`     | orchestrator                   | the loop, the status line                         |
-| `priority`  | user                           | dispatch order, higher first                      |
-| `est`       | orchestrator, from the analyst | progress line, `~<h>h left`                       |
-| `actual`    | orchestrator                   | calibration                                       |
+| `priority`  | user                           | **vision importance** — dispatch order, higher first |
+| `complexity`| analyst, at spec time          | **weight** — the progress line, `plan`'s wave sizing. 1-100 |
+| `blast-radius` | analyst, at spec time       | **what breaks if it is wrong** — `high` \| `mid` \| `low`. Breaks ties, and decides what a round leads with |
+| `est`       | analyst, optional              | a record, never an input. See **Weight and order** |
+| `actual`    | orchestrator, optional         | a record, never an input                          |
 | `claim`     | orchestrator                   | the sweep, elapsed on `done`                      |
 | `repo`      | user                           | the worker brief. Optional                        |
 | `needs`     | user                           | `plan` wave order. PRD dir names. Optional        |
@@ -144,12 +146,15 @@ Tools read the keys below. Every other key is yours and no tool touches it.
 
 | key         | written by | read for                    |
 |-------------|------------|------------------------------|
-| `est`       | analyst    | summed into the PRD's `est` |
-| `footprint` | analyst    | the overlap check in step 5 |
+| `complexity`| analyst    | summed into the PRD's `complexity` |
+| `footprint` | analyst    | the overlap check in step 5        |
+| `est`       | analyst    | optional record; nothing schedules on it |
 
 - `state` is the only key the loop cannot run without. Missing `priority`
-  sorts at 0; missing `est` weighs at the board average; missing `origin`
-  reads as `requested` — the only way to count as derived is to say so.
+  sorts at 0; missing `complexity` weighs at the average of scored PRDs, or
+  `weight-default` if nothing is scored; missing `blast-radius` reads `mid`;
+  missing `origin` reads as `requested` — the only way to count as derived
+  is to say so.
 - Match a key by name, at any indentation, anywhere in the frontmatter — a
   `time:` map holding `est` reads the same as top level. Names are unique
   within one file.
@@ -370,20 +375,21 @@ should not be.
 Print on EVERY state change:
 
 ```
-▸ <prd>: <from> → <to> · asked <ad>/<an> · <ap>% · derived <dd>/<dn> · open <o>/<n> · <q>% · ~<h>h left @<w> workers
+▸ <prd>: <from> → <to> · asked <ad>/<an> · <ap>% · derived <dd>/<dn> · open <o>/<n> · <q>% · ready <r> · blocked <b> @<w> workers
 ```
 
 | term       | is                                                                        |
 |------------|---------------------------------------------------------------------------|
-| weight     | the PRD's `est`; missing counts at the average est of estimated PRDs, `est-default` if none |
+| weight     | the PRD's `complexity`; missing counts at the average of scored PRDs, `weight-default` if none |
 | `<ad>/<an>`| `done` / all `origin: requested` — **the deliverable**                     |
-| `<ap>`     | Σ est(done, requested) / Σ est(all requested). `failed` counts as remaining |
-| `<dd>/<dn>`| `done` / all `origin: derived`. Counts, never est-weighted                  |
+| `<ap>`     | Σ weight(done, requested) / Σ weight(all requested). `failed` counts as remaining |
+| `<dd>/<dn>`| `done` / all `origin: derived`. Counts, never weighted                      |
 | `<o>`      | PRDs still `open`, both origins                                             |
-| `<q>`      | `<o>/<n>`. A count — an `open` PRD has no `est` to weight by                |
+| `<q>`      | `<o>/<n>`. A count — an `open` PRD is not scored yet                        |
 | `<n>`      | the states in the **States** table only                                     |
 | a master   | every member's PRDs and its own, one set; a member's PRD is named `@<member>/<prd>` |
-| `~<h>h`    | Σ est(not done) ÷ active workers, both origins — the whole queue            |
+| `<r>`      | **ready** — dispatchable right now: `needs:` all `done`, no footprint clash with a `claimed` PRD |
+| `<b>`      | **blocked** — not `done`, not ready. Name what holds the largest group      |
 
 - **`asked` is the answer to "how far along are we".** Derived PRDs enlarge
   the denominator with work the user never requested: a board 90% through its
@@ -392,8 +398,10 @@ Print on EVERY state change:
 - When the tripwire is live, say so on the line and in the round.
 - `<q>` and `<ap>` do not sum to 100 — untouched board vs requested work done.
 - A parked PRD is in neither numerator nor denominator; name it in the report.
-- `~<h>h left` is an estimate. Label jumps honestly — a refine split moves it
-  up.
+- **`ready` and `blocked` are the actionable pair.** A board with 20 PRDs
+  left and `ready 1` is not slow, it is serial — and the round should say
+  which dependency or which footprint holds the other 19. That is a fact a
+  reader can act on; an hours estimate is not.
 
 `statusline.sh` renders the same numbers continuously, plus what the working
 tree owes and a link to the board:
@@ -412,33 +420,50 @@ tree owes and a link to the board:
 - `▸board` is an OSC-8 hyperlink to the live view. `PRD_STATUS_LINK=off`
   prints the label bare. Optional.
 
-## Calibration
+## Weight and order
 
-`est` is a guess; `actual` is what a run measured.
+Three axes decide what runs next. None of them is a clock.
 
-Write `actual:` on `claimed → done`. Elapsed = now minus the timestamp in
-`claim:`, rounded to 5 minutes, in `est`'s units — `45m`, `2h`.
+1. **Dependency** — `needs:` all `done`, and no footprint overlap with a
+   `claimed` PRD. A hard gate: an unready PRD is not a candidate at all.
+2. **Vision importance** — `priority`, higher first. How much this matters to
+   what the project is *for*, argued in the PRD body. Not how long it takes.
+3. **Complexity and blast-radius** — `complexity` 1-100 is the weight the
+   progress line and `plan` use. `blast-radius` breaks ties and decides what a
+   round leads with: a `high` PRD that is wrong costs more than a `low` one
+   that is late.
 
-Only when the run was clean:
+The analyst scores `complexity` and `blast-radius` at spec time, from the specs
+it just wrote — how many units, how much is unknown, how much of the tree they
+touch. The orchestrator writes them on the SPECCED transition, exactly where it
+used to write `est`.
 
-- one dispatch, `specced` straight to `done`
-- DONE returned, every box `[x]`, verify output shown
-- no BLOCKED round-trip
-- no `## Failure` anywhere in the PRD's history
+### Why there is no time estimate
 
-Anything else leaves `actual:` empty — a retry measures the retry, a BLOCKED
-round-trip measures the user's response time, and a wrong number is worse than
-none.
+There was one, and it was removed. `est` meant wall-clock hours of one
+implementer run. Measured against `actual` it came in **6x to 18x high** across
+consecutive PRDs on one board, in one session, by one model. That is not a
+quantity with error bars, it is a guess with a unit attached.
 
-Read the record before writing a new `est:`:
+The unit is also a category error. An implementer's wall clock is a function of
+token throughput, tool-call latency, contention for whatever hardware the work
+needs, and whether a cached artifact happens to exist — none of which is a
+property of the work. Two PRDs differing five-fold in what they had to build
+can land a minute apart because both were dominated by the same external wait.
 
-```sh
-grep -rl 'state: done' prds --include=prd.md \
-  | xargs -r grep -H -E '^[[:space:]]*(est|actual):'
-```
+And an hours figure printed every round is read as knowledge whether or not it
+was meant to be. A board's job is to say what is true. A number nobody should
+act on has no place on the line.
 
-Scale by the ratio the pairs show. Three pairs at 4h/40m mean the board
-estimates 6× high — say so, and estimate at the corrected scale.
+`est:` and `actual:` stay **legal, optional, and read by no decision**. A run
+that measures itself cheaply may as well record it — for a human reading back,
+not for the loop. Nothing asks an analyst to produce one, and no round reports
+hours left.
+
+**Compute cost is a different thing and belongs in the spec that spends it.**
+GPU seconds, API calls, a sweep priced from cached timings: real, predictable,
+and a legitimate reason to scope a spec down or refuse a cell. That is a
+*scope* decision inside a spec, not a *schedule* decision on a board.
 
 ## Commits
 
@@ -527,10 +552,13 @@ Rules for every worker:
 >
 > - **SPECCED** — write `specs/specNN.md` files, template
 >   `<skill>/references/templates/spec.md`, each one implementable unit: goal,
->   `est:` and `footprint:` in frontmatter, `- [ ]` acceptance boxes a check
->   can fail, and a verify command. Calibrate `est` against the `est`/`actual`
->   pairs of done PRDs on the board. Report the spec list, the total `est` in
->   hours, the ratio you calibrated by, and the union of the footprints.
+>   `complexity:` and `footprint:` in frontmatter, `- [ ]` acceptance boxes
+>   a check can fail, and a verify command. Report the spec list, the PRD's
+>   `complexity` (1-100) and `blast-radius` (`high`|`mid`|`low`) with one
+>   line of reasoning each, and the union of the footprints. **Do not
+>   estimate how long anything will take** — nothing schedules on time. If a
+>   spec's compute cost is large enough to change its scope, price that
+>   inside the spec.
 > - **REFINE** — the PRD holds more than one contract, or is too thin to spec.
 >   Report the proposed children, `<dir-name> — one-line contract` each, and
 >   what detail is missing.
@@ -543,7 +571,8 @@ Rules for every worker:
 > that could not fail, goes in your report as a finding — not into a spec, and
 > not into a new PRD. Widening the contract is REFINE, not initiative.
 
-On return: SPECCED → confirm the spec files exist, write `est:`, set `specced`.
+On return: SPECCED → confirm the spec files exist, write `complexity:` and
+`blast-radius:`, set `specced`.
 REFINE / QUESTION → set the state, keep the report.
 
 **Implementer** — one per `specced` PRD dispatched:

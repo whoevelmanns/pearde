@@ -12,7 +12,7 @@ into every board.
 language: <language>
 workers: 3
 pipeline: 3
-est-default: 4h
+weight-default: 50
 gantt-day: 8h
 ---
 ```
@@ -33,8 +33,8 @@ members:
 | `language`    | none — asked | the language every PRD, spec, and report is written in            |
 | `workers`     | 3            | implementer slots, loop step 5                                    |
 | `pipeline`    | 3            | `specced` PRDs kept ahead, loop step 4                            |
-| `est-default` | 4h           | weight of an unestimated PRD while no PRD on the board has `est`  |
-| `gantt-day`   | 8h           | est-hours one calendar day represents in the view's `dates` mode  |
+| `weight-default` | 50        | weight of an unscored PRD while no PRD on the board has `complexity` |
+| `gantt-day`   | 8h           | weight one calendar day represents in the view's `dates` mode. The timeline is decoration; nothing schedules on it |
 | `memos`       | `memos/`     | where decision records live, relative to `prds/`. Point it at another system's memo dir to mirror it read-only — the strict gate then applies only to the board's own `memos/`, per `references/memo.md` |
 | `members`     | none         | the boards this one merges — `- <path>` or `- <name>: <path>`, relative to `prds/`. Present means **master board**: every member's PRDs join the scan as `@<member>/<rel>`, one plan spans them. README, **Master boards** |
 | `name`        | inferred     | what the board calls itself — the view's title and `/board/<name>` URL. Inferred from the directory on a plain board, from the member names on a master — a placeholder: the first round meeting an unnamed master asks the user and writes it |
