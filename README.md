@@ -706,7 +706,7 @@ arguments, "pearde status" in plain chat. The meanings are fixed.
 | plan across projects         | `master <path> …` — writes `members:` in `prds/settings.md`, asks the group's `name:` the first time. This board is then the parent every round works in |
 | what a master merges         | `master` with no path — `view/plan.py members`: every member, its path, `MISSING` when not on disk       |
 | stop merging one             | `master drop <name>` — removes that `members:` entry. Nothing in the member changes                      |
-| re-order after a member moved| `reconcile` — `view/plan.py reconcile`: waves recomputed, anchor kept. The live service already does it  |
+| re-order after anything moved| `reconcile` — `view/plan.py reconcile`: waves recomputed, anchor kept. The live service already does it, on every board |
 | is this thing wired?         | `doctor` — `doctor.sh --fix`, per **Install check**; print every line                                    |
 
 - `add` is the user asking, so `origin: requested`. Only the orchestrator
@@ -795,10 +795,14 @@ right edge the vision reached.
 - **dates** (or `v`) draws the same bars on the worker-limited calendar, at
   `gantt-day` hours per day.
 
-**The plan moves while the work does.** A state is written twice per PRD —
-once on dispatch, once on return — so a view that reads only states stands
-still for the whole of the run it is meant to be showing. The acceptance boxes
-move continuously, and the view reads them:
+**The plan moves while the work does.** The live service reconciles every
+board it watches — not only masters — so a bar re-sizes and everything
+downstream of it slides within about a second of the file that moved.
+
+A state is written twice per PRD — once on dispatch, once on return — so a
+view that reads only states stands still for the whole of the run it is meant
+to be showing. The acceptance boxes move continuously, and the view reads
+them:
 
 | on the page                | is                                                                  |
 |----------------------------|----------------------------------------------------------------------|

@@ -316,22 +316,24 @@ def history(b):
 
 
 def mirror(b, force=False):
-    """One pass over a board that changed: re-order a master's waves, write the
-    day's history row, and bump the sequence every reader is parked on. It
+    """One pass over a board that changed: re-order its waves, write the day's
+    history row, and bump the sequence every reader is parked on. It
     writes nothing but the board's own files — there is nowhere else for it to
     write any more."""
     with b.lock:
-        # A master board re-orders before it mirrors: its waves span repos
-        # nobody re-plans by hand, so a state written in one member has to
-        # re-order the whole board. The anchor day is kept — `plan` re-anchors,
-        # this only re-orders.
-        if planlib.is_master(b.path):
-            try:
-                planlib.reconcile(b.path)
-            except SystemExit:
-                b.last_error = "plan: needs cycle — reconcile skipped"
-            except Exception as e:
-                b.last_error = f"reconcile: {type(e).__name__}: {e}"
+        # Every board re-orders before it mirrors, master or not. A master's
+        # waves span repos nobody re-plans by hand; a plain board's waves go
+        # stale for a nearer reason — a held PRD weighs what is LEFT of it, so
+        # closing one acceptance box re-sizes its bar and moves everything
+        # downstream. A schedule that only moves when somebody runs `plan` is
+        # not a live plan. The anchor day is kept: `plan` re-anchors, this only
+        # re-orders, and reconcile returns early when nothing moved.
+        try:
+            planlib.reconcile(b.path)
+        except SystemExit:
+            b.last_error = "plan: needs cycle — reconcile skipped"
+        except Exception as e:
+            b.last_error = f"reconcile: {type(e).__name__}: {e}"
         bump(b)
         try:
             if b.history_day != datetime.date.today().isoformat():
