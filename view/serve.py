@@ -63,6 +63,13 @@ import re
 import socket
 import subprocess
 import sys
+# win: a cp1252 console cannot encode the box/greek glyphs this prints,
+# and the trailing summary dies on UnicodeEncodeError. Force UTF-8 out.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 import threading
 import time
 import urllib.error

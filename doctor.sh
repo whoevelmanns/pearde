@@ -108,7 +108,10 @@ if [ -z "$SL_CMD" ]; then
   fi
 else
   # the command's script path: the first argument that exists, or looks like one
-  SL_PATH=$(printf '%s\n' $SL_CMD | grep -E '/|\.sh$' | head -1)
+  # A quoted interpreter path with a space in it splits into fragments, so the
+  # first token holding a "/" can be `"C:/Program`. The script is the .sh.
+  SL_PATH=$(printf '%s\n' $SL_CMD | tr -d '"' | grep -E '\.sh$' | head -1)
+  [ -z "$SL_PATH" ] && SL_PATH=$(printf '%s\n' $SL_CMD | tr -d '"' | grep -E '/' | head -1)
   if [ -n "$SL_PATH" ] && [ ! -e "$SL_PATH" ]; then
     if [ -L "$SL_PATH" ]; then
       row statusline broken "$SL_PATH -> $(readlink "$SL_PATH") · dead symlink"
@@ -144,7 +147,7 @@ fi
 BOARD=""; d="$START"
 while [ -n "$d" ] && [ "$d" != "/" ]; do
   [ -d "$d/prds" ] && { BOARD="$d/prds"; break; }
-  d=$(dirname "$d")
+  p=$(dirname "$d"); [ "$p" = "$d" ] && break; d="$p"   # win: dirname("C:") == "C:"
 done
 if [ -z "$BOARD" ]; then
   # a board off the contract path is found, not skipped: one level down, dot-dirs too
