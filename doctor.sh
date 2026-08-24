@@ -72,7 +72,26 @@ else
     fix "ln -sfn $DIR $bad"
     [ "$FIX" = 1 ] && ln -sfn "$DIR" "$bad" && did "repointed $bad"
   else
-    row skill ok "$(printf '%s ' "${SKILL_LINKS[@]}")-> $DIR"
+    # a symlink and a plain directory are different installs and must not read
+    # as one row: `ln -s` on Windows without symlink rights silently COPIES,
+    # and a copy drifts from this folder with nothing to say it happened. A
+    # directory that IS this folder (a clone in place) keeps the single source
+    # of truth and is fine. Reported, never repaired — a diverged copy may
+    # hold the user's edits.
+    COPY=""; LABEL=""
+    for p in "${SKILL_LINKS[@]}"; do
+      if [ -L "$p" ]; then LABEL="$LABEL$p -> $(readlink "$p") "
+      elif [ "$(cd "$p" 2>/dev/null && pwd -P)" = "$DIR" ]; then LABEL="$LABEL$p (this folder) "
+      elif [ -e "$p/.git" ]; then LABEL="$LABEL$p (git clone — git pull updates it) "
+      else COPY="$p"; LABEL="$LABEL$p (copy) "
+      fi
+    done
+    if [ -n "$COPY" ]; then
+      row skill broken "$COPY is a copy of $DIR, not a symlink — edits to either side drift apart"
+      fix "reconcile any local edits, then replace it: ln -sfn $DIR $COPY (Windows: MSYS=winsymlinks:nativestrict, or clone the repo there instead — see references/install.md step 1)"
+    else
+      row skill ok "$LABEL"
+    fi
   fi
 fi
 
@@ -107,8 +126,12 @@ if [ -z "$SL_CMD" ]; then
     fix "add to $CFG_DIR/settings.json: \"statusLine\": {\"type\": \"command\", \"command\": \"bash $DIR/statusline.sh\"}"
   fi
 else
-  # the command's script path: the first argument that exists, or looks like one
-  SL_PATH=$(printf '%s\n' $SL_CMD | grep -E '/|\.sh$' | head -1)
+  # the command's script path: the token that IS the script, quotes dropped.
+  # Word-splitting first would turn a quoted interpreter path with a space
+  # ("C:/Program Files/...") into fragments and report the first fragment as
+  # a missing file — a working status line read as broken.
+  SL_PATH=$(printf '%s\n' $SL_CMD | tr -d '"' | grep -E '\.sh$' | head -1)
+  [ -z "$SL_PATH" ] && SL_PATH=$(printf '%s\n' $SL_CMD | tr -d '"' | grep -E '/' | head -1)
   if [ -n "$SL_PATH" ] && [ ! -e "$SL_PATH" ]; then
     if [ -L "$SL_PATH" ]; then
       row statusline broken "$SL_PATH -> $(readlink "$SL_PATH") · dead symlink"
@@ -119,7 +142,7 @@ else
       fix "point that command at: bash $DIR/statusline.sh"
     fi
   else
-    out=$(PRD_STATUS_JSON="{\"current_dir\":\"$START\"}" bash ${SL_PATH:-$DIR/statusline.sh} 2>/dev/null)
+    out=$(PRD_STATUS_JSON="{\"current_dir\":\"$START\"}" bash "${SL_PATH:-$DIR/statusline.sh}" 2>/dev/null)
     if [ -z "$out" ]; then
       row statusline broken "$SL_PATH renders nothing for $START"
       fix "bash $DIR/statusline.sh — compare, per references/install.md step 2"
@@ -144,7 +167,9 @@ fi
 BOARD=""; d="$START"
 while [ -n "$d" ] && [ "$d" != "/" ]; do
   [ -d "$d/prds" ] && { BOARD="$d/prds"; break; }
-  d=$(dirname "$d")
+  # dirname's fixpoint is not always `/` — on a Windows drive path it is `C:`,
+  # and without this guard the loop never exits. A no-op on POSIX.
+  p=$(dirname "$d"); [ "$p" = "$d" ] && break; d="$p"
 done
 if [ -z "$BOARD" ]; then
   # a board off the contract path is found, not skipped: one level down, dot-dirs too

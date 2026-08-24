@@ -257,7 +257,12 @@ def project_name(board):
         base = os.path.basename(d)
         if base and not base.startswith("."):
             return base
-        d = os.path.dirname(d)
+        # dirname's fixpoint is not always "/" — a Windows drive root ("C:/")
+        # maps to itself, and without this guard the walk never exits
+        nxt = os.path.dirname(d)
+        if nxt == d:
+            break
+        d = nxt
     return "board"
 
 

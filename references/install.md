@@ -20,6 +20,15 @@ Symlink the folder into a skills directory, named `pearde`:
 
 - A symlink, not a copy — one source of truth, so editing this folder updates
   every install at once.
+- **Windows**: a symlink needs Developer Mode or Administrator, and Git Bash's
+  `ln -s` without that silently makes a *copy* — the exact drift the line above
+  warns about, invisible until the two trees diverge. Either enable symlinks
+  and link with `MSYS=winsymlinks:nativestrict ln -s <skill>
+  ~/.claude/skills/pearde`, or skip the link and clone the repo in place:
+  `git clone https://github.com/yesitsfebreeze/pearde ~/.claude/skills/pearde`
+  — `git pull` keeps it the one source of truth (a local patch conflicts on
+  pull, where a symlinked working copy would not). `doctor.sh` tells the three
+  apart: a symlink and a clone report `ok`, a plain copy reports `broken`.
 - `SKILL.md` carries the name and description that make `pearde` invocable.
 - Already a real directory at that path? Stop and ask. Never replace it.
 

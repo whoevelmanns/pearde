@@ -37,6 +37,12 @@ JSON="${PRD_STATUS_JSON:-}"
 field() { printf '%s' "$JSON" | sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -1; }
 
 DIR=$(field current_dir); [ -z "$DIR" ] && DIR=$(field cwd); [ -z "$DIR" ] && DIR="$PWD"
+# Windows: the status JSON carries `C:\Users\...` with JSON-doubled backslashes,
+# and field() extracts them raw — a form no path test downstream accepts. tr
+# collapses both the raw and the doubled backslash; sed folds the // the
+# doubling leaves behind. A POSIX path has no backslash and is untouched.
+BS=$(printf '\134')
+case "$DIR" in *"$BS"*) DIR=$(printf '%s' "$DIR" | tr "$BS" '/' | sed 's|//*|/|g');; esac
 MODEL=$(field display_name)
 
 # ── base segment ───────────────────────────────────────────────────────────────
@@ -74,7 +80,9 @@ BOARD=""; BOARD_OUT=""
 d="$DIR"
 while [ -n "$d" ] && [ "$d" != "/" ]; do
   if [ -d "$d/prds" ]; then BOARD="$d/prds"; break; fi
-  d=$(dirname "$d")
+  # dirname's fixpoint is not always `/` — on a Windows drive path it is `C:`,
+  # and without this guard the loop never exits. A no-op on POSIX.
+  p=$(dirname "$d"); [ "$p" = "$d" ] && break; d="$p"
 done
 
 # A master board counts its members too: `members:` in settings.md names the
