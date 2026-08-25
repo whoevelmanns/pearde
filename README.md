@@ -245,6 +245,20 @@ nothing.
 - Read the worker's **output** before sweeping. `analyzing` with spec files on
   disk is an analyst that finished: the transition is `specced` with the
   specs' `est` summed, not `open`.
+- `jira-sync: on` and the Jira env vars set: run `jira_sync.py drift`, then
+  `jira_sync.py import-new`. `drift`'s lines are noted for the round report —
+  no state change, a mismatch alone is not a verify-worthy reason to move a
+  PRD. For each `import-new` block with no matching PRD: create the
+  directory + `prd.md` (`state: open`, `origin: requested`, title = the
+  Jira summary, body = the reported description plus a back-reference to the
+  ticket key) — grouped as a subdirectory under the reported parent PRD's
+  path when one was reported (mirroring a manually-built epic grouping like
+  `prds/ab-621-…/{ab-628-…, ab-630-…}/`), else flat under `prds/` — no chain
+  of guesses across more than one level. Before creating one, check its
+  reported siblings — a ticket that
+  clearly overlaps an existing sibling PRD (the documented gap in
+  `references/jira.md`'s ticket→PRD matching) is skipped by hand, not
+  duplicated. Both feed the round report: drifts noted, PRDs newly created.
 
 A worker its infrastructure killed — API error, lost network, full disk — is
 not a failed attempt:
@@ -499,6 +513,39 @@ is ahead and stop.
 `commits: off` in `prds/settings.md` holds all of it — each transition then
 names its dirty footprint. While on, a `*<dirty>` count climbing across rounds
 is a board whose commits are not landing.
+
+## Jira sync
+
+Optional, off by default. `jira-sync: on` in `prds/settings.md` plus
+`JIRA_BASE_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` in the environment mirror every
+`state` write onto the matching Jira issue's status — same timing as
+**Commits**: call it right after the write it mirrors, from the
+orchestrator, never a worker. `references/jira.md` has the full design: how
+the issue key is read off the PRD directory name, why the mapping walks a
+per-project workflow graph discovered from the API rather than a hardcoded
+table, and why `open` never forces a status backward.
+
+```sh
+python3 <skill>/jira_sync.py sync <prd-dir-name> <state> [note...]
+```
+
+Two more, read-only, the other direction — Jira as an additional source, not
+only a target — both report only, neither changes a PRD's state:
+
+- `jira_sync.py drift` — for every PRD with a derivable key and a `state`
+  whose Jira target is fixed, compares the live status against it; one line
+  per mismatch, silent when clean.
+- `jira_sync.py import-new` — reports Jira tickets that are "Selected" (or
+  the board's `jira-selected-status`) and assigned to `JIRA_EMAIL`'s user,
+  with no PRD on the board yet. Creates nothing under `prds/` itself — the
+  orchestrator turns each reported block into a PRD, in loop step 1.
+
+```sh
+python3 <skill>/jira_sync.py drift
+python3 <skill>/jira_sync.py import-new
+```
+
+`references/jira.md`, **Rückrichtung: Jira als Quelle** has the full design.
 
 ## Worker briefs
 
@@ -763,4 +810,5 @@ the burn-down draws. Machine-local and regenerable; gitignore them:
 prds/.plan.json
 prds/.history.jsonl
 prds/.view.html
+prds/.jira-graph-*.json
 ```

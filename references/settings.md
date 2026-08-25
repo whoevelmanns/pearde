@@ -38,6 +38,9 @@ members:
 | `memos`       | `memos/`     | where decision records live, relative to `prds/`. Point it at another system's memo dir to mirror it read-only — the strict gate then applies only to the board's own `memos/`, per `references/memo.md` |
 | `members`     | none         | the boards this one merges — `- <path>` or `- <name>: <path>`, relative to `prds/`. Present means **master board**: every member's PRDs join the scan as `@<member>/<rel>`, one plan spans them. README, **Master boards** |
 | `name`        | inferred     | what the board calls itself — the view's title and `/board/<name>` URL. Inferred from the directory on a plain board, from the member names on a master — a placeholder: the first round meeting an unnamed master asks the user and writes it |
+| `jira-sync`   | off          | mirror every `state` write onto the matching Jira issue's status. Also needs `JIRA_BASE_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` in the environment — either missing, `jira_sync.py` no-ops. `references/jira.md` |
+| `jira-projects` | leer       | additive Ergänzung zum aus PRD-Ordnernamen abgeleiteten Projekt-Scope für `jira_sync.py import-new` — Liste oder Komma-Scalar, z. B. `AB, HAMA`. `references/jira.md` |
+| `jira-selected-status` | `Selected` | Name des Jira-Status, der als "bereit, nicht begonnen" für `jira_sync.py import-new` gilt — exakter Namensabgleich, nicht `statusCategory`. `references/jira.md` |
 
 A key missing from the live copy reads at its default.
 
