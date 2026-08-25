@@ -57,7 +57,7 @@ one parser reads all three.
 
 ## Body
 
-`references/templates/memo.md` is the shape:
+`@references/templates/memo.md` is the shape:
 
 | section                     | holds                                              |
 |-----------------------------|-----------------------------------------------------|
@@ -67,7 +67,7 @@ one parser reads all three.
 | `## Consequences`           | what this costs, including what it does not fix    |
 
 `Why` and `Alternatives considered` are the one place on the board where
-paragraphs are correct, per `references/language.md`. Compress them.
+paragraphs are correct, per @references/language.md. Compress them.
 
 **Alternatives is not optional.** A memo with no alternatives is a claim, not
 a decision — nobody can later tell whether the other road was walked and
@@ -82,14 +82,14 @@ one fact, one home. Point `memos:` in `prds/settings.md` at that dir:
 memos: ../.mi/docs/memos
 ```
 
-The dir is read read-only, every scalar frontmatter key rendered as-is. The
-check then verifies only what is universal — the file parses, the required
-five are present — and leaves the foreign vocabulary alone. The closed set
-applies only to the board's own `memos/`.
+The dir is read-only, every scalar frontmatter key rendered as-is. The check
+then verifies only what is universal — the file parses, the required five are
+present — and leaves the foreign vocabulary alone. The closed set applies only
+to the board's own `memos/`.
 
 ## The check
 
-`doctor.sh` reports `memos`; `python3 <skill>/memos.py check [board]` is the
+`doctor.sh` reports `memos`; `python3 @resources/memos.py check [board]` is the
 same check alone. It fails on:
 
 - a `kind` or `status` word outside the closed set
@@ -105,11 +105,10 @@ board cannot drift apart quietly.
 
 ## Why the board, not a docs folder
 
-The board is what a session already walks; `memos/` is one directory deeper on
-a path it is already on. Rejected:
+`memos/` is one directory deeper on a path the session already walks.
+Rejected:
 
 - **`docs/` at the repo root** — reads fine for a human, invisible to the
-  loop, which is the failure being fixed. Memos beside the PRDs let `prds:`
-  name a sibling the check can verify.
+  loop. Memos beside the PRDs let `prds:` name a sibling the check can verify.
 - **Status as the folder** (`open/`, `decided/`, …) — moving a file to change
   a status rots every inbound link.

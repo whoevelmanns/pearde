@@ -1,944 +1,9 @@
-#!/usr/bin/env python3
-"""pearde gantt — the plan as distance to the vision, not as a calendar.
-
-One self-contained HTML file: `plan.py gantt` writes it to `prds/.gantt.html`
-from the schedule `plan` saved in `.plan.json`, and the live service
-serves the same render at `/board/<name>`.
-
-**Why the x axis is not time.** The workers are agents. They start when the
-work is dispatchable and there are as many of them as the board can usefully
-run, so a calendar date on a bar is a guess about staffing, not a fact about
-the plan. What is a fact is the dependency structure: how much work has to
-finish, in sequence, before the vision is reached. That is the axis — hours
-along the critical path, zero at *now*, and the right edge is the vision.
-
-Read off it directly:
-
-  · **critical** bars are the ones that set the finish. Shorten one and the
-    vision moves left; shorten anything else and nothing happens
-  · **float** is drawn as a tail: how late a task may start before it becomes
-    critical. A long tail is slack you can spend
-  · **ready now** is the frontier at x=0 — everything dispatchable this second,
-    ordered by how much work each one unblocks. That ordering IS the dispatch
-    order for the fastest path to the vision
-  · **wave bands** across the top are the plan's rounds, so the structure of
-    the plan is the structure of the axis
-
-`dates` mode is still one click away for a human who wants a calendar — it
-draws the same bars on the worker-limited schedule `plan` computed.
-
-The critical-path arithmetic happens here, in Python (`cpm`), so the numbers
-the page draws and the numbers an agent reads out of it are the same numbers.
-plan.py builds the payload (it owns the scan, the map, and the settings); this
-module enriches it, renders it, and writes it.
-"""
-import json
-import os
-
-VIEW_FILE = ".view.html"
-
-
-def cpm(tasks):
-    """Critical-path method over the plan's dependency graph, in est-hours.
-
-    Forward pass with no worker limit — the question is not "when will three
-    workers get to it" but "how soon could this possibly be reached", which
-    is the only bound agents cannot argue with. Backward pass from the finish
-    gives every task its float. Returns (tasks, meta); tasks gain:
-
-        es ef      earliest start / finish, hours from now
-        ls lf      latest start / finish that still hits the finish
-        slack      ls - es. 0 means critical
-        critical   on a longest chain
-        ready      dispatchable now — starts at zero, no dependency and no
-                   earlier wave in front of it, and nobody already holding it
-        unblocks   est-hours of work waiting downstream, transitively. The
-                   frontier sorts by this: it is the size of the door the
-                   task opens
-        downstream how many PRDs those hours are
-
-    A `needs` naming a PRD outside the plan (done, parked, never scheduled) is
-    already satisfied and drops out — `plan` resolved it, the graph only holds
-    what is left to do."""
-    by = {t["rel"]: t for t in tasks}
-    deps = {r: [d for d in (t.get("needs") or []) if d in by and d != r]
-            for r, t in by.items()}
-    feeds = {r: [] for r in by}
-    for r, ds in deps.items():
-        for d in ds:
-            feeds[d].append(r)
-
-    # topological order (Kahn). A cycle is the planner's error, not ours: the
-    # leftovers go last in a stable order rather than hanging the render.
-    indeg = {r: len(deps[r]) for r in by}
-    queue = sorted(r for r in by if not indeg[r])
-    order = []
-    while queue:
-        r = queue.pop(0)
-        order.append(r)
-        for s in sorted(feeds[r]):
-            indeg[s] -= 1
-            if not indeg[s]:
-                queue.append(s)
-    order += sorted(r for r in by if r not in set(order))
-
-    est = {r: float(by[r].get("est") or 0.0) for r in by}
-    # The wave is a constraint, not a label. `plan` bumps a PRD into a later
-    # wave when its footprint clashes with an earlier one — two agents editing
-    # one file is not a schedule, it is a merge conflict — so a wave runs after
-    # the one before it even where no `needs` says so. Dependencies alone would
-    # draw every ready PRD starting at zero and call it the fastest path; it
-    # is not a path anyone can walk.
-    waves = sorted({t.get("wave") for t in tasks if t.get("wave")})
-    floor = {w: 0.0 for w in waves}
-    es, ef = {}, {}
-    for w in waves:
-        for r in order:
-            if by[r].get("wave") != w:
-                continue
-            es[r] = max([ef.get(d, 0.0) for d in deps[r]] + [floor[w]])
-            ef[r] = es[r] + est[r]
-        nxt = [x for x in waves if x > w]
-        if nxt:
-            done = max([ef[r] for r in by if by[r].get("wave") == w] or [floor[w]])
-            floor[nxt[0]] = max(floor[nxt[0]], done)
-    for r in order:                      # a PRD the plan left unwaved
-        if r not in es:
-            es[r] = max([ef.get(d, 0.0) for d in deps[r]] or [0.0])
-            ef[r] = es[r] + est[r]
-    length = max(ef.values()) if ef else 0.0
-
-    # the same wave gate, read backwards: a task may not slide past the start
-    # of the earliest task in the next wave, or it would push that wave
-    ceil = {}
-    for i, w in enumerate(waves):
-        nxt = waves[i + 1] if i + 1 < len(waves) else None
-        ceil[w] = (min([es[r] for r in by if by[r].get("wave") == nxt] or [length])
-                   if nxt else length)
-    ls, lf = {}, {}
-    for r in reversed(order):
-        lf[r] = min([ls[s] for s in feeds[r] if s in ls] or
-                    [ceil.get(by[r].get("wave"), length)])
-        ls[r] = lf[r] - est[r]
-
-    # transitive downstream, accumulated backwards so nothing is walked twice
-    down = {}
-    for r in reversed(order):
-        acc = set()
-        for s in feeds[r]:
-            acc.add(s)
-            acc |= down.get(s, set())
-        down[r] = acc
-
-    for r, t in by.items():
-        t["es"], t["ef"] = round(es[r], 3), round(ef[r], 3)
-        t["ls"], t["lf"] = round(ls[r], 3), round(lf[r], 3)
-        t["slack"] = round(ls[r] - es[r], 3)
-        t["critical"] = t["slack"] < 0.01
-        # A PRD a worker already holds is not a PRD to dispatch. The frontier
-        # is the dispatch order, so anything in flight belongs in `collect`
-        # below or nowhere — offering it twice is how one PRD gets two workers.
-        t["ready"] = es[r] < 0.01 and not t.get("held")
-        t["unblocks"] = round(sum(est[s] for s in down[r]), 2)
-        t["downstream"] = len(down[r])
-        t["blocks"] = sorted(feeds[r])
-
-    # the chain itself, for the header and for anyone reading the file
-    chain, cur = [], None
-    pool = [r for r in order if by[r]["critical"]]
-    for r in sorted(pool, key=lambda r: (es[r], -est[r])):
-        if cur is None or es[r] >= round(ef[cur], 3) - 0.01:
-            chain.append(r)
-            cur = r
-    # how many agents the fastest path asks for at its widest moment. The
-    # answer to "can we go faster" is usually this number, not an estimate.
-    edges = sorted([(es[r], 1) for r in by] + [(ef[r], -1) for r in by])
-    peak = run = 0
-    for _, d in edges:
-        run += d
-        peak = max(peak, run)
-    meta = {
-        "length": round(length, 2),
-        "total": round(sum(est.values()), 2),
-        "peak": peak,
-        "chain": chain,
-        "ready": sorted((r for r in by if by[r]["ready"]),
-                        key=lambda r: (-by[r]["unblocks"], -by[r]["prio"], r)),
-        # finished work, still open on the board. Ordered by what closing it
-        # releases, because that is the whole reason to close it first
-        "collect": sorted((r for r in by if by[r].get("collect")),
-                          key=lambda r: (-by[r]["unblocks"], -by[r]["prio"], r)),
-        "waves": {},
-    }
-    for r, t in by.items():
-        w = t.get("wave")
-        if w is None:
-            continue
-        lo, hi = meta["waves"].get(str(w), (es[r], ef[r]))
-        meta["waves"][str(w)] = (min(lo, es[r]), max(hi, ef[r]))
-    meta["waves"] = {k: [round(v[0], 3), round(v[1], 3)]
-                     for k, v in sorted(meta["waves"].items(),
-                                        key=lambda kv: int(kv[0]))}
-    return tasks, meta
-
-
-def enrich(payload):
-    p = dict(payload)
-    p["tasks"], p["cpm"] = cpm([dict(t) for t in payload.get("tasks", [])])
-    return p
-
-
-def render(payload):
-    p = enrich(payload)
-    data = json.dumps(p, sort_keys=True).replace("</", "<\\/")
-    return (TEMPLATE
-            .replace("__TITLE__", p.get("vision", {}).get("title") or p["board"])
-            .replace("__PAYLOAD__", data))
-
-
-def write(board, payload):
-    path = os.path.join(board, VIEW_FILE)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(render(payload))
-    return path
-
-
-
-# ── the look ──────────────────────────────────────────────────────────────────
-# Greyscale carries the plan; colour is spent only where a person is needed.
-#
-#   · state-as-progress is a ramp of ink weight, not of hue: open is a whisper,
-#     claimed is full ink (full white in the dark theme — furthest along is
-#     always the brightest thing on the surface)
-#   · the two exception states that mean "a human has to act" are the only
-#     coloured marks on the page: question wears amber, blocked/failed wear red
-#   · the critical chain is ink outline plus a soft glow — the strongest mark
-#     available in a world with no second hue
-#   · every row, column and legend entry names its state in text, so nothing
-#     is carried by colour alone
-#
-# The timeline is one <canvas>, drawn virtualised: frozen header and frozen
-# task column come free, only the visible rows are ever touched, and gradients
-# and glows cost nothing per frame. Everything else on the page is DOM, because
-# everything else is text you should be able to select.
-TEMPLATE = r"""<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>__TITLE__ — plan</title>
-<style>
-/* ─────────────────────────────────────────────────────────────────────────
-   The board, as a Mac app in graphite.
-
-   Four rules the whole sheet follows:
-
-   1. CONTENT LEADS, CHROME FLOATS. Toolbars, the inspector and the overlay
-      are glass — translucent, blurred, hairline-bordered — and the work
-      underneath shows through them. Nothing chrome-coloured is opaque.
-   2. HIERARCHY BY DEPTH AND WEIGHT, NEVER BY HUE. Elevation, translucency
-      and ink weight do the ranking. There is no accent colour: the accent
-      IS ink, the way macOS looks with the Graphite highlight selected.
-   3. COLOUR IS A SIGNAL, NOT A DECORATION. Amber and red appear only on the
-      states that are waiting for a person. If the page has colour on it,
-      something wants you.
-   4. EVERY NUMBER IS A DOOR. A count, a swatch, a bar, a column head — if it
-      names a set of PRDs, clicking it takes you to that set. Nothing on this
-      page is a dead end.
-
-   Spacing is the 4/8 grid. Radii are concentric: a control inside a card is
-   the card's radius minus its padding. Motion is 150ms for a hover, 280ms on
-   Apple's own curve for anything that travels, and none at all when the
-   reader asked for none.                                                    */
-
-:root{
-  color-scheme:light;
-  /* surfaces */
-  --bg:#f4f4f6; --content:#ffffff; --content-2:#f8f8fa; --sunk:#ededf0;
-  --glass:rgba(251,251,253,.72); --glass-brd:rgba(0,0,0,.10);
-  --glass-hi:rgba(255,255,255,.80);
-  /* ink — Apple's label hierarchy, with the hue taken out */
-  --ink:#101013; --ink2:rgba(0,0,0,.56); --ink3:rgba(0,0,0,.32);
-  --ink4:rgba(0,0,0,.14);
-  /* fills + separators */
-  --fill:rgba(0,0,0,.05); --fill-2:rgba(0,0,0,.09);
-  --sep:rgba(0,0,0,.11); --sep-2:rgba(0,0,0,.055);
-  --hover:rgba(0,0,0,.038); --sel:rgba(0,0,0,.065);
-  --shadow:0 1px 2px rgba(0,0,0,.05), 0 8px 24px -8px rgba(0,0,0,.12);
-  --shadow-lg:0 2px 8px rgba(0,0,0,.08), 0 24px 60px -12px rgba(0,0,0,.28);
-  /* the accent is ink: a graphite system */
-  --accent:#101013; --accent-ink:#ffffff; --accent-wash:rgba(0,0,0,.06);
-  /* the only two hues on the page — both mean "a person is needed" */
-  --warn:#bd8408; --warn-wash:rgba(189,132,8,.10);
-  --danger:#cf332b; --danger-wash:rgba(207,51,43,.09);
-  /* the state ramp: one ink, light→dark. Progress is weight. */
-  --st-open:rgba(0,0,0,.23); --st-analyzing:rgba(0,0,0,.43);
-  --st-specced:rgba(0,0,0,.63); --st-claimed:#18181b;
-  --st-question:var(--warn); --st-blocked:var(--danger);
-  --st-failed:var(--danger); --st-done:rgba(0,0,0,.11);
-  --crit:#0a0a0c;
-  --float:rgba(0,0,0,.20); --link:rgba(0,0,0,.30);
-  --grid:rgba(0,0,0,.055); --gridw:rgba(0,0,0,.10); --axis:rgba(0,0,0,.16);
-  --wash:rgba(0,0,0,.022);
-  /* categorical series: ink levels, direct-labelled, never cycled by hue */
-  --c1:rgba(0,0,0,.82); --c2:rgba(0,0,0,.62); --c3:rgba(0,0,0,.46);
-  --c4:rgba(0,0,0,.32); --c5:rgba(0,0,0,.20);
-  /* the canvas asks for these by name */
-  --hi:rgba(255,255,255,.30); --lo:rgba(0,0,0,.13);
-  /* shape + motion */
-  --r-lg:12px; --r-md:10px; --r-sm:7px; --r-xs:5px;
-  --dur-fast:.15s; --dur:.28s; --ease:cubic-bezier(.32,.72,0,1);
-}
-@media (prefers-color-scheme: dark){
-  :root:where(:not([data-theme="light"])){ color-scheme:dark;
-    --bg:#0b0b0c; --content:#17171a; --content-2:#1e1e21; --sunk:#101012;
-    --glass:rgba(28,28,31,.70); --glass-brd:rgba(255,255,255,.11);
-    --glass-hi:rgba(255,255,255,.08);
-    --ink:#f7f7f8; --ink2:rgba(255,255,255,.63); --ink3:rgba(255,255,255,.34);
-    --ink4:rgba(255,255,255,.16);
-    --fill:rgba(255,255,255,.07); --fill-2:rgba(255,255,255,.13);
-    --sep:rgba(255,255,255,.12); --sep-2:rgba(255,255,255,.07);
-    --hover:rgba(255,255,255,.055); --sel:rgba(255,255,255,.10);
-    --shadow:0 1px 2px rgba(0,0,0,.5), 0 8px 24px -8px rgba(0,0,0,.6);
-    --shadow-lg:0 2px 10px rgba(0,0,0,.6), 0 28px 64px -12px rgba(0,0,0,.8);
-    --accent:#f7f7f8; --accent-ink:#0b0b0c; --accent-wash:rgba(255,255,255,.10);
-    --warn:#f0b429; --warn-wash:rgba(240,180,41,.13);
-    --danger:#ff6259; --danger-wash:rgba(255,98,89,.13);
-    --st-open:rgba(255,255,255,.24); --st-analyzing:rgba(255,255,255,.45);
-    --st-specced:rgba(255,255,255,.66); --st-claimed:#f7f7f8;
-    --st-done:rgba(255,255,255,.13);
-    --crit:#ffffff;
-    --float:rgba(255,255,255,.22); --link:rgba(255,255,255,.32);
-    --grid:rgba(255,255,255,.055); --gridw:rgba(255,255,255,.11);
-    --axis:rgba(255,255,255,.18); --wash:rgba(255,255,255,.028);
-    --c1:rgba(255,255,255,.86); --c2:rgba(255,255,255,.64);
-    --c3:rgba(255,255,255,.47); --c4:rgba(255,255,255,.33);
-    --c5:rgba(255,255,255,.21);
-    --hi:rgba(255,255,255,.16); --lo:rgba(0,0,0,.22);
-  }
-}
-:root[data-theme="dark"]{ color-scheme:dark;
-  --bg:#0b0b0c; --content:#17171a; --content-2:#1e1e21; --sunk:#101012;
-  --glass:rgba(28,28,31,.70); --glass-brd:rgba(255,255,255,.11);
-  --glass-hi:rgba(255,255,255,.08);
-  --ink:#f7f7f8; --ink2:rgba(255,255,255,.63); --ink3:rgba(255,255,255,.34);
-  --ink4:rgba(255,255,255,.16);
-  --fill:rgba(255,255,255,.07); --fill-2:rgba(255,255,255,.13);
-  --sep:rgba(255,255,255,.12); --sep-2:rgba(255,255,255,.07);
-  --hover:rgba(255,255,255,.055); --sel:rgba(255,255,255,.10);
-  --shadow:0 1px 2px rgba(0,0,0,.5), 0 8px 24px -8px rgba(0,0,0,.6);
-  --shadow-lg:0 2px 10px rgba(0,0,0,.6), 0 28px 64px -12px rgba(0,0,0,.8);
-  --accent:#f7f7f8; --accent-ink:#0b0b0c; --accent-wash:rgba(255,255,255,.10);
-  --warn:#f0b429; --warn-wash:rgba(240,180,41,.13);
-  --danger:#ff6259; --danger-wash:rgba(255,98,89,.13);
-  --st-open:rgba(255,255,255,.24); --st-analyzing:rgba(255,255,255,.45);
-  --st-specced:rgba(255,255,255,.66); --st-claimed:#f7f7f8;
-  --st-done:rgba(255,255,255,.13);
-  --crit:#ffffff;
-  --float:rgba(255,255,255,.22); --link:rgba(255,255,255,.32);
-  --grid:rgba(255,255,255,.055); --gridw:rgba(255,255,255,.11);
-  --axis:rgba(255,255,255,.18); --wash:rgba(255,255,255,.028);
-  --c1:rgba(255,255,255,.86); --c2:rgba(255,255,255,.64);
-  --c3:rgba(255,255,255,.47); --c4:rgba(255,255,255,.33);
-  --c5:rgba(255,255,255,.21);
-  --hi:rgba(255,255,255,.16); --lo:rgba(0,0,0,.22);
-}
-/* the reader's own settings win over the aesthetic */
-@media (prefers-reduced-transparency: reduce){
-  :root{ --glass:var(--content); }
-}
-@media (prefers-contrast: more){
-  :root{ --sep:rgba(0,0,0,.4); --ink2:rgba(0,0,0,.86);
-         --st-open:rgba(0,0,0,.34); }
-  :root[data-theme="dark"],:root:where(:not([data-theme="light"])){
-    --sep:rgba(255,255,255,.45); --ink2:rgba(255,255,255,.9);
-    --st-open:rgba(255,255,255,.38); }
-}
-@media (prefers-reduced-motion: reduce){
-  *,*::before,*::after{ transition-duration:.01ms !important;
-    animation-duration:.01ms !important }
-}
-
-*{box-sizing:border-box;margin:0}
-html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
-body{background:var(--bg);color:var(--ink);
-  font:13px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",
-    system-ui,sans-serif;
-  padding:0 16px 20px;-webkit-tap-highlight-color:transparent}
-::selection{background:var(--accent-wash)}
-:focus{outline:none}
-:focus-visible{outline:2.5px solid var(--ink3);outline-offset:1px;
-  border-radius:var(--r-xs)}
-/* scrollbars: present when used, invisible when not */
-*{scrollbar-width:thin;scrollbar-color:var(--fill-2) transparent}
-::-webkit-scrollbar{width:11px;height:11px}
-::-webkit-scrollbar-thumb{background:var(--fill-2);border-radius:99px;
-  border:3px solid transparent;background-clip:content-box}
-::-webkit-scrollbar-thumb:hover{background:var(--ink3);background-clip:content-box}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-corner{background:transparent}
-
-/* ── the toolbar: one glass bar, the app's identity and its views ───────── */
-#titlebar{position:sticky;top:0;z-index:30;display:flex;align-items:center;
-  gap:14px;margin:0 -16px;padding:9px 16px;
-  background:var(--glass);backdrop-filter:saturate(180%) blur(24px);
-  -webkit-backdrop-filter:saturate(180%) blur(24px);
-  border-bottom:.5px solid var(--glass-brd);
-  box-shadow:inset 0 1px 0 var(--glass-hi)}
-#titlebar .ident{display:flex;align-items:baseline;gap:8px;min-width:0}
-#titlebar h1{font-size:15px;font-weight:640;letter-spacing:-.014em;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#sub{font-size:12px;color:var(--ink2);white-space:nowrap}
-#titlebar .right{margin-left:auto;display:flex;gap:8px;align-items:center}
-
-/* segmented control — the sliding pill is one transform, not six repaints */
-#views{position:relative;display:flex;background:var(--fill);
-  border-radius:9px;padding:2px;gap:0}
-#segpill{position:absolute;top:2px;bottom:2px;left:0;width:0;
-  background:var(--content);border-radius:7px;
-  box-shadow:0 1px 2px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.05);
-  transition:transform var(--dur) var(--ease),width var(--dur) var(--ease);
-  pointer-events:none}
-:root[data-theme="dark"] #segpill,
-:root:where(:not([data-theme="light"])) #segpill{
-  box-shadow:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.07)}
-#views button{position:relative;z-index:1;background:none;border:none;
-  color:var(--ink2);font:500 12.5px/1 -apple-system,system-ui,sans-serif;
-  padding:6px 13px;border-radius:7px;cursor:pointer;display:flex;gap:6px;
-  align-items:center;transition:color var(--dur-fast) ease}
-#views button:hover{color:var(--ink)}
-#views button.on{color:var(--ink);font-weight:590}
-/* a badge is a count that wants you, so it is allowed a hue */
-#views .badge{font:600 10px/14px -apple-system,system-ui,sans-serif;
-  min-width:16px;height:15px;padding:0 4px;border-radius:99px;
-  background:var(--warn);color:#fff;letter-spacing:-.01em;
-  font-variant-numeric:tabular-nums;display:none}
-:root[data-theme="dark"] #views .badge,
-:root:where(:not([data-theme="light"])) #views .badge{color:#1a1400}
-#views .badge.on{display:block}
-
-/* controls */
-button,select,input[type=text],input[type=search],input[type=number],textarea{
-  font:13px/1.3 -apple-system,system-ui,sans-serif;color:var(--ink)}
-.btn,#tcontrols button,#newprd,#dclose,#dgo,#drevert,
-#ncreate,#ncancel,#danswer,#dnoteadd,.pillbtn,.act{
-  background:var(--content);color:var(--ink);
-  border:.5px solid var(--sep);border-radius:var(--r-sm);
-  padding:5px 11px;min-height:26px;cursor:pointer;font-weight:500;
-  box-shadow:0 1px 1.5px rgba(0,0,0,.05);
-  transition:background var(--dur-fast) ease,transform var(--dur-fast) ease,
-    border-color var(--dur-fast) ease}
-.btn:hover,#tcontrols button:hover,#newprd:hover,#dclose:hover,#dgo:hover,
-#drevert:hover,#ncreate:hover,#ncancel:hover,#danswer:hover,#dnoteadd:hover,
-.act:hover{background:var(--content-2);border-color:var(--ink4)}
-#tcontrols button:active,#newprd:active,#dgo:active,#ncreate:active,
-.act:active{transform:scale(.97)}
-button.on,#tcontrols button.on{background:var(--accent);color:var(--accent-ink);
-  border-color:transparent;box-shadow:0 1px 2px rgba(0,0,0,.22)}
-button.primary,#newprd.primary,#ncreate.primary,#dgo{background:var(--accent);
-  color:var(--accent-ink);border-color:transparent;font-weight:590;
-  box-shadow:0 1px 2px rgba(0,0,0,.22)}
-button.primary:hover,#newprd.primary:hover,#ncreate.primary:hover,
-#dgo:hover{background:var(--accent);opacity:.86}
-select{background:var(--content);border:.5px solid var(--sep);
-  border-radius:var(--r-sm);padding:5px 24px 5px 9px;min-height:26px;
-  cursor:pointer;appearance:none;
-  background-image:linear-gradient(45deg,transparent 50%,var(--ink2) 50%),
-    linear-gradient(135deg,var(--ink2) 50%,transparent 50%);
-  background-position:calc(100% - 13px) 12px,calc(100% - 9px) 12px;
-  background-size:4px 4px,4px 4px;background-repeat:no-repeat}
-input[type=search],input[type=text],input[type=number]{
-  background:var(--content);border:.5px solid var(--sep);
-  border-radius:var(--r-sm);padding:5px 10px;min-height:26px}
-input::placeholder,textarea::placeholder{color:var(--ink3)}
-input:focus-visible,select:focus-visible,textarea:focus-visible{
-  border-color:var(--ink3);outline-offset:0}
-.seg{display:flex;background:var(--fill);border-radius:8px;padding:2px;gap:2px}
-#tcontrols .seg button,.seg button{background:none;border:none;box-shadow:none;
-  color:var(--ink2);padding:4px 11px;min-height:22px;border-radius:6px;
-  font-weight:500}
-#tcontrols .seg button:hover,.seg button:hover{background:var(--hover);
-  color:var(--ink)}
-#tcontrols .seg button.on,.seg button.on{background:var(--content);
-  color:var(--ink);font-weight:590;box-shadow:0 1px 2px rgba(0,0,0,.14)}
-label.lab{color:var(--ink2);font-size:12px}
-
-/* ── every number is a door ────────────────────────────────────────────────
-   .lnk is the whole grammar of this page: a count, a swatch, a bar or a
-   column head that names a set of PRDs, and takes you to that set. It looks
-   like text until you approach it.                                         */
-.lnk{background:none;border:none;padding:1px 5px;margin:0 -3px;
-  border-radius:var(--r-xs);color:inherit;font:inherit;cursor:pointer;
-  text-align:left;
-  transition:background var(--dur-fast) ease,color var(--dur-fast) ease}
-.lnk:hover{background:var(--hover);color:var(--ink)}
-.lnk:active{background:var(--fill-2)}
-.lnk.hot{color:var(--warn)}
-.lnk.hot:hover{background:var(--warn-wash)}
-
-/* the numbers under the toolbar */
-#statsbar{display:flex;flex-wrap:wrap;gap:2px 6px;align-items:baseline;
-  padding:9px 0 7px;font-size:12.5px;color:var(--ink2)}
-#stats{display:flex;flex-wrap:wrap;gap:2px 4px;align-items:baseline}
-#stats .sep{color:var(--ink4);pointer-events:none;padding:0 1px}
-#stats b{font-weight:620;color:var(--ink);font-variant-numeric:tabular-nums}
-#stats .crit b,#stats .crit{color:var(--ink)}
-#inview{margin-left:auto;color:var(--ink3);font-size:12px;
-  display:flex;gap:4px;align-items:baseline}
-#purpose{color:var(--ink2);font-size:12.5px;padding:0 2px 10px;
-  max-width:76ch;line-height:1.5}
-
-/* the frontier — what to pick up, in order */
-#front{display:flex;gap:6px;flex-wrap:wrap;align-items:center;
-  padding:8px 10px;margin:0 0 10px;background:var(--content);
-  border:.5px solid var(--sep);border-radius:var(--r-md);font-size:12px;
-  box-shadow:var(--shadow)}
-#front .h{color:var(--ink3);font-weight:590;margin-right:2px;
-  text-transform:uppercase;letter-spacing:.045em;font-size:10.5px}
-#front .p{background:var(--fill);border:.5px solid transparent;
-  border-radius:99px;padding:3px 11px;cursor:pointer;white-space:nowrap;
-  font-size:12px;color:var(--ink2);
-  transition:background var(--dur-fast) ease,transform var(--dur-fast) ease,
-    color var(--dur-fast) ease}
-#front .p:hover{background:var(--fill-2);transform:translateY(-1px);
-  color:var(--ink)}
-#front .p:active{transform:none}
-#front .p b{font-weight:560;color:var(--ink)}
-#front .p.crit{border-color:var(--ink4);background:var(--content)}
-#front .p em{color:var(--ink3);font-style:normal;font-variant-numeric:tabular-nums}
-
-.bar-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
-  padding:0 2px 10px}
-section[data-view]{display:none}
-section[data-view].on{display:block;animation:rise var(--dur) var(--ease)}
-@keyframes rise{from{opacity:0;transform:translateY(4px)}
-                to{opacity:1;transform:none}}
-
-/* ── timeline: one canvas, and the frame it lives in ─────────────────────── */
-#mini{display:block;width:100%;height:40px;border:.5px solid var(--sep);
-  border-radius:var(--r-lg) var(--r-lg) 0 0;border-bottom:none;
-  background:var(--sunk);cursor:crosshair}
-#frame{position:relative;border:.5px solid var(--sep);
-  border-radius:0 0 var(--r-lg) var(--r-lg);background:var(--content);
-  overflow:hidden;box-shadow:var(--shadow)}
-#plot{position:relative;height:min(70vh,calc(100vh - 330px));min-height:280px}
-#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
-/* the scroller is a transparent sheet over the canvas: native momentum,
-   native scrollbars, native overscroll — the canvas just reads its offsets */
-#scroll{position:absolute;inset:0;overflow:auto;overscroll-behavior-x:contain;
-  outline:none}
-#scroll:focus-visible{box-shadow:inset 0 0 0 2px var(--ink3)}
-#spacer{width:1px;height:1px}
-#empty{position:absolute;inset:44px 0 0 0;display:none;flex-direction:column;
-  gap:10px;align-items:center;justify-content:center;color:var(--ink3);
-  font-size:13px;z-index:5;text-align:center;padding:0 20px}
-#legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11.5px;
-  color:var(--ink2);padding:10px 0 0;align-items:center}
-#legend .lnk{display:flex;align-items:center;gap:6px;padding:2px 7px}
-#legend .lnk.on{background:var(--fill-2);color:var(--ink)}
-#legend i{display:inline-block;width:8px;height:8px;border-radius:3px;
-  flex:none}
-#legend i.ring{background:transparent !important;
-  box-shadow:inset 0 0 0 1.5px currentColor}
-#legend i.crit{background:transparent;box-shadow:inset 0 0 0 1.5px var(--crit)}
-#legend b{display:inline-block;width:10px;height:2px;background:var(--ink);
-  border-radius:1px;flex:none}
-#legend .keys{color:var(--ink3)}
-#note{margin-top:10px;color:var(--ink3);font-size:11.5px;padding:0 2px}
-kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
-  border-radius:4px;padding:1.5px 5px;color:var(--ink2)}
-
-/* ── board ──────────────────────────────────────────────────────────────── */
-#board{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 10px;
-  align-items:flex-start}
-.col{flex:0 0 262px;background:var(--content);border:.5px solid var(--sep);
-  border-radius:var(--r-lg);display:flex;flex-direction:column;
-  max-height:calc(100vh - 250px);box-shadow:var(--shadow);
-  transition:box-shadow var(--dur-fast) ease,border-color var(--dur-fast) ease,
-    flex-basis var(--dur) var(--ease),opacity var(--dur-fast) ease}
-.col.over{border-color:var(--ink3);
-  box-shadow:0 0 0 3px var(--accent-wash),var(--shadow)}
-.col.bare{flex:0 0 150px;opacity:.66}
-.col.bare:hover,.col.bare.over{opacity:1}
-.col h3{font-size:11px;font-weight:620;padding:4px 4px 6px;margin:6px 8px 2px;
-  display:flex;align-items:center;gap:7px;text-transform:uppercase;
-  letter-spacing:.045em;color:var(--ink2);border-radius:var(--r-xs);
-  cursor:pointer;transition:background var(--dur-fast) ease}
-.col h3:hover{background:var(--hover);color:var(--ink)}
-.col h3 i{width:8px;height:8px;border-radius:3px;flex:none}
-.col h3 i.ring{background:transparent !important;
-  box-shadow:inset 0 0 0 1.5px currentColor}
-.col h3 .n{margin-left:auto;color:var(--ink3);font-weight:530;
-  letter-spacing:normal;text-transform:none;font-variant-numeric:tabular-nums}
-.col .cards{overflow-y:auto;padding:0 8px 8px;display:flex;
-  flex-direction:column;gap:6px}
-.card{background:var(--content-2);border:.5px solid var(--sep-2);
-  border-radius:var(--r-md);padding:8px 10px;font-size:12px;cursor:grab;
-  line-height:1.4;transition:transform var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) ease,border-color var(--dur-fast) ease}
-.card:hover{border-color:var(--sep);box-shadow:var(--shadow);
-  transform:translateY(-1px)}
-.card:active{cursor:grabbing}
-.card.drag{opacity:.35;transform:scale(.98)}
-.card .t{font-weight:530;overflow:hidden;text-overflow:ellipsis;
-  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
-.card .m{color:var(--ink3);margin-top:5px;display:flex;gap:7px;
-  font-size:11px;font-variant-numeric:tabular-nums;align-items:center}
-.card .m .chip{background:var(--fill);border-radius:var(--r-xs);padding:0 5px}
-.card .star{color:var(--ink)}
-
-/* ── list ───────────────────────────────────────────────────────────────── */
-#listbar{display:flex;gap:8px;align-items:center;margin:0 2px 10px;
-  flex-wrap:wrap}
-#listbar .n{color:var(--ink3);font-size:12px}
-/* a filter you arrived at by clicking a number, and can drop by clicking it */
-.tokens{display:flex;gap:6px;align-items:center}
-.token{display:flex;gap:6px;align-items:center;background:var(--fill);
-  border:.5px solid transparent;border-radius:99px;padding:3px 6px 3px 10px;
-  font-size:11.5px;color:var(--ink2);cursor:pointer;
-  transition:background var(--dur-fast) ease}
-.token:hover{background:var(--fill-2);color:var(--ink)}
-.token b{font-weight:590;color:var(--ink)}
-.token .x{color:var(--ink3);font-size:10px}
-#list{background:var(--content);border:.5px solid var(--sep);
-  border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow)}
-#list table{width:100%;border-collapse:separate;border-spacing:0}
-#list th{cursor:pointer;user-select:none;white-space:nowrap;
-  position:sticky;top:0;z-index:2;background:var(--glass);
-  backdrop-filter:saturate(180%) blur(20px);
-  -webkit-backdrop-filter:saturate(180%) blur(20px);
-  border-bottom:.5px solid var(--sep);font-size:11px;font-weight:590;
-  color:var(--ink3);text-transform:uppercase;letter-spacing:.04em;
-  padding:9px 12px;text-align:left}
-#list th:hover{color:var(--ink2)}
-#list th.by{color:var(--ink)}
-#list td{padding:6px 12px;border-bottom:.5px solid var(--sep-2);
-  font-variant-numeric:tabular-nums;font-size:12px}
-#list tbody tr:last-child td{border-bottom:none}
-#list tr.r{cursor:pointer}
-#list tr.r:hover td{background:var(--hover)}
-#list td i{display:inline-block;width:8px;height:8px;border-radius:3px;
-  margin-right:8px}
-#list td i.ring{background:transparent !important;
-  box-shadow:inset 0 0 0 1.5px currentColor}
-#list td .st{color:var(--ink2)}
-#list td .st.warn{color:var(--warn)}
-#list td .st.danger{color:var(--danger)}
-#list .none{padding:26px;text-align:center;color:var(--ink3);font-size:12.5px}
-
-/* ── asks: the board waiting on a person, and the place to answer ───────── */
-#asks{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));
-  align-items:start}
-.ask2{background:var(--content);border:.5px solid var(--sep);
-  border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden;
-  transition:opacity var(--dur) var(--ease),transform var(--dur) var(--ease)}
-.ask2.gone{opacity:0;transform:scale(.97)}
-.ask2 .hd{display:flex;gap:9px;align-items:flex-start;padding:12px 14px 8px;
-  cursor:pointer}
-.ask2 .hd:hover .ttl{text-decoration:underline;text-decoration-color:var(--ink4)}
-.ask2 .ttl{font-size:13.5px;font-weight:600;letter-spacing:-.01em;flex:1;
-  min-width:0}
-.ask2 .rel{font:10.5px ui-monospace,SFMono-Regular,monospace;color:var(--ink3);
-  margin-top:3px}
-.ask2 .flag{flex:none;font-size:10px;font-weight:620;text-transform:uppercase;
-  letter-spacing:.05em;border-radius:99px;padding:2px 8px;
-  background:var(--warn-wash);color:var(--warn)}
-.ask2 .flag.blocked{background:var(--danger-wash);color:var(--danger)}
-.ask2 .q{margin:0 14px;padding:10px 12px;background:var(--content-2);
-  border:.5px solid var(--sep-2);border-radius:var(--r-md);
-  white-space:pre-wrap;font:12px/1.6 ui-monospace,SFMono-Regular,monospace;
-  color:var(--ink);max-height:280px;overflow:auto}
-.ask2 .q.skel{color:var(--ink3);font-style:italic}
-.ask2 .foot{padding:10px 14px 12px}
-.ask2 textarea{width:100%;background:var(--content);border:.5px solid var(--sep);
-  border-radius:var(--r-sm);padding:8px 10px;min-height:76px;resize:vertical;
-  font:12.5px/1.5 -apple-system,system-ui,sans-serif;white-space:pre-wrap}
-.ask2 .row2{display:flex;gap:8px;align-items:center;margin-top:8px}
-.ask2 .row2 .hint{font-size:11px;color:var(--ink3);margin-left:auto}
-.blank{background:var(--content);border:.5px solid var(--sep);
-  border-radius:var(--r-lg);box-shadow:var(--shadow);padding:34px 20px;
-  text-align:center;color:var(--ink3);font-size:12.5px;grid-column:1/-1;
-  display:flex;flex-direction:column;gap:10px;align-items:center}
-.blank .big{font-size:14px;color:var(--ink2);font-weight:560}
-
-/* ── analytics ──────────────────────────────────────────────────────────── */
-#tiles{display:grid;gap:10px;
-  grid-template-columns:repeat(auto-fit,minmax(158px,1fr));margin-bottom:12px}
-.tile{background:var(--content);border:.5px solid var(--sep);
-  border-radius:var(--r-lg);padding:12px 14px;box-shadow:var(--shadow);
-  text-align:left;cursor:pointer;display:block;width:100%;
-  transition:transform var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) ease,border-color var(--dur-fast) ease}
-.tile:hover{transform:translateY(-1px);border-color:var(--ink4);
-  box-shadow:var(--shadow-lg)}
-.tile:active{transform:none}
-.tile .k{font-size:10.5px;color:var(--ink3);font-weight:590;
-  text-transform:uppercase;letter-spacing:.045em}
-.tile .v{font-size:26px;font-weight:620;letter-spacing:-.025em;
-  font-variant-numeric:tabular-nums;line-height:1.18;margin:2px 0 1px}
-.tile.hot .v{color:var(--warn)}
-.tile .s{font-size:11.5px;color:var(--ink2)}
-#charts{display:grid;gap:12px;
-  grid-template-columns:repeat(auto-fit,minmax(360px,1fr))}
-.chart{background:var(--content);border:.5px solid var(--sep);
-  border-radius:var(--r-lg);padding:14px 16px 16px;box-shadow:var(--shadow)}
-.chart h3{font-size:13px;font-weight:600;letter-spacing:-.01em}
-.chart p.sub{font-size:11.5px;color:var(--ink3);margin:2px 0 12px;
-  line-height:1.45}
-.chart .empty{color:var(--ink3);font-size:12px;padding:18px 0;text-align:center}
-.brow{display:grid;grid-template-columns:112px 1fr auto;gap:10px;
-  align-items:center;font-size:12px;padding:1px 0;border-radius:var(--r-xs);
-  cursor:pointer;transition:background var(--dur-fast) ease}
-.brow:hover{background:var(--hover)}
-.brow .lab{color:var(--ink2);overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap;padding-left:4px}
-.brow:hover .lab{color:var(--ink)}
-.brow .track{background:var(--fill);border-radius:5px;height:14px;
-  position:relative}
-.brow .fill{position:absolute;left:0;top:0;bottom:0;border-radius:5px;
-  min-width:3px;transition:width var(--dur) var(--ease)}
-.brow .val{color:var(--ink2);font-variant-numeric:tabular-nums;
-  text-align:right;min-width:66px;font-size:11.5px;padding-right:4px}
-.chart svg{display:block;width:100%;overflow:visible}
-.chart svg .ax{stroke:var(--sep);stroke-width:1}
-.chart svg .lbl{fill:var(--ink3);font-size:10px}
-.chart svg .dot{fill:var(--ink);stroke:var(--content);stroke-width:2;
-  cursor:pointer}
-.chart svg .dot:hover{fill:var(--ink);stroke:var(--ink3)}
-.chart svg .ref{stroke:var(--ink3);stroke-dasharray:3 3;stroke-width:1}
-.chart svg .line{fill:none;stroke:var(--ink);stroke-width:2;
-  stroke-linejoin:round;stroke-linecap:round}
-.chart svg .area{fill:var(--ink);opacity:.08}
-
-/* ── memos ──────────────────────────────────────────────────────────────── */
-#memos{display:grid;gap:12px;
-  grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
-.memo{background:var(--content);border:.5px solid var(--sep);
-  border-radius:var(--r-lg);padding:14px 16px;box-shadow:var(--shadow)}
-.memo h3{font-size:13px;font-weight:600;margin-bottom:4px;letter-spacing:-.01em}
-.memo .f{font-size:11px;color:var(--ink3);margin-bottom:8px;display:flex;
-  flex-wrap:wrap;gap:4px 6px;align-items:baseline}
-.memo .f b{color:var(--ink2);font-weight:590}
-.memo pre{white-space:pre-wrap;font:11.5px/1.55 ui-monospace,SFMono-Regular,
-  monospace;color:var(--ink2);max-height:240px;overflow:auto}
-
-/* ── the inspector: a glass sheet, not a page ───────────────────────────── */
-#drawer{position:fixed;top:12px;right:12px;bottom:12px;
-  width:min(540px,46vw);z-index:40;background:var(--glass);
-  backdrop-filter:saturate(180%) blur(30px);
-  -webkit-backdrop-filter:saturate(180%) blur(30px);
-  border:.5px solid var(--glass-brd);border-radius:14px;
-  box-shadow:var(--shadow-lg);display:flex;flex-direction:column;
-  transform:translateX(calc(100% + 24px));opacity:0;pointer-events:none;
-  transition:transform var(--dur) var(--ease),opacity var(--dur) var(--ease)}
-#drawer.open{transform:none;opacity:1;pointer-events:auto}
-#dhead{padding:12px 14px 10px;border-bottom:.5px solid var(--sep);display:flex;
-  gap:10px;align-items:flex-start}
-#dhead .who{flex:1;min-width:0}
-#drawer #dtitle{width:100%;background:transparent;border:.5px solid transparent;
-  font-size:14.5px;font-weight:610;letter-spacing:-.014em;padding:3px 6px;
-  margin-left:-6px;border-radius:var(--r-xs)}
-#dtitle:hover{background:var(--fill)}
-#dtitle:focus{background:var(--content);border-color:var(--sep)}
-#dhead .rel{font:11px ui-monospace,SFMono-Regular,monospace;color:var(--ink3);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-left:0}
-#dclose{width:26px;height:26px;padding:0;display:flex;align-items:center;
-  justify-content:center;border-radius:99px;font-size:11px;color:var(--ink2)}
-#dbody{overflow:auto;padding:12px 14px 18px;flex:1}
-#drawer h4{font-size:10.5px;font-weight:620;color:var(--ink3);
-  margin:16px 0 6px;text-transform:uppercase;letter-spacing:.05em}
-#drawer h4:first-child{margin-top:0}
-#drawer input[type=text],#drawer textarea,#drawer select,
-#drawer input[type=number]{width:100%;background:var(--content);
-  border:.5px solid var(--sep);border-radius:var(--r-sm);padding:6px 9px}
-#drawer textarea{font:12px/1.6 ui-monospace,SFMono-Regular,monospace;
-  resize:vertical;min-height:240px;white-space:pre}
-#drawer .fields{display:grid;grid-template-columns:1fr 96px;gap:8px}
-#drawer .facts{display:flex;flex-wrap:wrap;gap:5px 14px;font-size:12px;
-  color:var(--ink2)}
-#drawer .facts b{color:var(--ink);font-weight:590;
-  font-variant-numeric:tabular-nums}
-#drawer .track2{height:3px;border-radius:2px;background:var(--fill);
-  margin:5px 0 2px;overflow:hidden}
-#drawer .track2 span{display:block;height:100%;background:var(--ink2)}
-#drawer .hint2{font-size:12px;line-height:1.55;color:var(--ink2);
-  background:var(--accent-wash);border-radius:var(--r-sm);padding:8px 10px}
-#drawer .hint2 b{color:var(--ink);font-weight:600}
-#drawer .chips{display:flex;flex-wrap:wrap;gap:5px}
-#drawer .chip2{font-size:11.5px;background:var(--fill);border-radius:99px;
-  padding:2px 10px;cursor:pointer;border:.5px solid transparent;
-  transition:background var(--dur-fast) ease}
-#drawer .chip2:hover{background:var(--fill-2);color:var(--ink)}
-#drawer .spec{border:.5px solid var(--sep);border-radius:var(--r-sm);
-  padding:8px 10px;margin:6px 0;font-size:12px;background:var(--content)}
-#drawer .spec .f{font:10.5px ui-monospace,monospace;color:var(--ink3);
-  margin-top:2px}
-#drawer pre.sec{white-space:pre-wrap;font:11.5px/1.6 ui-monospace,monospace;
-  color:var(--ink2);background:var(--content);border:.5px solid var(--sep);
-  border-radius:var(--r-sm);padding:9px 11px;max-height:260px;overflow:auto}
-.ask{border:.5px solid color-mix(in srgb,var(--warn) 42%,transparent);
-  background:var(--warn-wash);border-radius:var(--r-md);padding:11px 12px;
-  margin:14px 0}
-.ask h5{font-size:10.5px;font-weight:620;color:var(--warn);margin-bottom:6px;
-  text-transform:uppercase;letter-spacing:.05em}
-.ask pre{white-space:pre-wrap;font:12px/1.55 ui-monospace,monospace;
-  color:var(--ink);margin-bottom:9px}
-#drawer .say{width:100%;min-height:70px;
-  font:12.5px/1.5 -apple-system,system-ui,sans-serif !important;
-  white-space:pre-wrap !important}
-#drawer .row2{display:flex;gap:8px;align-items:center;margin-top:7px}
-#drawer .row2 .hint{font-size:11px;color:var(--ink3);margin-left:auto}
-#dsave{display:flex;gap:8px;align-items:center;padding:10px 14px;
-  border-top:.5px solid var(--sep)}
-#dsave .msg{font-size:11.5px;color:var(--ink3);margin-left:auto}
-#dlinks a{color:var(--ink);font-size:12px;text-decoration:underline;
-  text-decoration-color:var(--ink4);text-underline-offset:2px;margin-right:14px}
-#dlinks a:hover{text-decoration-color:var(--ink)}
-
-/* ── overlay + toast ────────────────────────────────────────────────────── */
-#newbox{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.28);
-  backdrop-filter:blur(2px);display:none;align-items:flex-start;
-  justify-content:center;padding-top:14vh}
-#newbox.on{display:flex;animation:fade var(--dur-fast) ease}
-@keyframes fade{from{opacity:0}to{opacity:1}}
-#newbox .card2{background:var(--glass);
-  backdrop-filter:saturate(180%) blur(30px);
-  -webkit-backdrop-filter:saturate(180%) blur(30px);
-  border:.5px solid var(--glass-brd);border-radius:14px;padding:18px;
-  width:min(580px,92vw);box-shadow:var(--shadow-lg);
-  animation:pop var(--dur) var(--ease)}
-@keyframes pop{from{opacity:0;transform:translateY(-8px) scale(.98)}
-               to{opacity:1;transform:none}}
-#newbox h3{font-size:15px;font-weight:620;margin-bottom:12px;
-  letter-spacing:-.014em}
-#newbox input,#newbox textarea{width:100%;background:var(--content);
-  border:.5px solid var(--sep);border-radius:var(--r-sm);padding:7px 10px;
-  margin-bottom:8px}
-#newbox textarea{min-height:130px;
-  font:12px/1.6 ui-monospace,SFMono-Regular,monospace}
-#toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);
-  z-index:60;background:var(--glass);
-  backdrop-filter:saturate(180%) blur(24px);
-  -webkit-backdrop-filter:saturate(180%) blur(24px);
-  border:.5px solid var(--glass-brd);border-radius:99px;padding:8px 16px;
-  font-size:12.5px;font-weight:500;box-shadow:var(--shadow-lg);opacity:0;
-  pointer-events:none;transition:opacity var(--dur) var(--ease),
-    transform var(--dur) var(--ease)}
-#toast.on{opacity:1;transform:translate(-50%,0)}
-#toast .ok{color:var(--ink);margin-right:6px}
-#toast .no{color:var(--danger);margin-right:6px}
-
-#tip{position:fixed;z-index:70;display:none;max-width:390px;
-  background:var(--glass);backdrop-filter:saturate(180%) blur(24px);
-  -webkit-backdrop-filter:saturate(180%) blur(24px);
-  border:.5px solid var(--glass-brd);border-radius:var(--r-md);
-  box-shadow:var(--shadow-lg);padding:10px 12px;font-size:11.5px;
-  line-height:1.5;pointer-events:none}
-#tip .t{font-weight:610;margin-bottom:3px;letter-spacing:-.01em}
-#tip .r{color:var(--ink2)}
-#tip .k{color:var(--ink3)}
-#tip .warn{color:var(--warn)}
-</style>
-</head>
-<body>
-<header id="titlebar">
-  <div class="ident"><h1>__TITLE__</h1><span id="sub">the plan</span></div>
-  <nav id="views" role="tablist" aria-label="views">
-    <span id="segpill" aria-hidden="true"></span>
-    <button data-v="timeline" role="tab" class="on" aria-selected="true">timeline</button
-    ><button data-v="board" role="tab">board</button
-    ><button data-v="asks" role="tab">asks<span class="badge" id="askbadge"></span></button
-    ><button data-v="list" role="tab">list</button
-    ><button data-v="analytics" role="tab">analytics</button
-    ><button data-v="memos" role="tab">memos</button>
-  </nav>
-  <div class="right">
-    <button id="newprd" class="primary" title="write a PRD (N)">＋ PRD</button>
-  </div>
-</header>
-<div id="statsbar"><span id="stats"></span><span id="inview"></span></div>
-<div id="purpose"></div>
-<div id="front"></div>
-<div class="bar-controls" id="tcontrols">
-  <span class="seg">
-    <button id="mVision" data-m="vision">vision</button
-    ><button id="mDates" data-m="dates">dates</button>
-  </span>
-  <label class="lab" for="grp">group</label>
-  <select id="grp"></select>
-  <span class="seg" id="zooms"></span>
-  <span class="seg">
-    <button id="zo" title="zoom out (−)">−</button>
-    <button id="zi" title="zoom in (+)">+</button>
-  </span>
-  <button id="ce" title="collapse every group">collapse all</button>
-  <input type="search" id="q" placeholder="filter  /" autocomplete="off">
-  <button id="onlycrit" title="only the tasks that set the finish">critical</button>
-  <button id="onlyready" title="only what is dispatchable now">ready</button>
-  <button id="onlycollect" title="only finished work waiting to be closed">collect</button>
-</div>
-<section data-view="timeline" class="on">
-<canvas id="mini" aria-hidden="true"></canvas>
-<div id="frame">
-  <div id="plot">
-    <canvas id="cv" role="img"></canvas>
-    <div id="scroll" tabindex="0" aria-label="the plan — arrow keys move the
-      selection, return opens it, the list view is the same data as a table">
-      <div id="spacer"></div>
-    </div>
-    <div id="empty"></div>
-  </div>
-</div>
-<div id="legend"></div>
-<div id="note"></div>
-</section>
-<section data-view="board"><div id="board"></div></section>
-<section data-view="asks"><div id="asks"></div></section>
-<section data-view="list">
-  <div id="listbar"><input type="search" id="lq" placeholder="filter  /">
-    <span class="tokens" id="ltokens"></span>
-    <span class="n" id="lcount"></span></div>
-  <div id="list"></div>
-</section>
-<section data-view="analytics">
-  <div id="tiles"></div><div id="charts"></div>
-</section>
-<section data-view="memos"><div id="memos"></div></section>
-<div id="newbox"><div class="card2">
-  <h3>a new PRD</h3>
-  <input type="text" id="ntitle" placeholder="title — what exists when this is done">
-  <textarea id="nbody" placeholder="the request, for someone who knows the codebase but not this conversation"></textarea>
-  <div style="display:flex;gap:6px;align-items:center">
-    <input type="number" id="nprio" placeholder="priority" style="width:110px;margin:0">
-    <input type="text" id="nparent" placeholder="parent (optional)" style="margin:0">
-    <button id="ncreate" class="primary">write it</button>
-    <button id="ncancel">cancel</button>
-  </div>
-</div></div>
-<div id="tip"></div>
-<div id="toast" role="status" aria-live="polite"></div>
-<aside id="drawer">
-  <div id="dhead">
-    <div class="who">
-      <input type="text" id="dtitle" placeholder="title">
-      <div class="rel" id="drel"></div>
-    </div>
-    <button id="dclose" title="close (Esc)">✕</button>
-  </div>
-  <div id="dbody"></div>
-  <div id="dsave">
-    <button class="go" id="dgo">save</button>
-    <button id="drevert">revert</button>
-    <span class="msg" id="dmsg"></span>
-  </div>
-</aside>
-<script>
 "use strict";
 /* ═══════════════════════════════════════════════════════════════════════════
-   The page has one datum — the enriched payload — and five readings of it.
-   Everything below is arranged in that order: the data and the tokens, the
-   router that makes every number a door, the canvas that draws the plan, the
-   inspector, and then the four other views.
+   The page has one datum — the enriched payload — and five readings of it,
+   in this order: the data and the tokens, the router that makes every number
+   a door, the canvas that draws the plan, the inspector, the four other
+   views.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 let DATA = __PAYLOAD__;
@@ -979,7 +44,7 @@ let dpr = 1;
 const TOKENS = ["bg","content","content-2","sunk","ink","ink2","ink3","ink4",
   "fill","fill-2","sep","sep-2","hover","sel","accent","accent-ink",
   "accent-wash","warn","danger","st-open","st-analyzing","st-specced",
-  "st-claimed","st-done","crit","float","link","grid","gridw","axis","wash",
+  "st-claimed","st-done","crit","ok","float","link","grid","gridw","axis","wash",
   "hi","lo"];
 let T = {};
 function readTokens() {
@@ -988,6 +53,10 @@ function readTokens() {
 }
 readTokens();
 const col = s => T[stTok(s)];
+/* A PRD whose every acceptance box is closed while a worker still holds it is
+   finished and waiting to be taken. It gets its own hue on the chart — the
+   same green the column uses, so the bar and the row are one fact. */
+const colOf = t => t.collect && !HOT[t.state] ? T.ok : T[stTok(t.state)];
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   readTokens(); draw(); drawMini(); if (view !== "timeline") repaintView();
 });
@@ -998,7 +67,9 @@ const nowDay = () => (Date.now() - anchor.getTime()) / MS;
 const dayDate = d => new Date(a[0], a[1] - 1, a[2] + Math.floor(d));
 const fmtD = d => dayDate(d).toLocaleDateString(undefined,
   {month:"short", day:"numeric"});
-const fmtH = h => h >= 40 ? Math.round(h) + "h"
+const fmtW = w => w >= 40 ? Math.round(w) + "w"
+  : (Math.round(w * 10) / 10 + "w").replace(".0w", "w");
+const fmtHr = h => h >= 40 ? Math.round(h) + "h"   // est/actual records
   : (Math.round(h * 10) / 10 + "h").replace(".0h", "h");
 const esc = s => String(s).replace(/[&<>"']/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -1033,7 +104,7 @@ function hydrate() {
 hydrate();
 
 /* ── two axes, one geometry ───────────────────────────────────────────────
-   vision: hours along the critical path. 0 is now, the right edge is the
+   vision: weight along the critical path. 0 is now, the right edge is the
    vision reached, and a bar's position is the soonest it could possibly run.
    dates:  the worker-limited calendar `plan` computed, for a human who wants
    a date. Everything downstream of MODE — grid, bars, minimap, arrows —
@@ -1043,10 +114,12 @@ function remode() {
   MODE = {
     vision: {
       u0: t => t.es, u1: t => t.ef,
-      lo: 0, hi: Math.max(CPM.length, 1) * 1.02 + 1,
-      unit: "h", ppu: 9, min: 0.15, max: 400,
+      // the axis is the whole track: the landed weight runs left of zero,
+      // now is where done ends and the plan begins, the vision is the edge
+      lo: -(CPM.landed || 0) * 1.02 - 1, hi: Math.max(CPM.length, 1) * 1.02 + 1,
+      unit: "w", ppu: 9, min: 0.15, max: 400,
       zooms: [["fine", 34], ["mid", 9], ["whole", 2.2]],
-      fmt: v => fmtH(v),
+      fmt: v => fmtW(v),
     },
     dates: {
       u0: t => t.startDay, u1: t => t.endDay,
@@ -1065,8 +138,7 @@ const span = () => M.hi - M.lo;
 const x = u => LEFT + (u - M.lo) * ppu - scroll.scrollLeft;
 
 const GROUPS = {
-  wave:  {label:"wave",  key:t => t.wave == null ? "—" : "wave " + t.wave,
-          sort:(p,q) => (parseInt(p.slice(5)) || 0) - (parseInt(q.slice(5)) || 0)},
+  tree:  {label:"tree", key:t => t.rel, sort:() => 0},
   state: {label:"state", key:t => t.state,
           sort:(p,q) => Object.keys(STATES).indexOf(p) -
                         Object.keys(STATES).indexOf(q)},
@@ -1079,9 +151,17 @@ const GROUPS = {
 if ((DATA.boards || []).length)
   GROUPS.board = {label:"board", key:t => t.board || DATA.board,
                   sort:(p,q) => p.localeCompare(q)};
-let groupBy = (DATA.boards || []).length ? "board" : "wave";
+// a board with any shape to it opens as its own shape — the tree holds both
+// nesting and, on a master, the member boards. A flat board is a flat list.
+let groupBy = (DATA.boards || []).length || ALL.some(a => a.parent)
+  ? "tree" : "none";
 const collapsed = new Set();
+const expanded = new Set();          // tree — branches the user forced open
+let treeNodes = [], treeRoots = [];  // the last tree build
 let selected = null, filter = "", critOnly = false, readyOnly = false;
+// the panel is a preference, not a view — it outlives the reload
+let landOpen = true;
+try { landOpen = localStorage.getItem("pearde.land") !== "0"; } catch (e) {}
 let collectOnly = false;
 let stateSel = new Set();          // set by clicking the legend
 let hover = -1;                    // row index under the pointer
@@ -1098,7 +178,7 @@ function matches(t) {
   if (!filter) return true;
   const f = filter.toLowerCase();
   return t.rel.toLowerCase().includes(f) || t.state.includes(f) ||
-    (t.title || "").toLowerCase().includes(f) || ("wave " + t.wave) === f;
+    (t.title || "").toLowerCase().includes(f);
 }
 const anyFilter = () =>
   filter || critOnly || readyOnly || collectOnly || stateSel.size;
@@ -1110,6 +190,7 @@ const anyFilter = () =>
    start, then how much the task unblocks. */
 let rows = [];
 function build() {
+  if (groupBy === "tree") return buildTree();
   rows = [];
   const g = GROUPS[groupBy];
   const buckets = new Map();
@@ -1133,12 +214,119 @@ function build() {
     }
     for (const t of items) rows.push({kind:"task", t:t, key:k});
   }
+  finish(collapsed.size);
+}
+
+/* ── the tree ─────────────────────────────────────────────────────────────
+   The left column is the board's own shape: a PRD's children sit under it,
+   indented, and a branch opens and closes. Two things decide whether a
+   branch is open, in this order — what the reader last clicked, and then,
+   for every branch they have not touched, whether it has anything inside
+   the window they are looking at. A branch whose whole subtree is off to the
+   left, already landed, or far out past the right edge is closed: a name
+   with nothing under it in view is a row spent on nothing. Pan back over it
+   and it opens itself again. */
+/* the window, or null when there is none to read. While another view is on,
+   the chart is display:none and every width it reports is zero — a window
+   that says "nothing is in view" is not a fact about the plan, so the rule
+   abstains rather than folding the whole tree away behind the reader. */
+function viewU() {
+  const w = plot.clientWidth - LEFT;
+  if (w <= 0) return null;
+  const v0 = scroll.scrollLeft / ppu + M.lo;
+  return [v0, v0 + w / ppu];
+}
+function isOpen(n, win) {
+  if (!n.kids.length) return true;
+  if (collapsed.has(n.rel)) return false;      // the reader shut it
+  if (expanded.has(n.rel)) return true;        // the reader opened it
+  // a member board is the reader's one handle on a whole board: it folds
+  // only by being asked, never because its work is off-window
+  if (n.board) return true;
+  if (!win) return n.open !== false;           // no window: stand where we did
+  return n.hi >= win[0] && n.lo <= win[1];     // else: is any of it in view
+}
+function buildTree() {
+  rows = [];
+  const nodes = new Map();
+  const node = rel => {
+    let n = nodes.get(rel);
+    if (n) return n;
+    const row = allByRel.get(rel);
+    n = {rel:rel, name:(row && row.name) || rel.split("/").pop(),
+         t:byRel.get(rel) || null, kids:[], up:null, depth:0};
+    nodes.set(rel, n);
+    // the parent is the nearest ancestor path that is itself a PRD — a plain
+    // directory in the middle of a rel is structure, not a row
+    let p = rel, i;
+    while ((i = p.lastIndexOf("/")) >= 0) {
+      p = p.slice(0, i);
+      if (allByRel.has(p)) { n.up = p; node(p).kids.push(n); break; }
+    }
+    // on a master, a member's PRDs live under their board — the one node in
+    // the tree that is not a PRD, because the board is not one either
+    if (!n.up && rel[0] === "@" && rel.includes("/")) {
+      const b = rel.slice(0, rel.indexOf("/"));
+      n.up = b;
+      const r = node(b);
+      r.name = b.slice(1);
+      r.board = true;
+      r.kids.push(n);
+    }
+    return n;
+  };
+  for (const t of tasks) if (matches(t)) node(t.rel);
+  treeNodes = [...nodes.values()];
+  treeRoots = treeNodes.filter(n => !n.up);
+
+  const agg = n => {
+    let lo = Infinity, hi = -Infinity, sum = 0, cnt = 0, ncrit = 0;
+    if (n.t) {
+      lo = M.u0(n.t); hi = M.u1(n.t); sum = n.t.est; cnt = 1;
+      ncrit = n.t.critical ? 1 : 0;
+    }
+    for (const k of n.kids) {
+      agg(k);
+      lo = Math.min(lo, k.lo); hi = Math.max(hi, k.hi);
+      sum += k.sum; cnt += k.n; ncrit += k.ncrit;
+    }
+    if (!isFinite(lo)) { lo = 0; hi = 0; }
+    n.lo = lo; n.hi = hi; n.sum = sum; n.n = cnt; n.ncrit = ncrit;
+    n.kids.sort(cmpNode);
+  };
+  treeRoots.forEach(agg);
+  treeRoots.sort(cmpNode);
+
+  const win = viewU();
+  let closed = 0;
+  const walk = (n, depth) => {
+    n.depth = depth;
+    n.open = isOpen(n, win);
+    if (n.kids.length && !n.open) closed++;
+    rows.push(n.t
+      ? {kind:"task", t:n.t, key:n.rel, depth:depth,
+         kids:n.kids.length, open:n.open, lo:n.lo, hi:n.hi}
+      : {kind:"group", key:n.rel, label:n.name, depth:depth,
+         kids:n.kids.length, open:n.open, n:n.n, sum:n.sum,
+         ncrit:n.ncrit, lo:n.lo, hi:n.hi});
+    if (n.open) for (const k of n.kids) walk(k, depth + 1);
+  };
+  treeRoots.forEach(n => walk(n, 0));
+  finish(closed);
+}
+function cmpNode(p, q) {
+  return p.lo - q.lo || (q.ncrit > 0) - (p.ncrit > 0) ||
+         q.sum - p.sum || p.rel.localeCompare(q.rel);
+}
+
+/* what every build ends with: the counts above the chart, and the geometry */
+function finish(closed) {
   const hidden = tasks.length - tasks.filter(matches).length;
   $("inview").innerHTML = tasks.length + " scheduled" +
     (hidden ? lnk(`${hidden} filtered out`, {clear:1}, "clear every filter",
                   "· ") : "") +
-    (collapsed.size ? lnk(`${collapsed.size} collapsed`, {expand:1},
-                          "open every group", "· ") : "");
+    (closed ? lnk(`${closed} collapsed`, {expand:1},
+                  "open every branch", "· ") : "");
   $("empty").style.display = rows.length ? "none" : "flex";
   $("empty").innerHTML = tasks.length
     ? '<div>nothing matches</div>' + btn("clear the filter", {clear:1})
@@ -1153,7 +341,8 @@ function build() {
    happens and exactly one way to write a link. */
 function lnk(html, dest, title, before) {
   return (before || "") + '<button class="lnk' +
-    (dest.hot ? " hot" : "") + '" data-go="' + esc(JSON.stringify(dest)) +
+    (dest.hot ? " hot" : "") + (dest.collect ? " got" : "") +
+    '" data-go="' + esc(JSON.stringify(dest)) +
     '"' + (title ? ' title="' + esc(title) + '"' : "") + ">" + html +
     "</button>";
 }
@@ -1183,10 +372,17 @@ function go(d) {
     stateSel.clear(); syncToggles(); build();
     return toast("filters cleared");
   }
-  if (d.expand) { collapsed.clear(); build(); return; }
+  if (d.expand) {
+    collapsed.clear();
+    if (groupBy === "tree")
+      for (const n of treeNodes) if (n.kids.length) expanded.add(n.rel);
+    build();
+    return;
+  }
   if (d.mode && d.mode !== mode) setMode(d.mode);
   if (d.group && GROUPS[d.group]) {
-    groupBy = d.group; $("grp").value = d.group; collapsed.clear(); build();
+    groupBy = d.group; $("grp").value = d.group;
+    collapsed.clear(); expanded.clear(); lastWin = null; build();
   }
   if (d.crit !== undefined) { critOnly = !!d.crit; syncToggles(); build(); }
   if (d.ready !== undefined) { readyOnly = !!d.ready; syncToggles(); build(); }
@@ -1367,7 +563,7 @@ function schedule() {
 
 function niceStep(pxPerUnit, unit) {
   const want = 90 / pxPerUnit;                       // ~90px between labels
-  const steps = unit === "h" ? [.5,1,2,4,8,12,24,48,96,168,336]
+  const steps = unit === "w" ? [.5,1,2,4,8,12,24,48,96,168,336]
                              : [1,2,7,14,28,56,112];
   return steps.find(s => s >= want) || steps[steps.length - 1];
 }
@@ -1391,11 +587,7 @@ function draw() {
   ctx.beginPath(); ctx.rect(LEFT, 0, W - LEFT, H); ctx.clip();
   const step = niceStep(ppu, M.unit);
   if (mode === "vision") {
-    // the waves are read off the header pills; down here they are one
-    // hairline apiece, so the field stays a field and not a barcode
-    for (const [w, [lo, hi]] of Object.entries(CPM.waves || {}))
-      line(x(hi), HEAD, x(hi), H, T.gridw);
-    for (let v = 0; v <= M.hi + step; v += step) {
+    for (let v = Math.ceil(M.lo / step) * step; v <= M.hi + step; v += step) {
       const wide = Math.abs(v % (step * 4)) < 1e-9;
       line(x(v), HEAD, x(v), H, wide ? T.gridw : T.grid);
     }
@@ -1434,6 +626,10 @@ function draw() {
       continue;
     }
     const t = r.t, dim = kin ? !kin.has(t) : false;
+    // a branch the reader has shut still says how far its children reach
+    if (r.kids && !r.open && r.hi > r.lo)
+      drawBar(x(r.lo), Math.max(5, (r.hi - r.lo) * ppu), y + 19, 4,
+              T["st-done"], {flat:true});
     const s = M.u0(t), e = M.u1(t);
     const x0 = x(s), w = Math.max(5, (e - s) * ppu);
     // float: how far this bar may slide before it becomes critical. Drawn
@@ -1446,7 +642,7 @@ function draw() {
       rr(x(e), y + 12, Math.max(2, slack * ppu), 2, 1); ctx.fill();
       ctx.restore();
     }
-    drawBar(x0, w, y + 6, 14, col(t.state),
+    drawBar(x0, w, y + 6, 14, colOf(t),
             {ring:stRing(t.state), crit:t.critical, dim:dim,
              part:t.held && t.boxes && t.boxes[1] ? t.part : undefined});
   }
@@ -1465,20 +661,14 @@ function draw() {
   line(x(visU), HEAD, x(visU), H, T.ink, 1.5);
   ctx.restore();
 
-  /* 5 — the header: waves as bands, then the scale */
+  /* 5 — the header: the scale */
   ctx.save();
   ctx.beginPath(); ctx.rect(LEFT, 0, W - LEFT, HEAD); ctx.clip();
   ctx.fillStyle = T.content; ctx.fillRect(LEFT, 0, W - LEFT, HEAD);
   if (mode === "vision") {
-    for (const [w, [lo, hi]] of Object.entries(CPM.waves || {})) {
-      const x0 = x(lo), wpx = Math.max(18, (hi - lo) * ppu);
-      rr(x0, 6, wpx, 16, 5); ctx.fillStyle = T.fill; ctx.fill();
-      if (wpx >= 52)
-        text(fit("wave " + w, wpx - 12, F.small), x0 + 6, 14.5, T.ink2, F.small);
-      else if (wpx >= 26) text("w" + w, x0 + 5, 14.5, T.ink3, F.small);
-    }
-    for (let v = 0; v <= M.hi + step; v += step) {
-      text(v === 0 ? "now" : "+" + fmtH(v), x(v) + 4, 33, T.ink3, F.tick);
+    for (let v = Math.ceil(M.lo / step) * step; v <= M.hi + step; v += step) {
+      text(v === 0 ? "now" : (v > 0 ? "+" : "−") + fmtW(Math.abs(v)),
+           x(v) + 4, 33, T.ink3, F.tick);
       line(x(v), 26, x(v), HEAD, T.grid);
     }
   } else {
@@ -1501,7 +691,7 @@ function draw() {
   // the two tags that name the ends of the axis
   if (mode !== "vision") tag("now · " + new Date().toLocaleDateString(undefined,
       {weekday:"short", month:"short", day:"numeric"}), x(nowU), "mid");
-  tag(mode === "vision" ? "vision · " + fmtH(CPM.length) + " of work in front"
+  tag(mode === "vision" ? "vision · " + fmtW(CPM.length) + " of work in front"
       : "vision · " + fmtD(visU), x(visU), "end");
   ctx.restore();
   line(LEFT, HEAD, W, HEAD, T.sep);
@@ -1517,11 +707,13 @@ function draw() {
     if (r.kind === "group") {
       ctx.fillStyle = T["content-2"]; ctx.fillRect(0, Math.max(HEAD, y), LEFT,
         ROW - Math.max(0, HEAD - y));
-      text(r.open ? "▾" : "▸", 11, mid, T.ink3, F.small);
-      const meta = r.n + " · " + fmtH(r.sum) + (r.ncrit ? " · " + r.ncrit + "★" : "");
+      const ind = indentOf(r);
+      text(r.open ? "▾" : "▸", ind - 1, mid, T.ink3, F.small);
+      const meta = r.n + " · " + fmtW(r.sum) + (r.ncrit ? " · " + r.ncrit + "★" : "");
       ctx.font = F.meta;
       const mw = ctx.measureText(meta).width;
-      text(fit(r.key, LEFT - 34 - mw, F.grp), 26, mid, T.ink, F.grp);
+      text(fit(r.label || r.key, LEFT - ind - 22 - mw, F.grp),
+           ind + 14, mid, T.ink, F.grp);
       text(meta, LEFT - 12, mid, T.ink3, F.meta, true);
       continue;
     }
@@ -1533,12 +725,15 @@ function draw() {
       ROW - Math.max(0, HEAD - y)); }
     else if (i === hover) { ctx.fillStyle = T.hover;
       ctx.fillRect(0, Math.max(HEAD, y), LEFT, ROW - Math.max(0, HEAD - y)); }
-    let cx = 12;
+    let cx = indentOf(r);
+    // a PRD that is itself a branch carries the caret before its swatch
+    if (r.kids) { text(r.open ? "▾" : "▸", cx - 1, mid, T.ink3, F.small);
+                  cx += 14; }
     if (stRing(t.state)) {
       rr(cx + 0.75, mid - 3.25, 6.5, 6.5, 2.5);
-      ctx.strokeStyle = col(t.state); ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.strokeStyle = colOf(t); ctx.lineWidth = 1.5; ctx.stroke();
     } else {
-      rr(cx, mid - 4, 8, 8, 3); ctx.fillStyle = col(t.state); ctx.fill();
+      rr(cx, mid - 4, 8, 8, 3); ctx.fillStyle = colOf(t); ctx.fill();
     }
     cx += 15;
     // finished work still open on the board: the mark that says "this one is
@@ -1546,17 +741,19 @@ function draw() {
     if (t.collect) { text("✓", cx, mid, T.accent, F.small); cx += 12; }
     else if (t.critical) { text("★", cx, mid, T.ink, F.small); cx += 12; }
     // in flight, the boxes ARE the meta: how much of the contract stands.
-    // The weight is already what is left of it, so printing both twice-counts
+    // The weight is already what is left of it, so printing both would
+    // count the same work twice
     const meta = t.held && t.boxes && t.boxes[1]
       ? t.boxes[0] + "/" + t.boxes[1]
-      : fmtH(t.est) + (t.unblocks ? " ▸" + fmtH(t.unblocks) : "");
+      : fmtW(t.est) + (t.unblocks ? " ▸" + fmtW(t.unblocks) : "");
     ctx.font = F.meta;
     const mw = ctx.measureText(meta).width;
     text(fit(t.name, LEFT - cx - mw - 20, F.cell), cx, mid,
          sel ? T.ink : T.ink, F.cell);
     text(meta, LEFT - 12, mid, T.ink3, F.meta, true);
     ctx.restore();
-    if (y + ROW > HEAD) line(12, y + ROW, LEFT, y + ROW, T["sep-2"]);
+    if (y + ROW > HEAD)
+      line(indentOf(r), y + ROW, LEFT, y + ROW, T["sep-2"]);
   }
   ctx.fillStyle = T.content; ctx.fillRect(0, 0, LEFT, HEAD);
   text("TASK", 12, HEAD / 2, T.ink3, F.small);
@@ -1573,9 +770,13 @@ function draw() {
     ctx.fillStyle = g; ctx.fillRect(0, HEAD, W, 10);
   }
   cv.setAttribute("aria-label", rows.length + " rows — " +
-    tasks.length + " scheduled PRDs, " + fmtH(CPM.length) +
+    tasks.length + " scheduled PRDs, " + fmtW(CPM.length) +
     " of work to the vision. The list view is the same data as a table.");
 }
+
+/* how far in a row sits, and how wide the part of it that toggles is */
+const indentOf = r => 12 + (r.depth || 0) * 13;
+const caretHit = (r, px) => r.kids && px < indentOf(r) + 14;
 
 /* a pill on the header: "now", "vision" */
 function tag(label, atX, align) {
@@ -1589,7 +790,7 @@ function tag(label, atX, align) {
 }
 
 /* arrows for the selected row only — never the whole web. The web is what
-   makes a dependency graph unreadable; one row's kin is a fact you can hold. */
+   makes a dependency graph unreadable. One row's kin is a fact you can hold. */
 function arrows(rowY) {
   const at = new Map();
   rows.forEach((r, i) => { if (r.kind === "task") at.set(r.t, i); });
@@ -1630,7 +831,7 @@ function drawMini() {
     let lane = used.findIndex(u => u < l0 - 1);
     if (lane < 0) lane = lanes - 1;
     used[lane] = l1;
-    mctx.fillStyle = col(t.state);
+    mctx.fillStyle = colOf(t);
     mctx.globalAlpha = t.critical ? 1 : 0.5;
     mctx.fillRect(l0, 3 + lane * 3.8, l1 - l0, t.critical ? 2.6 : 2);
   }
@@ -1649,6 +850,30 @@ function drawMini() {
   mctx.strokeRect(Math.round(wx) + .5, .5, Math.round(ww) - 1, H - 1);
 }
 const syncWin = () => drawMini();
+
+/* ── open and shut ────────────────────────────────────────────────────────
+   A click is a decision, and it outlives the window: once the reader has
+   opened or shut a branch, the visible-area rule stops speaking for it. */
+function toggleRow(r) {
+  const k = r.key;
+  if (r.open) { collapsed.add(k); expanded.delete(k); }
+  else { expanded.add(k); collapsed.delete(k); }
+  build();
+}
+/* the window moved — reopen what came into view, shut what left it. Rows
+   are otherwise never rebuilt on scroll, so this runs only when the answer
+   for at least one untouched branch actually changed. */
+let lastWin = null;
+function retree() {
+  if (groupBy !== "tree") return;
+  const win = viewU();
+  if (!win) return;                    // hidden: there is nothing to read yet
+  if (lastWin && Math.abs(lastWin[0] - win[0]) < 1e-6 &&
+      Math.abs(lastWin[1] - win[1]) < 1e-6) return;
+  lastWin = win;
+  for (const n of treeNodes)
+    if (n.kids.length && n.open !== isOpen(n, win)) return build();
+}
 
 /* ── hit testing: geometry in, meaning out ─────────────────────────────── */
 function at(ev) {
@@ -1694,7 +919,7 @@ addEventListener("mousemove", ev => {
   if (!drag) return;
   if (drag.kind === "grip") {
     LEFT = Math.max(150, Math.min(560, drag.from + ev.clientX - drag.x));
-    tw.clear(); place();
+    tw.clear(); retree(); place();
     return;
   }
   if (drag.kind !== "pan") return;
@@ -1715,14 +940,20 @@ addEventListener("mouseup", ev => {
   const h = d.hit && d.hit.row ? d.hit : at(ev);
   if (!h.row) { if (selected) { selected = null; draw(); } return; }
   if (h.row.kind === "group") {
-    const k = h.row.key;
-    collapsed.has(k) ? collapsed.delete(k) : collapsed.add(k);
-    build();
+    if (groupBy === "tree" && !caretHit(h.row, h.px)) {
+      const t = taskFor(h.row.key);
+      if (t) return openDrawer(t);
+    }
+    toggleRow(h.row);
+  } else if (groupBy === "tree" && h.zone === "cell" &&
+             caretHit(h.row, h.px)) {
+    selected = h.row.t; toggleRow(h.row);
   } else {
     selected = h.row.t; draw(); openDrawer(h.row.t);
   }
 });
-scroll.addEventListener("scroll", () => schedule(), {passive:true});
+scroll.addEventListener("scroll", () => { retree(); schedule(); },
+                        {passive:true});
 scroll.addEventListener("wheel", ev => {
   if (ev.ctrlKey || ev.metaKey) {
     ev.preventDefault();
@@ -1737,26 +968,33 @@ scroll.addEventListener("dblclick", ev => {
 });
 
 function showTip(e, t) {
-  const when = mode === "vision"
-    ? `+${fmtH(t.es)} → +${fmtH(t.ef)} from now`
-    : `${fmtD(t.startDay)} → ${fmtD(t.endDay)}`;
+  const u = v => (v < 0 ? "−" : "+") + fmtW(Math.abs(v));
+  const when = t.past
+    ? `${u(t.es)} → ${u(t.ef)} — landed, behind now`
+    : t.parked
+      ? "parked at now — in a state the loop does not work"
+      : mode === "vision"
+        ? `${u(t.es)} → ${u(t.ef)} along the path`
+        : `${fmtD(t.startDay)} → ${fmtD(t.endDay)}`;
   tip.innerHTML =
     '<div class="t"></div><div class="r rel"></div>' +
     '<div class="r"><span class="k">state</span> <span class="' +
       (HOT[t.state] ? "warn" : "") + '">' + esc(t.state) + "</span>" +
     ' · <span class="k">prio</span> ' + t.prio +
-    ' · <span class="k">est</span> ' + fmtH(t.est) +
-    (t.wave ? ' · <span class="k">wave</span> ' + t.wave : "") +
+    ' · <span class="k">weight</span> ' + fmtW(t.est) +
+    (t.after && t.after.length ? ' · <span class="k">after</span> ' +
+      esc(t.after.map(d => d.split("/").pop()).join(", ")) + " (footprint)" : "") +
     (t.board ? ' · <span class="k">board</span> ' + esc(t.board) : "") +
     "</div>" +
     '<div class="r">' + when + "</div>" +
-    '<div class="r">' + (t.critical
-      ? "★ critical — every hour cut here moves the vision closer"
-      : '<span class="k">float</span> ' + fmtH(t.slack) +
-        " before it becomes critical") + "</div>" +
-    '<div class="r"><span class="k">unblocks</span> ' + fmtH(t.unblocks) +
-      " across " + t.downstream + " PRD(s)" +
-      (t.ready ? ' · <span class="k">ready now</span>' : "") + "</div>" +
+    (t.past || t.parked ? "" :
+      '<div class="r">' + (t.critical
+        ? "★ critical — every unit of weight cut here moves the vision closer"
+        : '<span class="k">float</span> ' + fmtW(t.slack) +
+          " before it becomes critical") + "</div>" +
+      '<div class="r"><span class="k">unblocks</span> ' + fmtW(t.unblocks) +
+        " across " + t.downstream + " PRD(s)" +
+        (t.ready ? ' · <span class="k">ready now</span>' : "") + "</div>") +
     (t.held && t.boxes && t.boxes[1] ?
       '<div class="r"><span class="k">boxes</span> ' + t.boxes[0] + "/" +
         t.boxes[1] + " closed" + heldFor(t) + "</div>" : "") +
@@ -1803,6 +1041,7 @@ function setZoom(next, keepPx) {
   spacer.style.width = Math.max(plot.clientWidth,
     LEFT + span() * ppu + 24) + "px";
   scroll.scrollLeft = (u - M.lo) * ppu - at;
+  retree();
   draw(); drawMini();
 }
 function glide(target, keepPx) {
@@ -1843,10 +1082,128 @@ function setMode(next) {
   ppu = Math.max(M.min, Math.min(M.max,
     (plot.clientWidth - LEFT - 16) / span()));
   scroll.scrollLeft = 0;
+  lastWin = null;
+  retree();
   place();
 }
 
+/* ═══ the column ═══════════════════════════════════════════════════════════
+   What to do next, beside the plan rather than above it — a column has the
+   one axis this list wants, and it neither pushes the gantt down nor truncates
+   the frontier behind a "+N more".
+
+   Three questions, in the order that answers them cheapest first:
+
+     to collect  finished work still open on the board. Closing one costs a
+                 commit and can open a whole frontier, which no dispatch can do
+     ready now   the dispatch frontier — everything startable this second,
+                 biggest door first. This IS the dispatch order
+     to land     a lane branch main has never seen, whose PRD the board calls
+                 finished. In flight underneath it: lanes still being worked
+
+   Nothing is truncated here; the column scrolls.                            */
+function drawSide() {
+  const el = $("land");
+  el.classList.toggle("off", !landOpen);
+  if (!landOpen) return;
+  const collect = (CPM.collect || []).map(r => byRel.get(r)).filter(Boolean);
+  const ready = (CPM.ready || []).map(r => byRel.get(r)).filter(Boolean);
+  const all = DATA.landing || [], repos = DATA.repos || [];
+  const land = all.filter(r => r.ready), flight = all.filter(r => !r.ready);
+
+  const cap = (label, n, dest, why, hue) =>
+    '<button class="cap" data-go="' + esc(JSON.stringify(dest)) + '" title="' +
+    esc(why) + '">' + label + '<span class="n' + (hue && n ? " on" : "") +
+    '">' + n + "</span></button>";
+
+  // the state mark: `st` carries the ink, `stRing` decides outline or fill
+  const mark = st =>
+    '<span class="st" title="' + esc(st) + '" style="' +
+    (stRing(st) ? "border-color:" + stVar(st)
+                : "background:" + stVar(st)) + '"></span>';
+  // why a row is worth the eye: blocked or asking beats finished, finished
+  // beats critical, and most rows are none of those and stay graphite
+  const rail = (t, got) => HOT[t.state] === undefined ? (got ? " got"
+      : t.critical ? " crit" : "")
+    : (t.state === "question" ? " ask" : " hot");
+  const door = (t, big) => t.unblocks
+    ? '<span class="door' + (big ? " big" : "") +
+      '" title="weight this unblocks downstream">▸' +
+      fmtW(t.unblocks) + "</span>" : "";
+  const bar = b => b[1]
+    ? '<span class="track' + (b[0] === b[1] ? " full" : "") +
+      '"><span style="width:' + (b[0] / b[1] * 100).toFixed(1) +
+      '%"></span></span><span>' + b[0] + "/" + b[1] + "</span>" : "";
+  const open = (t, extra, cls) =>
+    '<button class="lrow' + cls + '" data-go="' +
+    esc(JSON.stringify({prd: t.rel})) + '" title="' +
+    esc((t.title || t.name) + " · " + t.state) + '"><div class="top">' +
+    mark(t.state) +
+    (t.critical ? '<span class="tick" title="on the critical chain">★</span>'
+      : "") +
+    '<span class="nm">' + esc(t.name) + "</span></div>" +
+    '<div class="meta">' + extra + "</div></button>";
+
+  let h = "";
+  // the biggest door in the frontier sets the ramp: anything worth half of it
+  // is a door too, and says so in ink
+  const top = Math.max(0, ...ready.map(t => t.unblocks || 0));
+  const big = t => top > 0 && (t.unblocks || 0) >= top / 2;
+
+  if (collect.length)
+    h += cap("to collect", collect.length, {view: "timeline", collect: 1},
+             "finished work waiting to be committed and closed", true) +
+      collect.map(t => open(t, '<span class="tick">✓</span>' +
+        bar(t.boxes) + door(t, big(t)), rail(t, true))).join("");
+
+  h += cap("ready now", ready.length, {view: "timeline", ready: 1},
+           "everything dispatchable this second — this is the dispatch order");
+  h += ready.length ? ready.map(t => open(t,
+        "<span>" + fmtW(t.est) + "</span>" + door(t, big(t)),
+        rail(t, false))).join("")
+    : '<div class="none">' + (tasks.length
+        ? "nothing — every PRD left waits on another"
+        : "nothing scheduled — run plan") + "</div>";
+
+  if (all.length || repos.length) {
+    h += cap("to land", land.length, {view: "timeline"},
+             "a lane branch main has never seen, whose PRD is finished", true) +
+      (land.length
+        ? '<div class="why">done and tested here — main has never seen it</div>'
+        : "");
+    const lrow = r =>
+      '<button class="lrow' + (r.ready ? " got" : " flight") + '" data-go="' +
+      esc(JSON.stringify({prd: r.rel})) + '" title="' +
+      esc(r.branch + (r.title ? " — " + r.title : "")) + '">' +
+      '<div class="top">' + mark(r.state) +
+      (r.ready ? '<span class="tick">✓</span>' : "") +
+      '<span class="nm">' + esc(r.name) + "</span>" +
+      "</div>" + '<div class="meta">' +
+      (r.board ? '<span class="bd">' + esc(r.board) + "</span>" : "") +
+      (r.boxes[1] ? bar(r.boxes)
+        : "<span>" + esc(r.orphan ? "no PRD" : r.state) + "</span>") +
+      "</div></button>";
+    h += land.length ? land.map(lrow).join("")
+      : '<div class="none">' + (all.length
+          ? "nothing finished yet — the lanes below are still open"
+          : "nothing held back: every lane is merged") + "</div>";
+    if (flight.length)
+      h += '<div class="sub">in flight · ' + flight.length + "</div>" +
+        flight.map(lrow).join("");
+  }
+
+  el.innerHTML = '<div class="rows">' + h + "</div>" + (repos.length
+    ? '<div class="feet">' + repos.map(r =>
+        "<div><b>" + esc(String(r.board)) + "</b>" +
+        (r.ahead === null ? '<span class="n">no remote</span>'
+          : r.ahead ? '<span class="n up" title="commits on main that origin ' +
+            'has not got">↑' + r.ahead + "</span>"
+          : '<span class="n in">in sync</span>') + "</div>").join("") + "</div>"
+    : "");
+}
+
 function syncToggles() {
+  $("landtog").classList.toggle("on", landOpen);
   $("onlycrit").classList.toggle("on", critOnly);
   $("onlyready").classList.toggle("on", readyOnly);
   $("onlycollect").classList.toggle("on", collectOnly);
@@ -1859,17 +1216,95 @@ $("mDates").onclick = () => setMode("dates");
 $("zi").onclick = () => glide(ppu * 1.4);
 $("zo").onclick = () => glide(ppu / 1.4);
 $("ce").onclick = () => {
+  if (groupBy === "tree") {
+    const any = treeNodes.some(n => n.kids.length && n.open);
+    expanded.clear(); collapsed.clear();
+    for (const n of treeNodes) if (n.kids.length)
+      (any ? collapsed : expanded).add(n.rel);
+    return build();
+  }
   const g = GROUPS[groupBy];
   if (collapsed.size) collapsed.clear();
   else for (const t of tasks) if (matches(t) && g.key(t) !== "")
     collapsed.add(g.key(t));
   build();
 };
-$("grp").onchange = () => { groupBy = $("grp").value; collapsed.clear();
-                            build(); };
+$("grp").onchange = () => { groupBy = $("grp").value;
+                            collapsed.clear(); expanded.clear();
+                            lastWin = null; build(); };
 $("q").oninput = () => { filter = $("q").value.trim(); build(); };
 $("onlycrit").onclick = () => { critOnly = !critOnly; syncToggles(); build(); };
 $("onlyready").onclick = () => { readyOnly = !readyOnly; syncToggles(); build(); };
+$("landtog").onclick = () => {
+  landOpen = !landOpen;
+  try { localStorage.setItem("pearde.land", landOpen ? "1" : "0"); } catch (e) {}
+  syncToggles(); drawSide(); resize(); place();   // the plot just changed width
+};
+/* ── the board switcher ───────────────────────────────────────────────────
+   Every board the daemon watches, under the title of the one you are on. The
+   list comes from /status at open time rather than from the payload: the
+   payload knows a master's members, the daemon knows every board registered,
+   and those are not the same set. A page served from a file has no daemon to
+   ask, so the chevron does not appear at all.                              */
+let picksOpen = false;
+
+async function boards() {
+  try {
+    const r = await fetch(API + "/status");
+    return (await r.json()).boards || [];
+  } catch (e) { return []; }
+}
+
+function drawPicks(list) {
+  list = list.slice().sort((a, b) => a.name.localeCompare(b.name));
+  const mine = list.filter(b => (b.members || []).length);
+  const flat = list.filter(b => !(b.members || []).length);
+  const row = b =>
+    '<button class="b' + (b.name === BOARD_KEY ? " on" : "") +
+    '" role="option" aria-selected="' + (b.name === BOARD_KEY) +
+    '" data-b="' + esc(b.name) + '" title="' + esc(b.path) + '">' +
+    '<span class="tick">' + (b.name === BOARD_KEY ? "✓" : "") + "</span>" +
+    '<span class="nm">' + esc(b.name) + "</span>" +
+    (b.last_error ? '<span class="n bad" title="' + esc(b.last_error) +
+       '">error</span>'
+     : (b.members || []).length
+       ? '<span class="n">' + b.members.length + " boards</span>" : "") +
+    "</button>";
+  $("picks").innerHTML = list.length
+    ? (mine.length ? '<div class="hd">merged</div>' + mine.map(row).join("") +
+        (flat.length ? '<div class="sep"></div>' : "") : "") +
+      flat.map(row).join("")
+    : '<div class="hd">no other board registered</div>';
+}
+
+async function openPicks() {
+  if (!SERVED) return;
+  picksOpen = true;
+  $("pick").setAttribute("aria-expanded", "true");
+  $("picks").hidden = false;
+  drawPicks(await boards());
+}
+
+function closePicks() {
+  picksOpen = false;
+  $("pick").setAttribute("aria-expanded", "false");
+  $("picks").hidden = true;
+}
+
+$("pick").onclick = e => {
+  e.stopPropagation();
+  picksOpen ? closePicks() : openPicks();
+};
+$("picks").onclick = e => {
+  const b = e.target.closest("[data-b]");
+  if (!b) return;
+  if (b.dataset.b === BOARD_KEY) return closePicks();
+  location.href = API + "/board/" + encodeURIComponent(b.dataset.b);
+};
+document.addEventListener("click", e => {
+  if (picksOpen && !e.target.closest("#picks, #pick")) closePicks();
+});
+
 $("onlycollect").onclick = () => {
   collectOnly = !collectOnly; syncToggles(); build();
 };
@@ -1877,7 +1312,7 @@ $("onlycollect").onclick = () => {
 let rt = 0;
 addEventListener("resize", () => {
   clearTimeout(rt);
-  rt = setTimeout(() => { resize(); place(); movePill(); }, 60);
+  rt = setTimeout(() => { resize(); retree(); place(); movePill(); }, 60);
 });
 
 /* the canvas is focusable, and the selection moves by key — a chart nobody
@@ -1920,13 +1355,16 @@ addEventListener("keydown", e => {
   else if (e.key === "Enter" && selected) openDrawer(selected);
   else if (e.key === "f") fitAll();
   else if (e.key === "v") setMode(mode === "vision" ? "dates" : "vision");
+  else if (e.key === "b") $("pick").click();
   else if (e.key === "c") $("onlycrit").click();
   else if (e.key === "r") $("onlyready").click();
+  else if (e.key === "l") $("landtog").click();
   else if (e.key === "x") $("onlycollect").click();
   else if (e.key === "+" || e.key === "=") glide(ppu * 1.4);
   else if (e.key === "-") glide(ppu / 1.4);
   else if (e.key === "Escape") {
-    if ($("drawer").classList.contains("open")) closeDrawer();
+    if (picksOpen) closePicks();
+    else if ($("drawer").classList.contains("open")) closeDrawer();
     else if (anyFilter()) go({clear:1});
     else { selected = null; draw(); }
   }
@@ -1937,7 +1375,12 @@ function focusTask(t) {
   openDrawer(t);
   if (byRel.has(t.rel)) {
     if (view !== "timeline") setView("timeline");
-    collapsed.delete(GROUPS[groupBy].key(t));
+    if (groupBy === "tree") {
+      for (let r = t.rel, i; (i = r.lastIndexOf("/")) >= 0; ) {
+        r = r.slice(0, i);
+        if (allByRel.has(r)) { collapsed.delete(r); expanded.add(r); }
+      }
+    } else collapsed.delete(GROUPS[groupBy].key(t));
     if (!matches(t)) {                 // a filter is hiding it — drop the filter
       filter = ""; $("q").value = ""; critOnly = readyOnly = false;
       stateSel.clear(); syncToggles(); drawLegend();
@@ -1957,23 +1400,33 @@ function focusTask(t) {
 /* ── the numbers, and where each one leads ─────────────────────────────── */
 function drawHeader() {
   const c = DATA.counts, live = liveRows(), asks = askRows();
-  const cal = Math.max(...tasks.map(t => t.endDay), 0) * (DATA.dayHours || 8);
+  const planned = tasks.filter(t => !t.past && !t.parked);
+  const cal = Math.max(...planned.map(t => t.endDay), 0) * (DATA.dayHours || 8);
   const bits = [];
   const S = '<span class="sep">·</span>';
-  bits.push(lnk("<b>" + tasks.length + "</b> left", {view:"list", state:"live"},
+  // the whole track first: how far along the chain the board already is
+  if (CPM.landed) {
+    const track = CPM.landed + CPM.length;
+    bits.push(lnk("<b>" + Math.round(CPM.landed / track * 100) +
+                  "%</b> of the track", {view:"timeline", mode:"vision"},
+                  fmtW(CPM.landed) + " landed behind now, " +
+                  fmtW(CPM.length) + " of chain ahead — the axis is the " +
+                  "whole track, done work left of zero"));
+  }
+  bits.push(lnk("<b>" + planned.length + "</b> left", {view:"list", state:"live"},
                 "every PRD still to do, as a table"));
-  bits.push(lnk('<span class="crit"><b>' + fmtH(CPM.length) +
+  bits.push(lnk('<span class="crit"><b>' + fmtW(CPM.length) +
                 "</b> to the vision</span>",
                 {view:"timeline", crit:1, mode:"vision"},
                 "the chain that sets the finish — nothing else moves it"));
-  bits.push(lnk("Σ" + fmtH(CPM.total) + " of work", {view:"analytics"},
+  bits.push(lnk("Σ" + fmtW(CPM.total) + " of work", {view:"analytics"},
                 "how the work is distributed"));
   bits.push(lnk("peak <b>" + CPM.peak + "</b> agents",
                 {view:"timeline", mode:"dates"},
                 "the fastest path wants this many at its widest — " +
                 "the calendar is what " + DATA.workers + " workers costs"));
   if (cal > CPM.length * 1.05)
-    bits.push(lnk("at " + DATA.workers + " workers: " + fmtH(cal),
+    bits.push(lnk("at " + DATA.workers + " workers: " + fmtW(cal),
                   {view:"timeline", mode:"dates"}));
   const collect = (CPM.collect || []).map(r => byRel.get(r)).filter(Boolean);
   if (collect.length)
@@ -1997,40 +1450,6 @@ function drawHeader() {
   $("stats").innerHTML = bits.join(S);
   if (DATA.vision && DATA.vision.purpose)
     $("purpose").textContent = DATA.vision.purpose;
-
-  // the frontier: everything dispatchable now, biggest door first. This is
-  // the dispatch order — take from the left and the vision arrives soonest.
-  const ready = (CPM.ready || []).map(r => byRel.get(r)).filter(Boolean);
-  // collect comes first, and not for emphasis: closing a finished PRD costs
-  // one commit and can free a whole wave, which no dispatch can do.
-  $("front").innerHTML = (collect.length ?
-    '<button class="lnk h" data-go="' +
-      esc(JSON.stringify({view:"timeline", collect:1})) +
-      '" title="finished work waiting to be committed and closed">' +
-      "to collect</button>" +
-    collect.slice(0, 6).map(t =>
-      '<button class="p" data-go="' + esc(JSON.stringify({prd:t.rel})) +
-      '" title="' + esc(t.title || t.name) + '">✓ <b>' + esc(t.name) +
-      "</b> <em>" + t.boxes[0] + "/" + t.boxes[1] +
-      (t.unblocks ? " ▸" + fmtH(t.unblocks) : "") + "</em></button>").join("") +
-    (collect.length > 6 ? lnk("+" + (collect.length - 6) + " more",
-      {view:"timeline", collect:1}) : "") +
-    '<span class="sep">·</span>' : "") +
-    '<button class="lnk h" data-go="' +
-    esc(JSON.stringify({view:"timeline", ready:1})) +
-    '" title="keep only these on the timeline">ready now</button>' +
-    (ready.length ? ready.slice(0, 14).map(t =>
-      '<button class="p' + (t.critical ? " crit" : "") + '" data-go="' +
-      esc(JSON.stringify({prd:t.rel})) + '" title="' +
-      esc(t.title || t.name) + '">' +
-      (t.critical ? "★ " : "") + "<b>" + esc(t.name) + "</b> " +
-      "<em>" + fmtH(t.est) + (t.unblocks ? " ▸" + fmtH(t.unblocks) : "") +
-      "</em></button>").join("") +
-      (ready.length > 14 ? lnk("+" + (ready.length - 14) + " more",
-        {view:"timeline", ready:1}) : "")
-      : '<span class="h">' + (tasks.length
-          ? "nothing — every PRD left waits on another"
-          : "nothing scheduled — run plan") + "</span>");
 
   $("note").innerHTML = (DATA.unplanned || []).length
     ? "not in the last plan (no bar): " +
@@ -2091,6 +1510,103 @@ function section(body, name) {
     .replace(/<!--[\s\S]*?-->/g, "").trim();
 }
 
+/* ── questions as questions ───────────────────────────────────────────────
+   drill.md's round format, parsed: `### Q1: title`, the fork as prose, then
+   exactly three prepared answers as a numbered list, one `(recommended)`.
+   Parsed here so answering is a pick — the analyst writes the three, the
+   user's job is one click or their own words. A section that does not parse
+   falls back to raw text and a textarea, so every PRD gets answered.       */
+function parseQuestions(txt) {
+  if (!txt) return null;
+  const re = /^###\s+(Q?\d+[a-z]?)\s*[:.—-]?\s*(.*)$/gim;
+  const marks = [];
+  let m;
+  while ((m = re.exec(txt)))
+    marks.push({i: m.index, end: m.index + m[0].length,
+                id: m[1].toUpperCase().startsWith("Q") ? m[1] : "Q" + m[1],
+                title: m[2].trim()});
+  const blocks = marks.length
+    ? marks.map((mk, k) => ({id: mk.id, title: mk.title,
+        body: txt.slice(mk.end, k + 1 < marks.length ? marks[k + 1].i
+                                                     : txt.length).trim()}))
+    : [{id: "Q1", title: "", body: txt.trim()}];
+  const qs = [];
+  for (const b of blocks) {
+    const at = b.body.search(/^1[.)]\s/m);
+    const issue = (at < 0 ? b.body : b.body.slice(0, at)).trim();
+    const opts = [];
+    if (at >= 0)
+      for (const part of b.body.slice(at).split(/^(?=\d+[.)]\s)/m)) {
+        const om = /^(\d+)[.)]\s+([\s\S]*)$/.exec(part.trim());
+        if (!om) continue;
+        let text = om[2].trim();
+        const rec = /\((?:recommended|default)\)\s*$/i.test(text);
+        text = text.replace(/\s*\((?:recommended|default)\)\s*$/i, "").trim();
+        let label = "";
+        const lm = /^\*\*(.+?)\*\*\s*[—–:-]*\s*([\s\S]*)$/.exec(text);
+        if (lm) { label = lm[1].trim(); text = lm[2].trim() || lm[1].trim(); }
+        opts.push({label, text, rec});
+      }
+    qs.push({id: b.id, title: b.title, issue, opts});
+  }
+  // parsed means pickable: without options there is nothing to click, and
+  // the raw <pre> + textarea says that more honestly than an empty card
+  return qs.some(q => q.opts.length) ? qs : null;
+}
+
+function questionsHTML(qs, prefix) {
+  return qs.map((q, i) => {
+    const name = prefix + "-" + i;
+    return '<div class="qq" data-qid="' + esc(q.id) + '">' +
+      '<div class="qt">' + esc(q.id) + (q.title ? " · " + esc(q.title) : "") +
+      "</div>" +
+      (q.issue ? '<div class="qi">' + esc(q.issue) + "</div>" : "") +
+      q.opts.map((o, j) =>
+        '<label class="opt"><input type="radio" name="' + name +
+        '" value="' + j + '"' + (o.rec ? " checked" : "") + '><span class="ot">' +
+        (o.label ? "<b>" + esc(o.label) + "</b>" +
+          (o.text !== o.label ? " — " : "") : "") +
+        (o.text !== o.label || !o.label ? esc(o.text) : "") +
+        (o.rec ? '<span class="rec">recommended</span>' : "") +
+        "</span></label>").join("") +
+      '<label class="opt own"><span class="ohd"><input type="radio" name="' +
+      name + '" value="own"><span class="ot">your own answer</span></span>' +
+      '<textarea placeholder="in your words — typing here picks this"></textarea>' +
+      "</label></div>";
+  }).join("");
+}
+
+function wireQuestions(root) {
+  // typing an own answer is picking it — nobody types a sentence they do not
+  // mean, and forcing the radio first loses the first keystroke
+  for (const ta of root.querySelectorAll(".qq .opt.own textarea"))
+    ta.addEventListener("input", () => {
+      const r = ta.closest(".opt").querySelector("input");
+      if (ta.value.trim()) r.checked = true;
+    });
+}
+
+function collectAnswers(root, qs) {
+  // `**Q1** — <the decision>` per drill.md; a question left unpicked is left
+  // unanswered — the orchestrator re-asks what remains, it never guesses
+  const out = [];
+  root.querySelectorAll(".qq").forEach((el, i) => {
+    const q = qs[i];
+    const pick = el.querySelector("input:checked");
+    if (!pick) return;
+    let text;
+    if (pick.value === "own") {
+      text = el.querySelector(".opt.own textarea").value.trim();
+      if (!text) return;
+    } else {
+      const o = q.opts[+pick.value];
+      text = (o.label && o.text !== o.label ? o.label + " — " : "") + o.text;
+    }
+    out.push("**" + q.id + "** — " + text);
+  });
+  return out.join("\n\n");
+}
+
 const prdCache = new Map();
 async function fetchPrd(rel, fresh) {
   if (!SERVED) return null;
@@ -2134,13 +1650,14 @@ function closeDrawer() {
 function drawBody() {
   const t = dTask, d = dData;
   if (!t) return;
-  const facts = t.plain ? [["est", fmtH(t.est)], ["prio", t.prio],
+  const facts = t.plain ? [["weight", fmtW(t.est)], ["prio", t.prio],
                           ["state", t.state], ["not in the plan", "—"]] : [
-    ["est", fmtH(t.est)], ["prio", t.prio],
-    ["wave", t.wave == null ? "—" : t.wave],
-    ["starts", "+" + fmtH(t.es)], ["ends", "+" + fmtH(t.ef)],
-    ["float", t.critical ? "★ critical" : fmtH(t.slack)],
-    ["unblocks", fmtH(t.unblocks) + " · " + t.downstream + " PRD(s)"],
+    ["weight", fmtW(t.est)], ["prio", t.prio],
+    ["after", t.after && t.after.length
+      ? t.after.map(d => d.split("/").pop()).join(", ") : "—"],
+    ["starts", "+" + fmtW(t.es)], ["ends", "+" + fmtW(t.ef)],
+    ["float", t.critical ? "★ critical" : fmtW(t.slack)],
+    ["unblocks", fmtW(t.unblocks) + " · " + t.downstream + " PRD(s)"],
     ["dates", fmtD(t.startDay) + " → " + fmtD(t.endDay)],
   ];
   // the run's own record, when there is one to read
@@ -2179,14 +1696,18 @@ function drawBody() {
   // section it wrote, and a box that writes the answer back and reopens it,
   // the same two edits the orchestrator makes when the answer is typed at a
   // terminal.
+  let dQs = null;
   if (d) {
     const qs = section(d.body, "Questions");
+    dQs = parseQuestions(qs);
     if (t.state === "question" || qs)
       h += '<div class="ask"><h5>' +
         (t.state === "question" ? "waiting on you" : "questions") + "</h5>" +
-        (qs ? "<pre>" + esc(qs) + "</pre>" : "") +
-        '<textarea class="say" id="dsay" placeholder="the answer — numbered to ' +
-        'match"></textarea><div class="row2">' +
+        (dQs ? questionsHTML(dQs, "dq")
+             : (qs ? "<pre>" + esc(qs) + "</pre>" : "") +
+               '<textarea class="say" id="dsay" placeholder="the answer — ' +
+               'numbered to match"></textarea>') +
+        '<div class="row2">' +
         '<button id="danswer">answer &amp; reopen</button>' +
         '<span class="hint">writes ## Answers, sets state open</span></div></div>';
     const ans = section(d.body, "Answers");
@@ -2229,7 +1750,12 @@ function drawBody() {
     $("dmsg").textContent = "path copied";
   };
   const ansBtn = $("danswer");
-  if (ansBtn) ansBtn.onclick = () => answer(dTask.rel, $("dsay").value);
+  if (ansBtn) {
+    const askEl = ansBtn.closest(".ask");
+    if (dQs) wireQuestions(askEl);
+    ansBtn.onclick = () => answer(dTask.rel,
+      dQs ? collectAnswers(askEl, dQs) : $("dsay").value);
+  }
   const noteBtn = $("dnoteadd");
   if (noteBtn) noteBtn.onclick = async () => {
     const txt = $("dnote").value.trim();
@@ -2246,10 +1772,13 @@ function drawBody() {
   $("dtitle").oninput = () => { dDirty = true; $("dmsg").textContent = "unsaved"; };
 }
 
-/* the one write the board is actually waiting for */
+/* the one write the board is waiting for */
 async function answer(rel, text) {
   text = (text || "").trim();
-  if (!text) return {error: "nothing to say"};
+  if (!text) {
+    toast("Nothing to send — pick an answer or write one", true);
+    return {error: "nothing to say"};
+  }
   const out = await save(rel, {append: text, heading: "Answers",
                                fm: {state: "open"}});
   toast(out.error ? "Not saved — " + out.error
@@ -2332,7 +1861,7 @@ function taskFor(rel) {
   const r = allByRel.get(rel);
   if (!r) return null;
   return Object.assign({}, r, {es: 0, ef: 0, slack: 0, critical: false,
-    unblocks: 0, downstream: 0, startDay: 0, endDay: 0, wave: null,
+    unblocks: 0, downstream: 0, startDay: 0, endDay: 0, after: [],
     deps: [], feeds: [], plain: true});
 }
 
@@ -2363,7 +1892,7 @@ function repaintView() {
   else if (view === "asks") drawAsks();
   else if (view === "analytics") drawAnalytics();
   else if (view === "memos") drawMemos();
-  else { resize(); place(); }
+  else { resize(); retree(); place(); }
 }
 
 function setView(v) {
@@ -2378,7 +1907,6 @@ function setView(v) {
   }
   movePill();
   $("tcontrols").style.display = v === "timeline" ? "" : "none";
-  $("front").style.display = v === "timeline" ? "" : "none";
   $("inview").style.display = v === "timeline" ? "" : "none";
   repaintView();
   syncHash();
@@ -2402,13 +1930,13 @@ function drawBoard() {
     const col2 = document.createElement("div");
     col2.className = "col" + (rowsIn.length ? "" : " bare");
     col2.dataset.state = st;
-    const hrs = rowsIn.reduce((a, r) => a + r.est, 0);
+    const w = rowsIn.reduce((a, r) => a + (r.weight || 0), 0);
     col2.innerHTML = '<h3 data-go="' +
       esc(JSON.stringify({view:"list", state:st})) + '" title="' + esc(st) +
       ' as a table"><i class="' + (stRing(st) ? "ring" : "") + '" style="' +
       (stRing(st) ? "color:" : "background:") + stVar(st) + '"></i>' +
       esc(st) + '<span class="n">' + rowsIn.length +
-      (hrs ? " · " + fmtH(hrs) : "") + "</span></h3>";
+      (w ? " · " + fmtW(w) : "") + "</span></h3>";
     const box = document.createElement("div");
     box.className = "cards";
     const CAP = st === "done" ? 40 : 200;
@@ -2420,8 +1948,8 @@ function drawBoard() {
         '<span class="star">★ </span>' : "") + esc(r.title || r.name) +
         '</div><div class="m">' + (r.board ?
         '<span class="chip">' + esc(r.board) + "</span>" : "") +
-        "<span>p" + r.prio + "</span>" + (r.est ? "<span>" + fmtH(r.est) +
-        "</span>" : "") + (t && t.wave ? "<span>w" + t.wave + "</span>" : "") +
+        "<span>p" + r.prio + "</span>" + (r.weight ? "<span>" + fmtW(r.weight) +
+        "</span>" : "") +
         "</div>";
       c.onclick = () => { const x2 = taskFor(r.rel); if (x2) openDrawer(x2); };
       c.addEventListener("dragstart", e => {
@@ -2460,11 +1988,11 @@ function drawBoard() {
 }
 
 /* ── asks: the board waiting on a person ──────────────────────────────────
-   `question` means an agent stopped and wants an answer; `blocked` means it
-   hit a wall. Both are the board waiting on you, and both used to be a state
-   you had to go find. This is the inbox: the question as it was written, and
-   the box that answers it — the same two edits (`## Answers`, state back to
-   open) the orchestrator makes when the answer is typed at a terminal.     */
+   `question` means an agent stopped and wants an answer. `blocked` means it
+   hit a wall. Both are the board waiting on you. This is the inbox: the
+   question as written, and the box that answers it — the same two edits
+   (`## Answers`, state back to open) the orchestrator makes when the answer
+   is typed at a terminal.                                                  */
 async function drawAsks() {
   const asks = askRows().sort((p, q) =>
     (p.state === q.state ? 0 : p.state === "question" ? -1 : 1) ||
@@ -2486,7 +2014,7 @@ async function drawAsks() {
         esc(r.title || r.name) + "</div>" +
       '<div class="rel">' + esc(r.rel) + (r.board ? " · " + esc(r.board) : "") +
         " · p" + r.prio + (t.critical ? " · ★ critical" : "") +
-        (r.est ? " · " + fmtH(r.est) : "") + "</div></div>" +
+        (r.weight ? " · " + fmtW(r.weight) : "") + "</div></div>" +
       '<span class="flag' + (blocked ? " blocked" : "") + '">' +
         (blocked ? "blocked" : "question") + "</span></div>" +
       '<div class="q skel">reading the PRD…</div>' +
@@ -2511,11 +2039,12 @@ async function drawAsks() {
         "read and answer it here";
       continue;
     }
+    let cardQs = null;                    // parsed round, once the PRD loads
     const fire = async only => {
       send.disabled = true;
       const out = only === "reopen"
         ? await save(rel, {fm: {state: "open"}})
-        : await answer(rel, box.value);
+        : await answer(rel, cardQs ? collectAnswers(card, cardQs) : box.value);
       send.disabled = false;
       if (out && out.error) { if (only === "reopen") toast(out.error, true); return; }
       if (only === "reopen") { toast("Reopened"); prdCache.delete(rel);
@@ -2529,12 +2058,27 @@ async function drawAsks() {
     box.addEventListener("keydown", e => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") fire();
     });
-    // the question text itself, read live out of the PRD
+    // the question text itself, read live out of the PRD. A round in
+    // drill.md's format renders as picks — the fork, three prepared answers,
+    // an own-answer box per question — and the card's one textarea goes
+    // away: the options carry their own
     fetchPrd(rel).then(d => {
       const q = card.querySelector(".q");
-      const txt = section(d.body, "Questions") || section(d.body, "Blocked") ||
-        section(d.body, "Notes") || (d.body || "").slice(0, 700);
+      const qtxt = section(d.body, "Questions");
+      cardQs = blocked ? null : parseQuestions(qtxt);
       q.classList.remove("skel");
+      if (cardQs) {
+        q.style.display = "none";
+        const holder = document.createElement("div");
+        holder.className = "qs";
+        holder.innerHTML = questionsHTML(cardQs, "aq-" + esc(rel));
+        q.after(holder);
+        wireQuestions(holder);
+        if (box) box.style.display = "none";
+        return;
+      }
+      const txt = qtxt || section(d.body, "Blocked") ||
+        section(d.body, "Notes") || (d.body || "").slice(0, 700);
       q.textContent = txt || "(the PRD says nothing yet)";
     }).catch(() => {
       const q = card.querySelector(".q");
@@ -2562,12 +2106,12 @@ function listRows() {
 
 function drawList() {
   const cols = [["rel", "prd"], ["state", "state"], ["prio", "prio"],
-                ["est", "est"], ["actual", "actual"], ["board", "board"],
-                ["wave", "wave"]];
+                ["weight", "weight"], ["actual", "actual"], ["board", "board"],
+                ["unblocks", "unblocks"]];
   const rowsOut = listRows().sort((p, q) => {
     const k = listBy;
-    const A = k === "wave" ? ((byRel.get(p.rel) || {}).wave || 0) : p[k];
-    const B = k === "wave" ? ((byRel.get(q.rel) || {}).wave || 0) : q[k];
+    const A = k === "unblocks" ? ((byRel.get(p.rel) || {}).unblocks || 0) : p[k];
+    const B = k === "unblocks" ? ((byRel.get(q.rel) || {}).unblocks || 0) : q[k];
     const c = typeof A === "number" && typeof B === "number"
       ? A - B : String(A == null ? "" : A).localeCompare(String(B == null ? "" : B));
     return listDesc ? -c : c;
@@ -2591,9 +2135,10 @@ function drawList() {
           '"></i>' + esc(r.rel) + '</td><td><span class="st ' +
           (r.state === "question" ? "warn" : HOT[r.state] ? "danger" : "") +
           '">' + esc(r.state) + "</span></td><td>" + r.prio + "</td><td>" +
-          (r.est ? fmtH(r.est) : "") + "</td><td>" +
-          (r.actual ? fmtH(r.actual) : "") + "</td><td>" +
-          esc(r.board || "") + "</td><td>" + (t.wave || "") + "</td></tr>";
+          (r.weight ? fmtW(r.weight) : "") + "</td><td>" +
+          (r.actual ? fmtHr(r.actual) : "") + "</td><td>" +
+          esc(r.board || "") + "</td><td>" +
+          (t.unblocks ? fmtW(t.unblocks) : "") + "</td></tr>";
       }).join("") + "</tbody></table>"
     : '<div class="none">nothing matches' +
       (listState || listBoard || listQ ? " — " +
@@ -2661,7 +2206,7 @@ function drawAnalytics() {
   const live = liveRows();
   const done = ALL.filter(r => r.state === "done");
   const parked = ALL.filter(r => !STATE_ORDER.includes(r.state));
-  const hLeft = live.reduce((a, r) => a + r.est, 0);
+  const wLeft = live.reduce((a, r) => a + (r.weight || 0), 0);
   const pct = Math.round(done.length /
     Math.max(ALL.length - parked.length, 1) * 100);
   const ready = tasks.filter(t => t.ready).length;
@@ -2672,13 +2217,13 @@ function drawAnalytics() {
   $("tiles").innerHTML =
     tile("done", pct + "%", done.length + " of " +
          (ALL.length - parked.length) + " PRDs", {view:"list", state:"done"}) +
-    tile("left", live.length, fmtH(hLeft) + " estimated",
+    tile("left", live.length, fmtW(wLeft) + " of weight",
          {view:"list", state:"live"}) +
-    tile("to the vision", fmtH(CPM.length),
-         "of " + fmtH(CPM.total) + " in the plan",
+    tile("to the vision", fmtW(CPM.length),
+         "of " + fmtW(CPM.total) + " in the plan",
          {view:"timeline", crit:1, mode:"vision"}) +
     tile("peak agents", CPM.peak, "at " + DATA.workers + " workers: " +
-         fmtH(cal), {view:"timeline", mode:"dates"}) +
+         fmtW(cal), {view:"timeline", mode:"dates"}) +
     tile("ready now", ready, "dispatchable this second",
          {view:"timeline", ready:1, mode:"vision"}) +
     tile("to collect", collectN, "finished — commit and close",
@@ -2693,14 +2238,14 @@ function drawAnalytics() {
         [...new Set(parked.map(r => r.state))])) {
     const rowsIn = ALL.filter(r => r.state === st);
     if (rowsIn.length) byState.push({k: st, v: rowsIn.length,
-      h: rowsIn.reduce((a, r) => a + r.est, 0)});
+      h: rowsIn.reduce((a, r) => a + (r.weight || 0), 0)});
   }
-  // 2 — where the hours are: members on a master, top-level trees otherwise
+  // 2 — where the weight is: members on a master, top-level trees otherwise
   const master = (DATA.boards || []).length;
   const key = master ? (r => r.board || DATA.board)
                      : (r => r.rel.split("/")[0]);
   const groups = new Map();
-  for (const r of live) groups.set(key(r), (groups.get(key(r)) || 0) + r.est);
+  for (const r of live) groups.set(key(r), (groups.get(key(r)) || 0) + (r.weight || 0));
   let byGroup = [...groups].map(([k, v]) => ({k: k, v: v}))
     .sort((p, q) => q.v - p.v);
   if (byGroup.length > 8) {
@@ -2716,15 +2261,15 @@ function drawAnalytics() {
   $("charts").innerHTML =
     '<div class="chart"><h3>Where the work sits</h3>' +
     '<p class="sub">every PRD by state · bar is the count, the number is the ' +
-    "hours · click a state for its list</p>" +
-    bars(byState, r => stVar(r.k), r => r.v + (r.h ? " · " + fmtH(r.h) : ""),
+    "weight · click a state for its list</p>" +
+    bars(byState, r => stVar(r.k), r => r.v + (r.h ? " · " + fmtW(r.h) : ""),
          r => ({view:"list", state:r.k})) + "</div>" +
 
-    '<div class="chart"><h3>Where the hours are</h3>' +
-    '<p class="sub">' + (master ? "estimated hours left per member board"
-      : "estimated hours left per top-level tree") + "</p>" +
+    '<div class="chart"><h3>Where the weight is</h3>' +
+    '<p class="sub">' + (master ? "weight left per member board"
+      : "weight left per top-level tree") + "</p>" +
     (byGroup.length ? bars(byGroup, (r, i) => CAT[i % CAT.length],
-      r => fmtH(r.v), r => master ? {view:"list", board:r.k, state:"live"}
+      r => fmtW(r.v), r => master ? {view:"list", board:r.k, state:"live"}
                                   : {view:"list", q:r.k, state:"live"})
       : '<div class="empty">nothing left to weigh</div>') +
     "</div>" +
@@ -2738,7 +2283,7 @@ function drawAnalytics() {
       '<div class="empty">calibration needs a few finished PRDs with ' +
       "<code>actual:</code> written on them</div>") + "</div>" +
 
-    '<div class="chart"><h3>Hours left over time</h3>' +
+    '<div class="chart"><h3>Weight left over time</h3>' +
     '<p class="sub">one point a day, since the day the board started keeping ' +
     "count</p>" +
     (HIST.length >= 2 ? burndown(HIST) :
@@ -2760,11 +2305,11 @@ function scatter(rowsIn) {
   g += `<line class="ref" x1="${X(0)}" y1="${Y(0)}" x2="${X(mx)}" y2="${Y(mx)}"/>`;
   g += `<text class="lbl" x="${X(mx)}" y="${Y(mx) - 5}" text-anchor="end">on the estimate</text>`;
   g += `<text class="lbl" x="${pad}" y="${H - 8}">0</text>`;
-  g += `<text class="lbl" x="${W - 4}" y="${H - 8}" text-anchor="end">est ${fmtH(mx)}</text>`;
-  g += `<text class="lbl" x="4" y="14">actual ${fmtH(mx)}</text>`;
+  g += `<text class="lbl" x="${W - 4}" y="${H - 8}" text-anchor="end">est ${fmtHr(mx)}</text>`;
+  g += `<text class="lbl" x="4" y="14">actual ${fmtHr(mx)}</text>`;
   for (const r of rowsIn)
     g += `<circle class="dot" cx="${X(r.est).toFixed(1)}" cy="${Y(r.actual).toFixed(1)}" r="4.5"` +
-      ` data-rel="${esc(r.rel)}"><title>${esc(r.name)} — est ${fmtH(r.est)}, actual ${fmtH(r.actual)}</title></circle>`;
+      ` data-rel="${esc(r.rel)}"><title>${esc(r.name)} — est ${fmtHr(r.est)}, actual ${fmtHr(r.actual)}</title></circle>`;
   return g + "</svg>";
 }
 
@@ -2774,18 +2319,18 @@ function burndown(h) {
   const X = i => pad + (h.length < 2 ? 0 : i / (h.length - 1)) * (W - pad - 8);
   const Y = v => H - pad - v / mx * (H - pad - 12);
   const pts = h.map((r, i) => `${X(i).toFixed(1)},${Y(r.hleft || 0).toFixed(1)}`);
-  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="hours left over time">`;
+  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="weight left over time">`;
   g += `<line class="ax" x1="${pad}" y1="${H - pad}" x2="${W - 4}" y2="${H - pad}"/>`;
   if (h.length >= 4)
     g += `<polygon class="area" points="${X(0).toFixed(1)},${H - pad} ${pts.join(" ")} ${X(h.length - 1).toFixed(1)},${H - pad}"/>`;
   g += `<polyline class="line" points="${pts.join(" ")}"/>`;
   h.forEach((r, i) => {
     g += `<circle class="dot" cx="${X(i).toFixed(1)}" cy="${Y(r.hleft || 0).toFixed(1)}" r="3.5">` +
-      `<title>${esc(r.d)} — ${fmtH(r.hleft || 0)} left, ${r.done} done</title></circle>`;
+      `<title>${esc(r.d)} — ${fmtW(r.hleft || 0)} left, ${r.done} done</title></circle>`;
   });
   g += `<text class="lbl" x="${pad}" y="${H - 10}">${esc(h[0].d)}</text>`;
   g += `<text class="lbl" x="${W - 4}" y="${H - 10}" text-anchor="end">${esc(h[h.length - 1].d)}</text>`;
-  g += `<text class="lbl" x="4" y="14">${fmtH(mx)}</text>`;
+  g += `<text class="lbl" x="4" y="14">${fmtW(mx)}</text>`;
   return g + "</svg>";
 }
 
@@ -2818,10 +2363,10 @@ $("ncreate").onclick = async () => {
 
 /* ═══ live, in place ══════════════════════════════════════════════════════
    The board is files, and files change under us — an agent claims a PRD, a
-   worker reports, the planner re-waves. The old page reloaded itself for
-   that, which threw away the scroll, the zoom, the selection and whatever was
-   half-typed. Now the daemon's change notice fetches the payload and swaps it
-   in: the rows move, nothing else does.                                    */
+   worker reports, the planner re-orders. The daemon's change notice fetches
+   the payload and swaps it in: the rows move, nothing else does. A reload
+   would throw away the scroll, the zoom, the selection and whatever is
+   half-typed.                                                              */
 let refreshing = null;
 async function refresh() {
   if (!SERVED) return;
@@ -2831,7 +2376,7 @@ async function refresh() {
       const r = await fetch(API + "/data?board=" + encodeURIComponent(BOARD_KEY));
       const out = await r.json();
       if (out.payload) apply(out.payload);
-    } catch (e) { /* the daemon went away; the page still reads fine */ }
+    } catch (e) { /* the daemon went away. The page still reads fine */ }
     refreshing = null;
   })();
   return refreshing;
@@ -2844,11 +2389,13 @@ function apply(payload) {
   DATA = payload;
   hydrate();
   remode(); M = MODE[mode];
-  if (!GROUPS[groupBy]) groupBy = "wave";
+  if (!GROUPS[groupBy]) groupBy = "none";
   selected = keepRel ? byRel.get(keepRel) || null : null;
+  lastWin = null;
   build();
   scroll.scrollLeft = sx; scroll.scrollTop = sy;
-  drawHeader(); drawLegend();
+  retree();
+  drawHeader(); drawLegend(); drawSide();
   memosLoaded = null;
   if (view !== "timeline") repaintView();
   if (dTask) {                                  // keep the inspector honest
@@ -2903,10 +2450,12 @@ addEventListener("hashchange", () => { if (!hashLock) readHash(); });
 
 /* ── boot ──────────────────────────────────────────────────────────────── */
 resize();
+if (!SERVED) $("pick").classList.add("solo");
 syncToggles();
 setMode("vision");
 drawHeader();
 drawLegend();
+drawSide();
 readHash();
 // the clock ticks for two reasons: the calendar's now-line, and how long a
 // worker has been holding a PRD. Both are read off Date.now(), so both go
@@ -2915,7 +2464,3 @@ setInterval(() => {
   if (mode === "dates" || tasks.some(t => t.held)) draw();
 }, 60000);
 if (SERVED) setInterval(refresh, 90000);   // a floor under the live loop
-</script>
-</body>
-</html>
-"""

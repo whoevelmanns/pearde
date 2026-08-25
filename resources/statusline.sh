@@ -1,15 +1,14 @@
 #!/bin/bash
-# pearde statusbar — ships with the skill; wire it as the global status line
-# (see references/install.md beside this script) so every project gets it.
+# pearde statusbar. Wire it as the global status line — @references/install.md.
 #
 # Renders line 1:  <dir> <branch> <*dirty ↑ahead ↓behind> · <model>  — always
-#         line 2:  ▸pearde<⊞b> <ad>/<an> <ap>% · +<dn>d · open <o> <q>% · ▸board
+#         line 2:  ▸pearde<⊞b> <ad>/<an> <ap>% · +<dn>d · open <o> <q>% · <persona> · ▸board
 #
-# The board gets its own line: it is the thing being read, and sharing a row
-# with the path pushed it off the edge of a narrow terminal. No board, no
-# second line — a blank row reads as a broken status line, not an empty board.
+# Every term on line 2 is defined in @references/parts/progress.md. `⊞b` is the
+# board count, on a master board only — the board plus its members.
 #
-# `▸board` links to the board's live view, when the service is up. See below.
+# The board owns line 2 — sharing a row with the path pushes it off a narrow
+# terminal. No board, no second line.
 #
 # `*N` is what `git status` reports — an untracked directory counts once, not
 # per file inside it. `↑N`/`↓N` are commits against the upstream. No upstream
@@ -19,17 +18,16 @@
 # absent when no daemon is running. PRD_STATUS_LINK=off renders the label
 # without the escape, for a terminal that shows them raw.
 #
-# The pearde segment mirrors the progress line in README.md beside this script:
-#   ad/an = done / all REQUESTED PRDs, ap% = their est-weighted done share,
-#   +dn   = derived PRD count (origin: derived), suppressed at zero,
-#   o     = PRDs in state `open`, q% = o/n by count (open PRDs have no est),
-#   ⊞b    = boards counted, on a master board only — the board plus its members.
+# It reads three frontmatter keys — `state`, `est`, `origin` — and matches them
+# by name at any indentation. Nested under a parent map reads the same as top
+# level. Every other key is a user extension: never anchor these patterns to
+# column 0.
 #
-# It reads two frontmatter keys, `state` and `est`, and matches them by name at
-# any indentation — nested under a parent map reads the same as top level. Every
-# other key is a user extension: never anchor these patterns to column 0.
-#
-# Reads the status JSON on stdin, or $PRD_STATUS_JSON when composed.
+# Reads the status JSON on stdin, or $PRD_STATUS_JSON when composed. Three
+# fields are used: `current_dir` (or `cwd`) locates the board, `display_name`
+# is the model, and `transcript_path` is where `<persona>` comes from — the
+# only session state on this line, and the only one not read from a file the
+# board owns.
 
 JSON="${PRD_STATUS_JSON:-}"
 [ -z "$JSON" ] && [ ! -t 0 ] && JSON=$(cat)
@@ -85,9 +83,8 @@ while [ -n "$d" ] && [ "$d" != "/" ]; do
   p=$(dirname "$d"); [ "$p" = "$d" ] && break; d="$p"
 done
 
-# A master board counts its members too: `members:` in settings.md names the
-# boards it merges, and the numbers a master shows are the group's numbers —
-# that is the whole reason it exists. `⊞N` says how many boards are in them.
+# A master counts its members too — `members:` in settings.md names the boards
+# it merges, and the numbers a master shows are the group's.
 SCAN=(); NB=0
 if [ -n "$BOARD" ]; then
   SCAN=("$BOARD"); NB=1
@@ -123,18 +120,16 @@ if [ -n "$BOARD" ]; then
     }
     function live(s) {
       # the states the loop works, plus done. A PRD parked in a state of the
-      # user'"'"'s own is not board progress and not board backlog: it leaves the
-      # counts entirely, the same way the wave planner skips it.
+      # user'"'"'s own leaves the counts entirely — it is neither progress nor
+      # backlog, and the planner skips it too.
       return (s=="open" || s=="analyzing" || s=="refine" || s=="question" \
            || s=="specced" || s=="claimed" || s=="blocked" || s=="failed" \
            || s=="done")
     }
     END {
-      # an+ad are the DELIVERABLE — origin: requested. dn is the derived count,
-      # reported beside it and never folded in: a derived PRD enlarges the
-      # denominator with work the user never asked for, so one combined
-      # percentage cannot answer "how far along are we". See README,
-      # Derived work.
+      # an+ad are the DELIVERABLE — origin: requested. dn is reported beside
+      # it and never folded in: one combined percentage cannot answer "how far
+      # along are we". See @references/parts/derived.md.
       n=0; open=0; known=0; ksum=0; an=0; ad=0; dn=0
       for (f in st) {
         if (!live(st[f])) { delete st[f]; continue }
@@ -163,24 +158,50 @@ if [ -n "$BOARD" ]; then
   N=${1:-0}; D=${2:-0}; P=${3:-0}; O=${4:-0}; Q=${5:-0}; DN=${6:-0}
   if [ "$N" -gt 0 ] 2>/dev/null; then
     BOARD_OUT="\033[38;5;108m▸pearde\033[0m"
-    # attached to the label, not appended to the row: it qualifies what the
-    # numbers are counted over, and a master with no marker reads as one board
+    # attached to the label, not appended to the row — it qualifies what the
+    # numbers count over
     [ "$NB" -gt 1 ] 2>/dev/null && \
       BOARD_OUT="$BOARD_OUT\033[38;5;108m⊞${NB}\033[0m"
     BOARD_OUT="$BOARD_OUT \033[38;5;252m${D}/${N}\033[0m \033[38;5;108m${P}%\033[0m"
-    # suppressed at zero: a board with nothing derived should not carry the
-    # vocabulary, and an always-present +0d teaches the eye to skip it.
+    # suppressed at zero — an always-present +0d teaches the eye to skip it
     [ "$DN" -gt 0 ] 2>/dev/null && \
       BOARD_OUT="$BOARD_OUT \033[38;5;240m·\033[0m \033[38;5;209m+${DN}d\033[0m"
     BOARD_OUT="$BOARD_OUT \033[38;5;240m·\033[0m \033[38;5;252mopen ${O}\033[0m \033[38;5;214m${Q}%\033[0m"
   fi
 
-  # the link goes last: a terminal that mis-measures an OSC-8 sequence then has
-  # nothing left to misplace.
+  # who is working, from the session's own transcript. A persona is session
+  # state and is stored nowhere — the transcript IS the session, so the last
+  # `· as <id>` the board printed is the active one. Every round's line
+  # carries it, per @references/parts/personas.md.
   #
-  # Matched on the daemon's registered PATH, never the directory name: a
-  # board keys in the service by its declared name, and grepping the directory
-  # would report a watched board as unwatched.
+  # Anchored on `▸`, the line's own sigil: `· as` alone turns up in prose,
+  # `▸…· as` does not. The tail is bounded because this runs on every render
+  # and a long session's transcript is tens of megabytes — the id is
+  # re-stated each round, so the last 512K always holds the current one.
+  # Before the first round there is nothing to read and the segment is
+  # absent, which is correct: an unstated persona is `engineer` by default,
+  # and rendering a default nobody chose reads as an answer.
+  #
+  # Sanitised, not trusted — this is model output, and an id reaching the
+  # terminal unfiltered could carry an escape sequence. Lowercased, non-id
+  # characters dropped, capped: what survives is renderable or nothing.
+  PERSONA=""
+  TP=$(field transcript_path)
+  if [ -n "$TP" ] && [ -f "$TP" ]; then
+    PERSONA=$(tail -c 524288 "$TP" 2>/dev/null \
+      | grep -o '▸[^"]*· as [a-z][a-z0-9-]\{1,15\}' \
+      | tail -1 | sed 's/.*· as //' \
+      | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-' | cut -c1-16)
+  fi
+  if [ -n "$PERSONA" ]; then
+    [ -n "$BOARD_OUT" ] && BOARD_OUT="$BOARD_OUT \033[38;5;240m·\033[0m "
+    BOARD_OUT="$BOARD_OUT\033[38;5;140m${PERSONA}\033[0m"
+  fi
+
+  # the link goes last — a terminal that mis-measures an OSC-8 sequence then
+  # has nothing left to misplace. Matched on the daemon's registered PATH,
+  # never the directory name: a board keys in the service by its declared name,
+  # and grepping the directory would report a watched board as unwatched.
   SRV_PORT="${PEARDE_PORT:-8443}"
   LINK=""
   SRV=$(curl -fsS -m 1 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
@@ -201,8 +222,8 @@ if [ -n "$BOARD" ]; then
   fi
 fi
 
-# Two lines when there is a board, one when there is none: an empty second line
-# is a blank row in the terminal, not an absence.
+# Two lines when there is a board, one when there is none — an empty second
+# line reads as a blank row, not an absence.
 if [ -n "$BOARD_OUT" ]; then
   printf '%b\n%b' "$OUT" "$BOARD_OUT"
 else

@@ -1,36 +1,19 @@
 #!/usr/bin/env python3
 """pearde edit — the writers. Every change the view makes to a board goes
-through here, and nothing else in the tree writes a `prd.md`.
+through here. Nothing else in the tree writes a `prd.md`.
 
-Each one touches the smallest thing that can be touched: one frontmatter line,
-the `# title` line, the body under the frontmatter, or a `## Section` appended
-to. Frontmatter and body are never written in the same call, so a body edit
-cannot lose a `state:` and a state edit cannot reflow prose. Every write is
-atomic — a temp file and a rename — because the daemon is reading these files
-a second at a time.
+Each writer touches the smallest thing that can be touched: one frontmatter
+line, the `# title` line, the body under the frontmatter, or a `## Section`
+appended to. Frontmatter and body are never written in the same call — a body
+edit cannot lose a `state:`, and a state edit cannot reflow prose. Every write
+is atomic, a temp file and a rename — the daemon reads these files a second at
+a time.
 
 Python 3 stdlib only.
 """
-import html as htmllib
-import json
 import os
 import re
 
-
-def load_json(path, default):
-    try:
-        return json.load(open(path, encoding="utf-8"))
-    except (OSError, ValueError):
-        return default
-
-def save_json(path, data):
-    """Atomic: a daemon killed mid-write must not leave the snapshot half
-    parsed, because an unreadable snapshot re-baselines the whole board and
-    swallows every pending edit with it."""
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=1, sort_keys=True)
-    os.replace(tmp, path)
 
 def write_atomic(path, text):
     tmp = path + ".tmp"
@@ -78,18 +61,18 @@ def del_key(path, key):
         write_atomic(path, head + "".join(keep) + tail)
 
 def set_body(path, body):
-    """Replace everything under the frontmatter. The frontmatter itself is
-    never touched — it is the machine-read half, and a body edit must not be
-    able to lose a `state:` by accident."""
+    """Replace everything under the frontmatter. The frontmatter is never
+    touched — it is the machine-read half, and a body edit must not be able to
+    lose a `state:`."""
     text = open(path, encoding="utf-8").read()
     head, fm, _ = split_fm(text)
     keep = head + "".join(fm) + "---\n" if fm is not None else ""
     write_atomic(path, keep + "\n" + body.rstrip("\n") + "\n")
 
 def append_section(path, heading, text):
-    """Append text under `## <heading>`, creating the heading at the end of the
-    body when it is not there. Additive only — nothing already written is
-    touched, which is what makes it safe for the daemon to do at all."""
+    """Append text under `## <heading>`, creating the heading at the end of
+    the body when it is not there. Additive only — nothing already written is
+    touched, so the daemon can do it unsupervised."""
     body = open(path, encoding="utf-8").read().rstrip("\n")
     mark = f"## {heading}"
     block = text.strip()
@@ -118,34 +101,3 @@ def set_title(path, title):
         i = 1 if lines and lines[0].strip() == "---" else 0
         lines.insert(i, f"\n# {title}\n")
     write_atomic(path, head + ("".join(fm) if fm else "") + "".join(lines))
-
-def html_md(h):
-    """The inverse of sync.md_html, best-effort and never written to a PRD by
-    this module — it renders a body edit for the orchestrator to read and
-    decide on. Round-tripping prose is safe; round-tripping a table is not,
-    which is exactly why a body edit is queued rather than applied."""
-    if not h:
-        return ""
-    s = h.replace("\r", "")
-    s = re.sub(r"(?is)<(script|style).*?</\1>", "", s)
-    s = re.sub(r"(?i)<br\s*/?>", "\n", s)
-    s = re.sub(r"(?is)<pre[^>]*>(.*?)</pre>", lambda m: "\n```\n" +
-               re.sub(r"(?is)<[^>]+>", "", m.group(1)).strip("\n") + "\n```\n", s)
-    s = re.sub(r"(?is)<code[^>]*>(.*?)</code>", r"`\1`", s)
-    s = re.sub(r"(?is)<(strong|b)[^>]*>(.*?)</\1>", r"**\2**", s)
-    s = re.sub(r"(?is)<(em|i)[^>]*>(.*?)</\1>", r"*\2*", s)
-    s = re.sub(r"(?is)<a [^>]*href=\"([^\"]*)\"[^>]*>(.*?)</a>", r"[\2](\1)", s)
-    for n in range(1, 7):
-        s = re.sub(r"(?is)<h%d[^>]*>(.*?)</h%d>" % (n, n),
-                   "\n" + "#" * n + r" \1\n", s)
-    s = re.sub(r"(?is)<li[^>]*>(.*?)</li>", r"- \1\n", s)
-    s = re.sub(r"(?i)</(p|div|ul|ol|blockquote|table|tr)>", "\n\n", s)
-    s = re.sub(r"(?is)<[^>]+>", "", s)
-    s = htmllib.unescape(s)
-    s = re.sub(r"[ \t]+\n", "\n", s)
-    return re.sub(r"\n{3,}", "\n\n", s).strip()
-
-def text_of(h):
-    """Visible text, whitespace collapsed — what two descriptions are compared
-    by — whitespace collapsed, markup gone."""
-    return re.sub(r"\s+", " ", html_md(h)).strip()

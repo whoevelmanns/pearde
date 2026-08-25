@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """pearde plan — the board, read and ordered.
 
-    plan.py plan  [board] [--workers N]   the most-parallel wave plan
-    plan.py reconcile [board]             re-order the waves, keep the anchor
+    plan.py plan  [board] [--workers N]   the frontier and the dispatch order
+    plan.py reconcile [board]             re-order the schedule, keep the anchor
     plan.py gantt [board] [--open]        render the view to prds/.view.html
     plan.py members [board]               what a master board merges
     plan.py status [board]                the board, its members, its memos
 
 board = the prds/ directory, a directory holding one, or omitted to walk up
-from the cwd. The plan persists in prds/.plan.json; the view reads it.
+from the cwd. The plan persists in prds/.plan.json. The view reads it.
 
 Python 3 stdlib only.
 """
@@ -19,6 +19,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import sys
 # win: a cp1252 console cannot encode the box/greek glyphs this prints,
 # and the trailing summary dies on UnicodeEncodeError. Force UTF-8 out.
@@ -109,7 +110,7 @@ def parse_prd(path):
 # A master board merges other boards into one plan. The PRDs never move: each
 # member keeps its own prds/, its own settings, its own view, and the
 # orchestrator writes state into the member's own prd.md. Only the plan — the
-# waves, the schedule, the merged mirror — lives at the master.
+# edges, the schedule, the merged mirror — lives at the master.
 #
 # A member PRD is addressed `@<member>/<rel>` board-wide. The sigil is what
 # makes one flat namespace safe: a PRD directory is never named `@…`, so a
@@ -156,13 +157,6 @@ def members(board):
 
 def is_master(board):
     return bool(members(board))
-
-
-def members_missing(board):
-    """Declared members that are not on disk — an unmounted volume, a repo
-    moved, a typo. They read exactly like a board that shrank, so nothing that
-    removes anything runs while one of them is unresolved."""
-    return [n for n, p in members(board) if not os.path.isdir(p)]
 
 
 def qualify_paths(prd, paths):
@@ -219,10 +213,11 @@ def scan(board):
 
 
 def spec_data(prd):
-    """(est_hours, footprints) unioned over specs/*.md, plus the PRD's own
-    `footprint:`. A PRD declares its footprint before it is specced, and while
-    an implementer holds its spec files — the wave planner needs the paths
-    either way, and frontmatter on prd.md is the one place no worker writes."""
+    """(weight, footprints) unioned over specs/*.md, plus the PRD's own
+    `footprint:`. The weight is each spec's `complexity`, falling back to its
+    `est`. A PRD declares its footprint before it is specced and while an
+    implementer holds its spec files — the planner needs the paths either way,
+    and frontmatter on prd.md is the one place no worker writes."""
     sdir = os.path.join(prd["dir"], "specs")
     own = prd["fm"].get("footprint", [])
     feet = list(own) if isinstance(own, list) else [own]
@@ -291,7 +286,7 @@ CLAIM_TS_RE = re.compile(
 def claim_of(fm):
     """`claim: <worker> <started>` → {"who", "since"}, or None.
 
-    The timestamp is whatever ISO-ish thing the orchestrator wrote; the worker
+    The timestamp is whatever ISO-ish thing the orchestrator wrote. The worker
     name is the rest. Neither is required — a claim with no timestamp still
     says who holds the PRD."""
     raw = fm.get("claim")
@@ -327,9 +322,9 @@ def hours(v):
     return n / 60 if unit == "m" else n * 8 if unit == "d" else n
 
 
-# The states the loop moves work through. A board state outside STATE_GROUP is
-# the user's own and terminal to the loop: the wave planner does not schedule
-# it, and the view lists it as parked rather than folding it into `open`.
+# The states the loop moves work through. A board state outside LIVE_STATES is
+# the user's own and terminal to the loop — the planner does not schedule it,
+# and the view lists it as parked rather than folding it into `open`.
 LIVE_STATES = {"open", "analyzing", "refine", "question", "specced",
                "claimed", "blocked", "failed"}
 
@@ -390,13 +385,164 @@ def scan_memos(board):
     return ms
 
 
+# ── lanes: what main has not seen ─────────────────────────────────────────────
+# Work happens on a branch per PRD — `lane/<slug>` or `lane/<n>-<slug>` — and
+# it lands by merging into that repo's main.
+# A lane that is still unmerged is work that exists on this machine and nowhere
+# else, no matter what the board says about it.
+#
+# The board and git each know half of it, and neither half is enough: the board
+# knows the work is finished and its acceptance boxes are closed, git knows main
+# has never seen the commits. Crossing them is the whole point — a finished PRD
+# whose lane is merged is history, an unmerged lane whose PRD is still open is
+# in flight, and only the intersection is a queue of things to land.
+
+LANE_RE = re.compile(r"^lane/(?:(\d+)-)?(.+?)(?:-\d+)?$")
+LANE_TTL = 3.0          # git is cheap, but not once per row per render
+_LANES = {}             # board path -> (expires, scan)
+
+
+def repo_root(path):
+    """The repo a board sits in, by walk-up. `git rev-parse --show-toplevel`
+    answers the same question and costs a fork, and the watcher asks once a
+    second per board — so it walks."""
+    d = os.path.abspath(path)
+    while True:
+        if os.path.exists(os.path.join(d, ".git")):
+            return d
+        nxt = os.path.dirname(d)
+        if nxt == d:
+            return None
+        d = nxt
+
+
+def ref_stamp(path):
+    """The git side of a board, as (mtime, size) over the refs a merge moves.
+    Pure stats: this is what the watcher polls to notice that a lane landed,
+    and it must not fork anything. A `.git` file (a worktree) has no refs of
+    its own here and stamps as nothing."""
+    root = repo_root(path)
+    g = os.path.join(root, ".git") if root else None
+    if not g or not os.path.isdir(g):
+        return ()
+    out = []
+    for rel in ("refs/heads", "packed-refs", "HEAD"):
+        try:
+            st = os.stat(os.path.join(g, rel))
+            out.append((rel, st.st_mtime_ns, st.st_size))
+        except OSError:
+            out.append((rel, 0, 0))
+    return (root, tuple(out))
+
+
+def git(root, *args):
+    """stdout, or None if git said no. Never raises: a board that is not in a
+    repo is an ordinary case here, not an error."""
+    try:
+        r = subprocess.run(("git", "-C", root) + args,
+                           capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout if r.returncode == 0 else None
+
+
+def scan_lanes(path):
+    """{"root", "ahead", "lanes": {slug: {"branch"}}} for one board.
+
+    `ahead` is main's commits that origin has not got — None when the repo has
+    no remote at all, which is a different thing from being in sync and is
+    drawn as such. A board outside a repo scans to nothing and says so quietly.
+
+    Only `lane/` branches count — the agent worktrees (`worktree-wf_*`) are
+    scratch, not lanes."""
+    root = repo_root(path)
+    if not root:
+        return {"root": None, "ahead": None, "lanes": {}}
+    lanes = {}
+    out = git(root, "branch", "--no-merged", "main",
+              "--format=%(refname:short)") or ""
+    for b in out.split("\n"):
+        m = LANE_RE.match(b.strip())
+        if m:
+            slug = m.group(2)
+            # a retry (`-2`, `-3`) is the same lane; first branch name wins
+            if slug not in lanes:
+                lanes[slug] = {"branch": b.strip()}
+    ahead = None
+    if git(root, "remote", "get-url", "origin"):
+        n = git(root, "rev-list", "--count", "origin/main..main")
+        ahead = int(n.strip()) if n and n.strip().isdigit() else None
+    return {"root": root, "ahead": ahead, "lanes": lanes}
+
+
+def lanes(path):
+    now = time.time()
+    hit = _LANES.get(path)
+    if hit and hit[0] > now:
+        return hit[1]
+    got = scan_lanes(path)
+    _LANES[path] = (now + LANE_TTL, got)
+    return got
+
+
+def landing(board, everything):
+    """(rows, repos) — the lanes this machine is holding, in the order they
+    should land.
+
+    A row is one unmerged lane matched to the PRD it was cut for, by the slug
+    both share. `ready` marks the ones the board says are finished — state
+    `done`, or held with every acceptance box closed — and those are the ones
+    to merge. The rest are in flight and drawn as such: a lane at 50/54 boxes
+    is worth seeing next to the queue it is about to join.
+
+    Ready first, then by priority, then by name for stability — merging is
+    collect's work, and collect goes best door first, not oldest first."""
+    roots = members(board) or [(None, board)]
+    rows, repos = [], []
+    for name, path in roots:
+        got = lanes(path)
+        if got["root"] is None:
+            continue
+        repos.append({"board": name or board_name(board),
+                      "ahead": got["ahead"], "lanes": len(got["lanes"])})
+        if not got["lanes"]:
+            continue
+        by_slug = {}
+        for t in everything:
+            if (t.get("board") or None) == name:
+                by_slug.setdefault(os.path.basename(t["rel"]), t)
+        for slug, ln in sorted(got["lanes"].items()):
+            t = by_slug.get(slug)
+            boxes = (t or {}).get("boxes") or [0, 0]
+            state = (t or {}).get("state") or "?"
+            rows.append({
+                "slug": slug, "branch": ln["branch"],
+                "board": name, "rel": (t or {}).get("rel") or slug,
+                "name": (t or {}).get("name") or slug,
+                "title": (t or {}).get("title") or "",
+                "state": state, "boxes": boxes,
+                "prio": (t or {}).get("prio") or 0,
+                "est": (t or {}).get("est") or 0,
+                # the board's own claim that the work is finished and tested:
+                # `done`, or every acceptance box closed on a held PRD
+                "ready": state == "done" or bool((t or {}).get("collect")),
+                # a lane whose slug matches no PRD at all — the PRD was renamed
+                # or never existed. Shown, because an unmerged branch nobody
+                # can name is exactly the thing that gets lost
+                "orphan": t is None,
+            })
+    rows.sort(key=lambda r: (not r["ready"], -r["prio"], r["slug"]))
+    repos.sort(key=lambda r: str(r["board"]))
+    return rows, repos
+
+
 # ── map file ──────────────────────────────────────────────────────────────────
 
 def load_map(board):
     path = os.path.join(board, ".plan.json")
     if os.path.isfile(path):
         return json.load(open(path, encoding="utf-8")), path
-    return {"issues": {}, "memos": {}, "waves": {}, "schedule": {}}, path
+    return {"after": {}, "schedule": {}}, path
 
 
 def save_map(mp, path):
@@ -407,7 +553,15 @@ def gantt_payload(board, prds, mp, settings):
     """What the local timeline renders: one bar per scheduled leaf, day offsets
     from the plan's hour offsets at `gantt-day` hours per day. Parents weigh
     nothing in the plan, so a zero-length schedule entry is a container and
-    folds away; done and parked PRDs carry no bar, only a count."""
+    folds away.
+
+    Done and parked PRDs carry a bar too — `past: true` and `parked: true`.
+    The plan is only the half in front of us. The track runs from the first
+    thing that landed to the vision — a timeline that starts at now shows a
+    board that looks perpetually at its own beginning. The renderer lays
+    the past out to the LEFT of now and pins the parked at now, so where we
+    are is a place on the whole track, not kilometre zero of a shrinking
+    one."""
     day_h = hours(settings.get("gantt-day", "8h")) or 8.0
     sched = mp.get("schedule", {})
     tasks, unplanned = [], []
@@ -415,11 +569,31 @@ def gantt_payload(board, prds, mp, settings):
     for rel in sorted(prds):
         p = prds[rel]
         st = p["state"]
+        weight = round(float(p["fm"].get("complexity", 0) or 0)
+                       or hours(p["fm"].get("est", "")), 2)
+        try:
+            pr = float(p["fm"].get("priority", 0))
+        except (TypeError, ValueError):
+            pr = 0.0
+        nd = p["fm"].get("needs", [])
+        nd = nd if isinstance(nd, list) else [nd]
+        base = {
+            "rel": rel, "name": p["name"], "title": p["title"],
+            "board": p.get("board"), "state": st,
+            "prio": int(pr) if pr == int(pr) else pr,
+            "est": weight, "boxes": [0, 0], "part": 0,
+            "held": False, "collect": False, "claim": None,
+            "needs": [resolve_need(prds, p, str(n)) or str(n) for n in nd],
+        }
         if st == "done":
             done += 1
+            if weight > 0:
+                tasks.append(dict(base, past=True))
             continue
         if st not in LIVE_STATES:
             parked += 1
+            if weight > 0:
+                tasks.append(dict(base, parked=True))
             continue
         s = sched.get(rel)
         if not s:
@@ -428,35 +602,24 @@ def gantt_payload(board, prds, mp, settings):
         if s["end"] <= s["start"]:
             containers += 1
             continue
-        try:
-            prio = float(p["fm"].get("priority", 0))
-        except (TypeError, ValueError):
-            prio = 0.0
-        needs = p["fm"].get("needs", [])
-        needs = needs if isinstance(needs, list) else [needs]
         # what the run itself has closed so far, and who is holding it. Read
         # per PRD rather than once at plan time: this is the half of the
         # payload that moves between two transitions, and a view that only
         # learns it when `plan` runs is not live.
         frac, closed, total, ready_to_collect = standing(p)
-        tasks.append({
-            "rel": rel, "name": p["name"], "title": p["title"],
-            "board": p.get("board"),
-            "state": st,
-            "prio": int(prio) if prio == int(prio) else prio,
-            "est": round(s["end"] - s["start"], 2),
-            "startDay": round(s["start"] / day_h, 4),
-            "endDay": round(s["end"] / day_h, 4),
-            "wave": mp.get("waves", {}).get(rel),
-            "boxes": [closed, total],
-            "part": round(frac, 4),
-            "held": st in HOLDING_STATES or st == "analyzing",
-            "collect": ready_to_collect,
-            "claim": claim_of(p["fm"]),
-            # full rels, not basenames: a dependency arrow has to land on a
-            # row, and across a master's members a basename names nothing
-            "needs": [resolve_need(prds, p, str(n)) or str(n) for n in needs],
-        })
+        tasks.append(dict(base,
+            est=round(s["end"] - s["start"], 2),
+            startDay=round(s["start"] / day_h, 4),
+            endDay=round(s["end"] / day_h, 4),
+            # a footprint clash, serialized pairwise: this PRD starts when
+            # those end. An edge, so nothing else on the board waits with it
+            after=mp.get("after", {}).get(rel, []),
+            boxes=[closed, total],
+            part=round(frac, 4),
+            held=st in HOLDING_STATES or st == "analyzing",
+            collect=ready_to_collect,
+            claim=claim_of(p["fm"]),
+        ))
     # Every PRD, not only the scheduled ones: the timeline draws what is left,
     # the analytics have to see what is done, parked and estimated too, and a
     # second scan of the same tree to get them would be the more expensive way
@@ -481,10 +644,15 @@ def gantt_payload(board, prds, mp, settings):
             "prio": int(prio) if prio == int(prio) else prio,
             "est": round(hours(p["fm"].get("est", "")), 2),
             "actual": round(hours(p["fm"].get("actual", "")), 2),
+            # the weight the board schedules by — complexity, falling back
+            # to est. est and actual are records, never inputs
+            "weight": round(float(p["fm"].get("complexity", 0) or 0)
+                            or hours(p["fm"].get("est", "")), 2),
             "boxes": [closed, total],
             "collect": bool(held and total and closed == total),
             "kids": len(p.get("children") or []),
         })
+    land, repos = landing(board, everything)
     return {
         "board": board_name(board),
         # a master's members, in plan order — the renderer groups by them
@@ -502,6 +670,8 @@ def gantt_payload(board, prds, mp, settings):
                    "held": sum(1 for t in tasks if t["held"])},
         "unplanned": unplanned,
         "tasks": tasks,
+        # what this machine is holding that main has never seen
+        "landing": land, "repos": repos,
     }
 
 
@@ -537,7 +707,8 @@ def write_history(board, prds=None):
     for p in prds.values():
         st = p["state"]
         row["states"][st] = row["states"].get(st, 0) + 1
-        h = hours(p["fm"].get("est", ""))
+        h = (float(p["fm"].get("complexity", 0) or 0)
+             or hours(p["fm"].get("est", "")))
         if st == "done":
             row["done"] += 1
             row["hdone"] += h
@@ -559,7 +730,7 @@ def cmd_gantt(board, open_after=False):
     mp, _ = load_map(board)
     if not mp.get("schedule") or not mp.get("planned_at"):
         print("gantt: no plan on record — planning first\n")
-        cmd_plan(board, None, push=False)
+        cmd_plan(board, None)
         mp, _ = load_map(board)
     path = renderlib.write(
         board, gantt_payload(board, scan(board), mp, board_settings(board)))
@@ -568,14 +739,6 @@ def cmd_gantt(board, open_after=False):
         import webbrowser
         webbrowser.open("file://" + os.path.abspath(path))
 
-
-# The board blocks on the user, and a user who is not at the terminal cannot see
-# that. So the question goes where the person is: a comment on the ticket. The
-# reply is the answer — edit.py reads a comment on a `question` PRD as kind
-# `answer`, writes it under `## Answers` and sets the PRD back to `open`, which
-# is exactly what loop step 2 does with an answer typed in the terminal. The two
-# halves are one round trip: the board can be steered by someone who never opens
-# a shell.
 
 
 # ── plan ──────────────────────────────────────────────────────────────────────
@@ -658,12 +821,12 @@ def resolve_needs(prds, todo, warn=True):
 
 
 def compute_plan(board, workers=None, warn=True):
-    """The wave plan as data — None when there is nothing to schedule.
+    """The plan as data — None when there is nothing to schedule.
 
     Separate from the printing because a master board's plan is a function of
     every member's state: it has to be recomputable on a file change, not only
-    when somebody remembers to run `plan`. `cmd_plan` prints and pushes what
-    this returns; `reconcile` only saves it."""
+    when somebody remembers to run `plan`. `cmd_plan` prints what this
+    returns. `reconcile` only saves it."""
     settings = board_settings(board)
     workers = plan_workers(board, workers)
     prds = scan(board)
@@ -677,7 +840,7 @@ def compute_plan(board, workers=None, warn=True):
     est, feet = {}, {}
     for r, p in todo.items():
         e, f = spec_data(p)
-        # complexity is the weight; est is a legacy fallback and is not asked for
+        # complexity is the weight. est is the fallback for an unscored PRD
         est[r] = (e or float(p["fm"].get("complexity", 0) or 0)
                   or hours(p["fm"].get("est", "")))
         feet[r] = f
@@ -708,85 +871,132 @@ def compute_plan(board, workers=None, warn=True):
         if total and p["state"] in HOLDING_STATES:
             est[r] = max(est[r] * (1 - frac), est[r] * 0.05)
 
-    # wave = longest needs-chain; cycles are an error
-    wave, visiting = {}, set()
-    def w(r):
-        if r in wave:
-            return wave[r]
-        if r in visiting:
-            die(f"needs cycle through {r}")
-        visiting.add(r)
-        wave[r] = 1 + max((w(d) for d in needs[r]), default=0)
-        visiting.discard(r)
-        return wave[r]
-    for r in todo:
-        w(r)
-
-    # footprint conflicts never share a wave: keep the higher priority, bump the rest
     def prio(r):
         try:
             return float(todo[r]["fm"].get("priority", 0))
         except ValueError:
             return 0.0
-    # Both constraints to a joint fixed point. A bump for a footprint clash
-    # moves one PRD forward, which can put it level with — or ahead of — a
-    # parent that waits on it, so the needs floor is re-applied after every
-    # bump rather than once before them.
-    moved = True
-    while moved:
-        moved = False
-        for r in sorted(todo, key=lambda x: (-prio(x), x)):
-            for s in sorted(todo, key=lambda x: (-prio(x), x)):
-                if r < s and wave[r] == wave[s] and overlap(feet[r], feet[s]):
-                    bump = s if prio(r) >= prio(s) else r
-                    wave[bump] += 1
-                    moved = True
-        for r in sorted(todo, key=lambda x: wave[x]):
-            floor = max((wave[d] + 1 for d in needs[r]), default=1)
-            if wave[r] < floor:
-                wave[r] = floor
-                moved = True
 
-    # schedule each PRD onto a worker slot — the offsets feed the Gantt dates
-    nwaves = max(wave.values())
-    schedule, order, t0 = {}, [], 0.0
-    for n in range(1, nwaves + 1):
-        ms = sorted((r for r in wave if wave[r] == n),
-                    key=lambda x: (-prio(x), x))
-        order.append(ms)
-        if not ms:
+    # A footprint clash serializes the PAIR, never a round. An agent starts
+    # the moment its own gates clear, so a barrier would hold back every PRD
+    # it shares nothing with. The clash is an edge: the lower-priority PRD is
+    # `after` the higher one, and only that pair is ordered. Two PRDs already
+    # ordered by a dependency path need no edge — the path is the order.
+    edges = {r: list(needs[r]) for r in todo}
+
+    def path(a, b, _seen=None):
+        """a reaches b along edges — a runs after b already."""
+        if _seen is None:
+            _seen = set()
+        if a == b:
+            return True
+        _seen.add(a)
+        return any(d not in _seen and path(d, b, _seen) for d in edges[a])
+
+    after = {r: [] for r in todo}
+    ranked = sorted(todo, key=lambda x: (-prio(x), x))
+    for i, r in enumerate(ranked):
+        for s in ranked[i + 1:]:
+            if (overlap(feet[r], feet[s])
+                    and not path(s, r) and not path(r, s)):
+                after[s].append(r)      # s yields: r outranks it
+                edges[s].append(r)
+
+    # topological order over needs + after; a cycle in `needs` is an error
+    # (an `after` edge is only ever added between unordered PRDs, so it
+    # cannot close one)
+    depth, visiting = {}, set()
+    def dp(r):
+        if r in depth:
+            return depth[r]
+        if r in visiting:
+            die(f"needs cycle through {r}")
+        visiting.add(r)
+        depth[r] = 1 + max((dp(d) for d in edges[r]), default=0)
+        visiting.discard(r)
+        return depth[r]
+    for r in todo:
+        dp(r)
+
+    # what dispatching a PRD opens: the weight transitively waiting behind it.
+    # The frontier orders by this — the door that opens widest goes first
+    feeds = {r: [] for r in todo}
+    for r, ds in edges.items():
+        for d in ds:
+            feeds[d].append(r)
+    down = {}
+    for r in sorted(todo, key=lambda x: -depth[x]):
+        acc = set()
+        for s in feeds[r]:
+            acc.add(s)
+            acc |= down[s]
+        down[r] = acc
+    unblocks = {r: sum(est[s] for s in down[r]) for r in todo}
+
+    # The calendar is a simulation, not the plan: dispatch every PRD the
+    # moment its edges are done and a worker is free, best door first. The
+    # dispatch order it visits IS the plan's order. The offsets only feed the
+    # Gantt dates — a staffing guess, never a fact about the plan.
+    nslots = max(workers, 1)
+    left = {r: len(edges[r]) for r in todo}
+    ready = [r for r in todo if not left[r]]
+    running, schedule, order, t0 = [], {}, [], 0.0
+    def take(pool):
+        best = min(pool, key=lambda x: (-unblocks[x], -prio(x), x))
+        pool.remove(best)
+        return best
+    def finish(r):
+        for s in feeds[r]:
+            left[s] -= 1
+            if not left[s]:
+                ready.append(s)
+    while ready or running:
+        # a container weighs nothing and holds no worker — it folds away the
+        # moment its children are done
+        while ready:
+            zero = [r for r in ready if est[r] <= 0]
+            if not zero:
+                break
+            for r in zero:
+                ready.remove(r)
+                schedule[r] = {"start": t0, "end": t0}
+                order.append(r)
+                finish(r)
+        while ready and len(running) < nslots:
+            r = take(ready)
+            schedule[r] = {"start": t0, "end": t0 + est[r]}
+            order.append(r)
+            running.append((schedule[r]["end"], r))
+        if not running:
             continue
-        slots = [0.0] * max(workers, 1)
-        for r in ms:
-            i = min(range(len(slots)), key=lambda k: slots[k])
-            schedule[r] = {"start": t0 + slots[i], "end": t0 + slots[i] + est[r]}
-            slots[i] += est[r]
-        t0 += max(slots)
+        running.sort()
+        t0, r = running.pop(0)
+        finish(r)
+    wall = max((s["end"] for s in schedule.values()), default=0.0)
     return {"prds": prds, "todo": todo, "parked": parked, "settings": settings,
             "workers": workers, "needs": needs, "est": est, "feet": feet,
             "boxes": boxes, "collect": sorted(collect),
-            "waves": wave, "schedule": schedule, "order": order,
-            "nwaves": nwaves, "wall": t0, "avg": avg,
+            "after": after, "schedule": schedule, "order": order,
+            "unblocks": unblocks, "wall": wall, "avg": avg,
             "prio": {r: prio(r) for r in todo}}
 
 
 def reconcile(board):
-    """Recompute the waves in place, keeping the anchor day. True when they
+    """Recompute the schedule in place, keeping the anchor day. True when it
     moved.
 
-    A master board's plan spans repos nobody re-plans by hand: a state written
-    in one member re-orders the whole board, and a Gantt still drawing
-    yesterday's order is worse than one drawn a second late. Re-anchoring is
-    what `plan` does; this only re-orders, so the bars keep the day the plan
-    was made."""
+    A master board's plan spans repos nobody re-plans by hand — a state
+    written in one member re-orders the whole board. Re-anchoring is `plan`'s
+    work. This only re-orders, so the bars keep the day the plan was made."""
     r = compute_plan(board, None, warn=False)
     if not r:
         return False
     mp, mp_path = load_map(board)
-    if (mp.get("waves") == r["waves"] and mp.get("schedule") == r["schedule"]
+    if (mp.get("after") == r["after"] and mp.get("schedule") == r["schedule"]
             and mp.get("planned_at")):
         return False
-    mp["waves"], mp["schedule"] = r["waves"], r["schedule"]
+    mp.pop("waves", None)
+    mp["after"], mp["schedule"] = r["after"], r["schedule"]
     mp.setdefault("planned_at", datetime.date.today().isoformat())
     save_map(mp, mp_path)
     if os.path.isfile(os.path.join(board, renderlib.VIEW_FILE)):
@@ -794,52 +1004,69 @@ def reconcile(board):
     return True
 
 
-def cmd_plan(board, workers, push=False):
+def cmd_plan(board, workers):
     r = compute_plan(board, workers)
     if not r:
         print("plan: nothing to do — no undone PRDs")
         return
     prds, todo, parked = r["prds"], r["todo"], r["parked"]
-    est, feet, needs, wave = r["est"], r["feet"], r["needs"], r["waves"]
+    est, feet, needs, after = r["est"], r["feet"], r["needs"], r["after"]
+    sched, unblocks = r["schedule"], r["unblocks"]
     mem = [n for n, _ in members(board)]
-    print(f"plan: {len(todo)} PRDs in {r['nwaves']} wave(s)"
-          f" · workers={r['workers']} · unspecced est'd at {r['avg']:.1f}h"
+    print(f"plan: {len(todo)} PRDs"
+          f" · workers={r['workers']} · unspecced est'd at {r['avg']:.1f}w"
           + (f" · master of {len(mem) + 1} boards: "
              + ", ".join([os.path.basename(os.path.dirname(board))] + mem)
              if mem else "")
           + (f" · {len(parked)} parked: " + ", ".join(
               f"{os.path.basename(r_)} [{prds[r_]['state']}]" for r_ in parked)
              if parked else ""))
-    # Before the waves, because it comes before them: every PRD here is
-    # finished work, and every PRD waiting on one of them waits until it is
-    # committed and set `done`.
+    # Before everything else, because it comes before everything else: every
+    # PRD here is finished work, and every PRD waiting on one of them waits
+    # until it is committed and set `done`.
     if r["collect"]:
         print(f"\ncollect: {len(r['collect'])} finished, waiting to be closed")
         for x in r["collect"]:
             c, t = r["boxes"][x]
             print(f"  ✓ {x} [{todo[x]['state']}] {c}/{t} boxes closed")
-    for n, ms in enumerate(r["order"], start=1):
-        if not ms:
-            continue
-        load = sum(est[x] for x in ms)
-        wall = max(r["schedule"][x]["end"] for x in ms) - min(
-            r["schedule"][x]["start"] for x in ms)
-        print(f"\nwave {n} — {len(ms)} in parallel · Σ{load:.1f}h"
-              f" · ~{wall:.1f}h wall")
-        for x in ms:
+    # The frontier, then the queue. There are no rounds: a PRD starts the
+    # moment its own gates clear, so the plan is the dispatch order and what
+    # gates each entry — not waves that would hold unrelated work hostage to
+    # the slowest member of a round.
+    frontier = [x for x in r["order"]
+                if not needs[x] and not after[x] and est[x] > 0]
+    if frontier:
+        print(f"\nready now — {len(frontier)} in parallel, widest door first")
+        for x in frontier:
+            p = todo[x]
+            hot = p["state"] in ("question", "blocked", "refine", "failed")
+            print(f"  · {x} [{p['state']}] p{p['fm'].get('priority', 0)}"
+                  f" {est[x]:.1f}w · unblocks {unblocks[x]:.0f}w"
+                  + ("  (waiting on you)" if hot
+                     else "" if feet[x] else "  (unspecced)"))
+    gated = [x for x in r["order"] if (needs[x] or after[x]) and est[x] > 0]
+    if gated:
+        print("\nthen, as gates clear — dispatch order")
+        for x in gated:
             p = todo[x]
             why = []
             if needs[x]:
                 why.append("needs " + ", ".join(os.path.basename(d)
                                                 for d in needs[x]))
+            if after[x]:
+                why.append("after " + ", ".join(os.path.basename(d)
+                                                for d in after[x])
+                           + " (footprint)")
             if not feet[x]:
                 why.append("unspecced")
             print(f"  · {x} [{p['state']}] p{p['fm'].get('priority', 0)}"
-                  f" {est[x]:.1f}h" + (f"  ({'; '.join(why)})" if why else ""))
-    print(f"\n≈ {r['wall']:.1f}h wall-clock @ {r['workers']} workers")
+                  f" {est[x]:.1f}w" + (f"  ({'; '.join(why)})" if why else ""))
+    print(f"\n≈ {r['wall']:.1f}w wall @ {r['workers']} workers — a staffing"
+          " guess, not a promise. The dependency structure above is the plan")
 
     mp, mp_path = load_map(board)
-    mp["waves"] = r["waves"]
+    mp.pop("waves", None)
+    mp["after"] = r["after"]
     mp["schedule"] = r["schedule"]
     mp["planned_at"] = datetime.date.today().isoformat()
     save_map(mp, mp_path)
@@ -885,10 +1112,10 @@ def main():
     if cmd == "plan":
         workers = next((int(f.split("=")[1]) for f in flags
                         if f.startswith("--workers=")), None)
-        cmd_plan(board, workers, push="--no-push" not in flags)
+        cmd_plan(board, workers)
     elif cmd == "reconcile":
         moved = reconcile(board)
-        print(f"reconcile: {'waves re-ordered' if moved else 'no change'}")
+        print(f"reconcile: {'schedule re-ordered' if moved else 'no change'}")
     elif cmd == "members":
         mem = members(board)
         if not mem:

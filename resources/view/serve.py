@@ -17,7 +17,7 @@ is the whole locking story — no pidfile to go stale.
 
 What it does, per registered board, within about a second of a file changing:
 
-  - re-orders a master board's waves in place, keeping the anchor day, so a
+  - re-orders a master board's schedule in place, keeping the anchor day, so a
     state written in one member re-plans the whole board
   - writes the day's history row, which is the only memory the board has
   - bumps a per-board sequence number the view and any agent long-poll on
@@ -49,9 +49,10 @@ HTTP API, all JSON, all 127.0.0.1-only:
                                    quiet — and 200 at once on a stale boot,
                                    which tells the page to reload its code
   GET  /board/<name>               the view itself
+  GET  /                           302 to a board — the title is the switcher,
+                                   so there is no index page to keep
   GET  /prd?board=<name>&rel=<rel> one PRD in full: frontmatter, body, specs
   GET  /memos?board=<name>         the board's decision records
-  GET  /                           board index
   POST /register {"cwd": path}     add the board found walking up from cwd
   POST /sync     {"board": name}   force a pass now
   POST /new      {"board","title","body"?,"parent"?,"priority"?,"est"?}
@@ -106,7 +107,8 @@ WAIT_MAX_S = 25    # long-poll ceiling; clients just re-poll
 # page — which carries the stamp it was rendered from — reloads when the stamp
 # it polls against no longer matches. Always on: this daemon is local.
 SOURCES = [os.path.join(DIR, f)
-           for f in ("serve.py", "render.py", "plan.py", "edit.py")]
+           for f in ("serve.py", "render.py", "plan.py", "edit.py",
+                     "view.css", "view.js")]
 SOURCES.append(os.path.join(os.path.dirname(DIR), "memos.py"))
 
 
@@ -147,8 +149,10 @@ class Board:
         self.path = path  # the prds/ directory
         self.name = serve_name(path)
         self.seq = 0
+        self.refs = ()      # the repos' refs, so a merge is a change too
         self.digest = None       # of the .md files — what "changed" means
-        self.plan_digest = None  # of waves+planned_at — when to redo cycles
+        self.plan_digest = None  # of after+planned_at — fires a mirror
+                                 # when `plan` re-ordered
         self.last_sync = None
         self.last_error = None
         self.history_day = None
@@ -161,11 +165,11 @@ BOARDS_LOCK = threading.Lock()
 
 
 def plan_digest(path):
-    """Of the plan alone — waves and the day it was made. The map's ticket
-    hashes churn on every push (our own writes), so watching the file's mtime
-    would loop; watching this content only fires when `plan` actually ran."""
+    """Of the plan alone — its edges and the day it was made. Hashing the
+    content rather than stat-ing the file means a write that changed no order
+    is not a change: the watcher fires when `plan` actually re-ordered."""
     mp, _ = planlib.load_map(path)
-    return hash(json.dumps([mp.get("waves"), mp.get("planned_at")],
+    return hash(json.dumps([mp.get("after"), mp.get("planned_at")],
                            sort_keys=True))
 
 
@@ -177,6 +181,15 @@ def member_paths(path):
         return [p for _, p in planlib.members(path) if os.path.isdir(p)]
     except Exception:
         return []
+
+
+def lane_digest(path):
+    """The board's git side: the refs of every repo it draws lanes from. A
+    lane merging into main moves these and nothing else — the landing queue
+    shrinks, the plan does not change — so this is watched apart from the
+    board's own files and answered with a bump rather than a whole sync."""
+    return tuple(planlib.ref_stamp(p)
+                 for _, p in (planlib.members(path) or [(None, path)]))
 
 
 def digest(path):
@@ -211,10 +224,9 @@ EPHEMERAL = ("/tmp/", "/private/tmp/", "/var/folders/", "/private/var/folders/")
 
 
 def load_registry():
-    """A board on an ephemeral filesystem registers fine — a test wants the
-    live view too — but never persists: it would be a dead entry after the
-    next reboot, and dead entries are exactly what the registry must not
-    accumulate."""
+    """A board on an ephemeral filesystem registers but never persists — it
+    would be a dead entry after the next reboot, and the registry must not
+    accumulate those."""
     try:
         rows = json.load(open(REG_PATH, encoding="utf-8"))
     except (OSError, ValueError):
@@ -222,17 +234,17 @@ def load_registry():
     return [p for p in rows if not p.startswith(EPHEMERAL)]
 
 
-REGISTRY_LOADED = False   # only the daemon has the whole list — see below
+REGISTRY_LOADED = False   # only the daemon holds the whole list
 
 
 def save_registry():
     """Persist the watch list, but only in a process that read it first.
 
-    `register()` saves as a side effect, so importing this module and calling
-    it — an in-process test of the naming, say — used to write the registry
-    from whatever partial set that process held and drop every board it had
-    not registered. The daemon sets the flag once it has loaded the file; every
-    other process keeps the registry read-only by construction."""
+    `register()` saves as a side effect. Without the flag, importing this
+    module and calling it — an in-process test of the naming, say — writes the
+    registry from whatever partial set that process holds and drops every board
+    it did not register. The daemon sets the flag once it has loaded the file.
+    Every other process keeps the registry read-only by construction."""
     if not REGISTRY_LOADED:
         return
     os.makedirs(APP_DIR, exist_ok=True)
@@ -243,23 +255,16 @@ def save_registry():
 
 
 def declared_name(path):
-    """What the board calls itself, or "".
+    """`name:` from the board's settings.md, or "" — one name across the
+    project, the watch entry and the `/board/<name>` URL. A master board needs
+    it: it is named for what it owns, not for the directory it sits in.
 
-    A board's declared `name:` is what it calls itself, so a board that
-    renamed itself should answer to that name here too — one name in the
-    project, the watch entry, and the `/board/<name>` URL. A master board is
-    the case that needs it: it is named for what it owns rather than for the
-    directory it sits in, and a plan that reads `master` everywhere except its
-    own URL is a seam the user has to be told about.
-
-    It is only a *preference*, because unlike a daemon key a project name may
-    legitimately be shared — `realm/.mi/prds` and `realm/.claude/prds` both
-    declare `realm` to mirror into one project on purpose. Two boards must
-    never share a watch key, so `register()` takes this name only when it is
-    free and falls back to the path derivation, which is unique by
-    construction. That is better than suffixing the shared name: the loser
-    keeps its own meaningful `realm-claude` instead of an order-dependent
-    `realm-2`."""
+    A preference, not a key. Two projects may share a name on purpose —
+    `realm/.mi/prds` and `realm/.claude/prds` both declare `realm` to mirror
+    into one project. Two boards must never share a watch key, so `register()`
+    takes this name only when it is free and falls back to the path
+    derivation, which is unique by construction — the loser keeps its
+    meaningful `realm-claude` instead of an order-dependent `realm-2`."""
     declared = str(planlib.board_settings(path).get("name", "")).strip()
     return re.sub(r"[^A-Za-z0-9_.-]", "-", declared) if declared else ""
 
@@ -305,9 +310,8 @@ def bump(b):
 
 
 def history(b):
-    """One row a day per board, written by whoever is watching. Cheap (it is a
-    scan the mirror pass already did) and it is the only memory the board has:
-    without it the burn-down has nothing to draw."""
+    """One row a day per board, written by whoever is watching. It is the only
+    memory the board has — without it the burn-down has nothing to draw."""
     try:
         row = planlib.write_history(b.path)
         b.history_day = row["d"]
@@ -316,17 +320,15 @@ def history(b):
 
 
 def mirror(b, force=False):
-    """One pass over a board that changed: re-order its waves, write the day's
-    history row, and bump the sequence every reader is parked on. It
-    writes nothing but the board's own files — there is nowhere else for it to
-    write any more."""
+    """One pass over a board that changed: re-order its schedule, write the
+    day's history row, bump the sequence every reader is parked on. It writes
+    nothing but the board's own files."""
     with b.lock:
         # Every board re-orders before it mirrors, master or not. A master's
-        # waves span repos nobody re-plans by hand; a plain board's waves go
-        # stale for a nearer reason — a held PRD weighs what is LEFT of it, so
+        # plan spans repos nobody re-plans by hand. A plain board's goes stale
+        # for a nearer reason — a held PRD weighs what is LEFT of it, so
         # closing one acceptance box re-sizes its bar and moves everything
-        # downstream. A schedule that only moves when somebody runs `plan` is
-        # not a live plan. The anchor day is kept: `plan` re-anchors, this only
+        # downstream. The anchor day is kept: `plan` re-anchors, this only
         # re-orders, and reconcile returns early when nothing moved.
         try:
             planlib.reconcile(b.path)
@@ -393,6 +395,14 @@ def watch():
                     mirror(b)
             elif d is not None and plan_digest(b.path) != b.plan_digest:
                 mirror(b)             # `plan` moved, and it writes only the map
+            else:
+                try:
+                    refs = lane_digest(b.path)
+                except OSError:
+                    refs = b.refs
+                if refs != b.refs:    # a lane landed: redraw, do not re-plan
+                    b.refs = refs
+                    bump(b)
         time.sleep(POLL_S)
 
 
@@ -401,10 +411,9 @@ def watch():
 LIVE_JS = """<script>
 /* The board moved. Fetch the payload and hand it to the page, which swaps it
    in where it stands — scroll, zoom, selection and the open inspector all
-   survive. A page too old to know how (or a payload that will not parse)
-   falls back to the reload it used to do.
+   survive. A page that cannot swap, or a payload that will not parse, reloads.
 
-   The view's own code moving is the other case, and there a swap cannot help:
+   The view's own code moving is the other case, and a swap cannot help there:
    the daemon re-execs and answers with a boot stamp this page does not carry,
    so the page reloads outright. The URL is the view, so it lands where it
    stood — the hash restores which view, which filter, which PRD. */
@@ -564,8 +573,7 @@ class Handler(BaseHTTPRequestHandler):
             want = path.split("/", 2)[2].strip("/")
         elif self.base and path not in ROUTES and path.count("/") == 1:
             # behind the proxy the friendly form is /timeline/<board>, so a
-            # single unrecognised segment under the prefix is a board name —
-            # under the prefix
+            # single unrecognised segment under the prefix is a board name
             want = path[1:]
         if want is not None:
             b = by_name(want)
@@ -587,17 +595,25 @@ class Handler(BaseHTTPRequestHandler):
                     .replace("</body>", live + "</body>"))
             return self.reply(200, html, "text/html; charset=utf-8")
         if path == "/":
-            rows = "".join(
-                f'<li><a href="/board/{b.name}">{b.name}</a>'
-                f' <small>{b.path}'
-                + (f" · <em>{b.last_error}</em>" if b.last_error else "")
-                + "</small></li>"
-                for b in sorted(boards(), key=lambda x: x.name))
+            # The board title is the switcher, so there is no index page.
+            # Land on a board — the master if one is registered, since it is
+            # the merged view, else the first by name. The bare list covers
+            # the one case the switcher cannot: no board registered at all.
+            bs = sorted(boards(), key=lambda x: x.name)
+            if bs:
+                first = next((b for b in bs if planlib.is_master(b.path)), bs[0])
+                self.send_response(302)
+                self.send_header("Location", f"{self.base}/board/{first.name}")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             return self.reply(200,
                 "<!doctype html><meta charset=utf-8>"
-                "<title>pearde — boards</title>"
+                "<title>pearde</title>"
                 "<body style='font:14px system-ui;padding:2em'>"
-                f"<h1>boards</h1><ul>{rows or '<li>none registered</li>'}</ul>",
+                "<h1>no board registered</h1>"
+                "<p><code>resources/view/serve.py ensure &lt;path&gt;</code> "
+                "registers one.</p>",
                 "text/html; charset=utf-8")
         self.reply(404, {"error": "no such route"})
 
@@ -665,11 +681,10 @@ class Handler(BaseHTTPRequestHandler):
             threading.Thread(target=mirror, args=(b,), daemon=True).start()
             return self.reply(200, {"prd": os.path.relpath(d, b.path)})
         if path == "/edit":
-            # The view writes the board: one structured line at a time,
+            # The view writes the board one structured line at a time,
             # atomically, frontmatter and body never in the same write.
-            # A claim is reported, not enforced: whoever is looking at this
-            # page is the authority, and the answer to "a worker holds it" is
-            # to say so, not to refuse.
+            # A claim is reported, not enforced — whoever is looking at this
+            # page is the authority.
             b = by_name(body.get("board"))
             if not b:
                 return self.reply(404, {"error": "unknown board"})
@@ -704,9 +719,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {"wrote": wrote, "prd": rel,
                                     "claim": prd["fm"].get("claim")})
         if path == "/report":
-            # A worker's report is evidence, and evidence belongs with the PRD
-            # it is evidence about. It appends to `## Report` and nothing else
-            # happens to it.
+            # A worker's report is evidence — it belongs with the PRD it is
+            # evidence about. Appended to `## Report`, nothing else.
             b = by_name(body.get("board"))
             if not b:
                 return self.reply(404, {"error": "unknown board"})
@@ -822,11 +836,9 @@ def cmd_status():
 
 
 def cmd_wait(arg, timeout):
-    """Block until the board moves, then say what moved. This is the answer to
-    `README.md`'s "do not poll if results are pushed to you" for the one thing
-    that a round would otherwise have to come back and look for. An
-    orchestrator with nothing left to dispatch parks here instead of ending the
-    round, and comes back when there is something to do.
+    """Block until the board moves, then say what moved. An orchestrator with
+    nothing left to dispatch parks here instead of ending the round — see
+    @references/parts/loop.md.
 
     Exit 0 = something happened (the inbox, or any board change), 1 = the
     timeout ran out quietly, 2 = no daemon."""

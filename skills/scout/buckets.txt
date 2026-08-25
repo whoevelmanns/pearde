@@ -1,0 +1,41 @@
+# What the sweep looks for, one bucket per line: name <TAB> GitHub search query.
+#
+# Buckets are deliberately not all "libraries" — the point is to catch the
+# things that get reused across fields without being a dependency: reference
+# lists, starters you clone once, written-down practice. This file is the
+# knob, not the script.
+#
+# Query syntax is GitHub's: topic:, language:, stars:>N, pushed:>YYYY-MM-DD.
+# Keep a stars:> floor or the tail is noise.
+
+knowledge	topic:awesome stars:>2000
+roadmaps	topic:roadmap stars:>1000
+cheatsheets	topic:cheatsheet stars:>800
+learning	topic:tutorial topic:learning stars:>2000
+books	topic:book stars:>2000
+interview	topic:interview-questions stars:>2000
+
+templates	topic:template stars:>1500
+boilerplate	topic:boilerplate stars:>1500
+starters	topic:starter-kit stars:>800
+
+practice	topic:best-practices stars:>1500
+patterns	topic:design-patterns stars:>1500
+architecture	topic:system-design stars:>2000
+
+prompts	topic:prompt-engineering stars:>1500
+agents	topic:ai-agents stars:>2000
+selfhosted	topic:self-hosted stars:>2000
+devtools	topic:developer-tools stars:>2000
+
+# Philosophies — practices and doctrines, not packages. These buckets answer
+# "what is this discipline called and who wrote it down", which matters here
+# because this family keeps inventing named practices under its own names.
+adr	topic:architecture-decision-records stars:>500
+propertytest	topic:property-based-testing stars:>1000
+mutation	topic:mutation-testing stars:>800
+reproducible	topic:reproducible-builds stars:>500
+contracts	topic:design-by-contract stars:>300
+formal	topic:formal-methods stars:>1000
+tla	topic:tla-plus stars:>200
+fuzzing	topic:fuzzing stars:>2000

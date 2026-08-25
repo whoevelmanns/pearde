@@ -6,11 +6,11 @@
 
 A memo is `prds/memos/<slug>.md`. It is not a PRD: no state, never claimed,
 never dispatched, invisible to the loop and to the progress line. It records
-what was decided and what it beat. `references/memo.md` is the format and the
-argument for it; this file is the only reader, so the format has one home.
+what was decided and what it beat. @references/memo.md is the format. This
+file is its only reader, so the format has one home.
 
-Python 3 stdlib only. `view/plan.py` and `view/serve.py` import `scan` from here rather than
-growing a second frontmatter parser.
+Python 3 stdlib only. @resources/view/plan.py and @resources/view/serve.py
+import `scan` from here rather than growing a second frontmatter parser.
 """
 import os
 import re
@@ -21,8 +21,8 @@ OPTIONAL = ("updated", "prds", "supersedes", "superseded_by")
 KINDS = ("decision", "note")
 STATUSES = ("open", "decided", "superseded")
 
-# The board's own narrow dialect, byte-rule for byte-rule what prd.md uses:
-# a `---` fence, one `key: value` per line, `- item` for lists, `#` comments.
+# The board's dialect, byte-rule for byte-rule what prd.md uses: a `---`
+# fence, one `key: value` per line, `- item` for lists, `#` comments.
 KEY_RE = re.compile(r"^\s*([A-Za-z][A-Za-z0-9_-]*):\s*(.*?)\s*$")
 ITEM_RE = re.compile(r"^\s*-\s+(.*?)\s*$")
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -73,9 +73,9 @@ def parse(path):
 def memos_dir(board):
     """(path, external). `prds/memos/` unless `memos:` in prds/settings.md
     points elsewhere — a repo whose decisions already live in another system
-    (mitosys keeps them in .mi/docs/memos) mirrors that dir read-only instead
-    of moving files another tool owns. External means foreign contract: the
-    strict frontmatter gate applies only to the board's own memos/."""
+    mirrors that dir read-only instead of moving files another tool owns.
+    External means foreign contract: the strict frontmatter gate applies only
+    to the board's own memos/."""
     st = os.path.join(board, "settings.md")
     if os.path.isfile(st):
         fm, _, _ = parse(st)
@@ -156,13 +156,13 @@ def check(board):
         st = fm.get("status")
         if st and st not in STATUSES:
             bad.append(f"{at}: status `{st}` — the set is {'|'.join(STATUSES)}")
-        d, u = str(fm.get("date") or ""), str(fm.get("updated") or "")
-        if d and not ISO_RE.match(d):
-            bad.append(f"{at}: date `{d}` is not ISO 8601 (YYYY-MM-DD)")
-        if u and not ISO_RE.match(u):
-            bad.append(f"{at}: updated `{u}` is not ISO 8601 (YYYY-MM-DD)")
-        elif u and ISO_RE.match(d or "") and u < d:
-            bad.append(f"{at}: updated {u} precedes date {d}")
+        date, upd = str(fm.get("date") or ""), str(fm.get("updated") or "")
+        if date and not ISO_RE.match(date):
+            bad.append(f"{at}: date `{date}` is not ISO 8601 (YYYY-MM-DD)")
+        if upd and not ISO_RE.match(upd):
+            bad.append(f"{at}: updated `{upd}` is not ISO 8601 (YYYY-MM-DD)")
+        elif upd and ISO_RE.match(date or "") and upd < date:
+            bad.append(f"{at}: updated {upd} precedes date {date}")
         sb = _listed(fm.get("superseded_by"))
         if st == "superseded" and not sb:
             bad.append(f"{at}: status superseded, naming nothing in its place")

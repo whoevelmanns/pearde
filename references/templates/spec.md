@@ -7,7 +7,7 @@ footprint:           # analyst — every dir/file this spec touches; the
   - <dir/or/file>    #   orchestrator unions a PRD's footprints to avoid
   - <dir/or/file>    #   dispatching overlapping PRDs
 ---
-<!-- Add your own keys freely; nothing outside complexity and footprint is read. -->
+<!-- Add your own keys freely. Nothing outside complexity and footprint is read. -->
 
 # specNN — <one-line goal>
 
