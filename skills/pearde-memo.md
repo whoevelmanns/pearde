@@ -1,5 +1,5 @@
 ---
-name: memo
+name: pearde-memo
 description: Record a decision the code will not explain, and check the ones on record — one file per call, holding what was decided, what it beat, and why, never buried in a PRD. Slugged from the subject, with a closed set of frontmatter keys that a checker enforces. Use for "/memo", "memo <subject>", "record this decision", "write this down as a decision", "why did we choose X", "what did we decide about Y", "check the memos", "adr", "decision record", "document this tradeoff". Write it when the call is made, not when the work lands.
 ---
 

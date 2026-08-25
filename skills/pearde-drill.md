@@ -1,5 +1,5 @@
 ---
-name: drill
+name: pearde-drill
 description: Interview a vague request until it is a contract that can be specced — one round of questions covering the whole frontier at once, each carrying a recommended answer, until nothing is left that would change the work. Ends in a settled contract and a PRD tree, each branch a child. Use for "/drill", "drill this", "drill <prd>", "help me work out what I want", "this request is too vague", "ask me what you need to know", "turn this into a spec", "interview me about this feature", "what questions do you have before building". Run it before dispatching anything — a one-line title is too thin to spec.
 ---
 

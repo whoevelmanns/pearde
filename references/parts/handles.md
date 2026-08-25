@@ -6,10 +6,12 @@ The spelling follows the setup — `/pearde status` where commands take
 arguments, "pearde status" in plain chat. The meanings are fixed.
 
 **Several of these are also skills of their own**, invocable without the
-board in front of them: `drill`, `memo`, `view`, `master`, `doctor`, `ask`.
-Typed inside a round they are handles and behave exactly as this table says.
-Typed cold they are the same feature with no round around it — `@@skills` is
-the list, and each skill file says what it does with no board in scope.
+board in front of them: `pearde-drill`, `pearde-memo`, `pearde-view`,
+`pearde-master`, `pearde-doctor`, `pearde-persona`, `pearde-persona-ask`,
+`pearde-persona-create`, `pearde-scout`. Typed inside a round they are the
+short handles below and behave exactly as this table says. Typed cold they
+are the same feature with no round around it — `@@skills` is the list, and
+each skill file says what it does with no board in scope.
 
 | Want                         | Say                                                                                                      |
 |------------------------------|-----------------------------------------------------------------------------------------------------------|

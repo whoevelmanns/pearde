@@ -20,6 +20,20 @@ is what makes it findable and what decides when it fires. Its body points into
 `references/` and stops. The knowledge is not in the skill; the skill is the
 door.
 
+**The file name is the command.** `name:` must equal the file name, and an
+install builds the folder from it, so `skills/pearde-view.md` is invoked as
+`pearde-view` wherever it lands. Namespace and grouping are spelled into that
+one name, `-` separated: `pearde-persona-ask` is the namespace `pearde`, the
+group `persona`, the verb `ask`.
+
+**`-` and not `:`.** A skill name is kebab-case — lowercase letters, digits
+and hyphens, nothing else. Some agents render a *plugin's* skills as
+`plugin:skill`, but that colon is put there by that agent's plugin loader,
+carries exactly one level, and does not exist for a skill installed as a
+folder. Writing one into a name makes the skill fail to load rather than
+namespace it. The prefix is the portable namespace, and it is the whole of
+it.
+
 `@index.md` is the map both `@<path>` and `@@<keyword>` resolve against.
 
 ## What installing means
@@ -33,7 +47,7 @@ that path resolves to nothing. So a skill is installed as a *folder*, built
 out of links:
 
 ```
-<skills-dir>/<name>/
+<skills-dir>/<name>/            # <name> is the file name, minus .md
     SKILL.md    -> <repo>/skills/<name>.md
     README.md   -> <repo>/README.md
     index.md    -> <repo>/index.md
