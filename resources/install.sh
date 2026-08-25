@@ -19,6 +19,14 @@
 # Links, never copies — one source of truth. A real file or directory already
 # sitting where a link goes is reported and never replaced: it may hold your
 # edits.
+#
+# One case is different. When this repo is itself sitting in <skills-dir>
+# under the name of one of its skills, that slot is taken and no folder is
+# built over it — the repo *is* that skill. Its @SKILL.md is the installer,
+# and it has done its job the moment the siblings exist, so --apply replaces
+# it with a link to the skill file it was standing in for. The installer is
+# gone, the skill it named is live, and there is one `pearde` rather than two.
+# `git checkout SKILL.md` brings the installer back if you want to re-run it.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,6 +43,8 @@ esac
 DEST="$1"
 
 CHANGED=0; BLOCKED=0
+note_git=0
+note() { printf '  %-14s %-8s %s\n' "" "" "$1"; }
 say()  { printf '  %-14s %-8s %s\n' "$1" "$2" "$3"; }
 did()  { printf '  %-14s %-8s ✓ %s\n' "" "" "$1"; CHANGED=1; }
 stop() { printf '  %-14s %-8s ! %s\n' "" "" "$1"; BLOCKED=1; }
@@ -63,7 +73,23 @@ for f in "$ROOT"/skills/*.md; do
   at="$DEST/$name"
 
   if [ "$name" = "$SELF" ] && [ "$(cd "$DEST" 2>/dev/null && pwd -P)" = "$(dirname "$ROOT")" ]; then
-    say "$name" self "this repo is already $at — nothing to build"
+    # The repo occupies this slot, so the folder is already correct. What is
+    # left is @SKILL.md: the installer, which shadows the skill of the same
+    # name for exactly as long as it exists.
+    gate="$ROOT/SKILL.md"
+    # relative, so the repo survives being moved — an absolute link into a
+    # path that no longer exists is a skill that silently stops loading
+    want_gate="skills/$name.md"
+    if [ -L "$gate" ] && [ "$(readlink "$gate")" = "$want_gate" ]; then
+      say "$name" ok "$at · SKILL.md -> skills/$name.md"
+    elif [ "$MODE" = apply ]; then
+      ln -sfn "$want_gate" "$gate" && did "retired the installer — SKILL.md -> skills/$name.md"
+      note_git=1
+    elif [ "$MODE" = remove ]; then
+      say "$name" self "$at is this repo · restore the installer with: git checkout SKILL.md"
+    else
+      say "$name" self "$at is this repo · the installer still shadows it"
+    fi
     continue
   fi
 
@@ -107,6 +133,11 @@ for f in "$ROOT"/skills/*.md; do
 done
 
 echo
+if [ "$note_git" = 1 ]; then
+  echo "  SKILL.md is now a link and git will show it as changed — that is the"
+  echo "  install, not damage. \`git checkout SKILL.md\` puts the installer back."
+  echo
+fi
 [ "$BLOCKED" = 1 ] && { echo "pearde install: something is in the way — see the ! lines."; exit 1; }
 case "$MODE" in
   apply)  [ "$CHANGED" = 1 ] && echo "pearde install: built." || echo "pearde install: already built — nothing to do." ;;

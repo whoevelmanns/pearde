@@ -1,31 +1,56 @@
 ---
 name: pearde
-description: Install this repo's skills for whichever agent is reading, then work the PRD board at prds/. Materialises one skill folder per file in skills/ — pearde, pearde-drill, pearde-memo, pearde-view, pearde-master, pearde-doctor, pearde-persona, pearde-persona-ask, pearde-persona-create, pearde-scout — wherever this agent discovers skills, wires the status line, and hands off to the board. Use for "/pearde", "install pearde", "set up pearde", "wire up the skills", and everything the board answers to once it is installed.
+description: Install this repo's skills for whichever agent is reading, then work the PRD board at prds/. One pass: materialise a folder per file in skills/ — pearde, pearde-drill, pearde-memo, pearde-view, pearde-master, pearde-doctor, pearde-persona, pearde-persona-ask, pearde-persona-create, pearde-scout — wherever this agent discovers skills, then hand off to the board and carry on with the request. Use for "/pearde", "install pearde", "set up pearde", "wire up the skills", and everything the board answers to.
 ---
 
-# pearde
+# pearde — install, then work
 
-**Not installed yet?** Read @references/install.md and do it — one pass, then
-carry on with the request. Installing is making links; nothing is compiled and
-no file outside this repo is rewritten except the ones @references/install.md
-names.
+You are reading the installer. It exists because this repo has to be
+invocable before any of its skills are, and it stops existing the moment they
+are.
 
-You are reading this file, so this repo is discoverable as one skill. That is
-enough to work the board and nothing else. Installing splits it into the
-skills in `skills/` — each invocable on its own, each triggering on its own
-description — and wires the status line.
+## 1. Install
 
-**Already installed?** Skip it. @resources/doctor.sh says which it is:
+Read @references/install.md and do it. One pass, no questions unless a step
+genuinely cannot be decided from what is on the machine.
 
 ```bash
-bash @resources/doctor.sh --fix
+bash @resources/install.sh --apply <skills-dir>
 ```
 
-Then read @README.md and work the request.
+Working out `<skills-dir>` is step one of @references/install.md, and it is
+the only part this repo cannot do for you. Report which of its four cases you
+hit and where you installed — that sentence is the only record the install
+has.
+
+## 2. This file retires itself
+
+`skills/pearde.md` is the real board skill. While this installer exists they
+are two things answering to `pearde`, so `--apply` replaces this file with a
+link to that one as its last act — the installer gone, the skill it stood in
+for live. Nothing is lost: `git checkout SKILL.md` brings it back to
+re-install or to install somewhere else.
+
+If you install by hand rather than through `@resources/install.sh`, do that
+last step by hand too:
+
+```bash
+ln -sfn skills/pearde.md SKILL.md
+```
+
+Only when this repo sits *inside* the skills directory under the name
+`pearde` — that is the case where the installer shadows the skill. Cloned
+anywhere else, this file is discovered by nobody and there is nothing to
+retire.
+
+## 3. Then work the request
+
+Read @README.md and carry on with what was actually asked. Installing is not
+the answer to the question; it is what had to happen first.
 
 ---
 
-- `skills/` — one file per skill. What an agent is pointed at.
+- `skills/` — one file per skill. The file name is the command.
 - `references/` — read. The workflow, the personas, the templates, the rules.
 - `resources/` — run. The board service, scout, the status line, doctor.
 - @index.md is the map: `@<path>` is one file, `@@<keyword>` is a scope.

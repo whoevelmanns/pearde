@@ -79,10 +79,23 @@ bash @resources/install.sh --remove <skills-dir> # take it back out
 You know your own setup; this repo does not. Work it out, in this order, and
 stop at the first that is true.
 
-1. **This repo is already inside a skills directory.** If the folder holding
-   `@SKILL.md` is itself sitting in the place your agent scans for skills,
-   then `pearde` is installed and its slot is taken. Install the *others* —
-   every file in `skills/` except `pearde.md` — as siblings.
+1. **This repo is already inside a skills directory**, under the name of one
+   of its own skills. If the folder holding `@SKILL.md` is itself sitting in
+   the place your agent scans for skills, that slot is taken and no folder is
+   built over it — the repo *is* that skill. Build the *others* as siblings.
+   - **Then retire the installer.** `@SKILL.md` is the entry point that made
+     this repo invocable before any of its skills were, and it answers to the
+     same name as `skills/pearde.md`. Two things called `pearde` is one too
+     many, and the installer is the one whose job is finished:
+
+     ```bash
+     ln -sfn skills/pearde.md SKILL.md
+     ```
+
+     Relative, so the repo survives being moved. The installer is gone, the
+     board skill is live under the name it was shadowing, and `git checkout
+     SKILL.md` brings the installer back to run again. git will report
+     `SKILL.md` as changed from then on — that is the install, not damage.
 2. **Your agent has a skills directory.** Make the folders there. Prefer the
    machine-wide one if you want the skills everywhere, the project-local one
    if you want them here only.
@@ -181,7 +194,7 @@ and nothing about installing touches `prds/`.
 ## Uninstall
 
 Remove the skill folders you made, or `bash @resources/install.sh --remove
-<skills-dir>`. Delete the `pearde:begin`/`:end` block from the instructions
+<skills-dir>`. `git checkout SKILL.md` if the installer was retired. Delete the `pearde:begin`/`:end` block from the instructions
 file, leaving the rest of it alone. Unwire the status line yourself — that
 file is yours.
 

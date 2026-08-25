@@ -66,7 +66,7 @@ Every tracked file, one row.
 
 | anchor | is |
 |---|---|
-| @SKILL.md | the install gate — read where this repo sits in a skills directory |
+| @SKILL.md | the installer — invocable before the skills are, retired once they exist |
 | @README.md | the manual — board, states, loop, briefs, view |
 | @index.md | this index — the `@` and `@@` syntaxes, the scopes, the files |
 | @TODO.md | the open loop |
