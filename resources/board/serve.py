@@ -612,7 +612,7 @@ class Handler(BaseHTTPRequestHandler):
                 "<title>pearde</title>"
                 "<body style='font:14px system-ui;padding:2em'>"
                 "<h1>no board registered</h1>"
-                "<p><code>resources/view/serve.py ensure &lt;path&gt;</code> "
+                "<p><code>resources/board/serve.py ensure &lt;path&gt;</code> "
                 "registers one.</p>",
                 "text/html; charset=utf-8")
         self.reply(404, {"error": "no such route"})

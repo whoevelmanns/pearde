@@ -133,7 +133,7 @@ Nothing in flight and nothing dispatchable: report per-state counts, every
 progress line.
 
 - Everything left waiting on the user, and the live service up? Park
-  `@resources/view/serve.py wait` in the background before stopping, per
+  `@resources/board/serve.py wait` in the background before stopping, per
   @references/parts/view.md — an answer written in the view then wakes the
   round that acts on it.
 

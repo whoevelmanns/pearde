@@ -3,8 +3,12 @@
 
 This repo has a PRD board at `prds/`.
 
+The skill itself lives at `<PEARDE>` — an absolute path, written in when this
+block was installed. Every `@<path>` below is relative to *that* folder and
+never to this repo.
+
 On "pearde", "work the board", "run the prds", or "pearde status": read
-`@README.md` and follow it exactly.
+`<PEARDE>/README.md` and follow it exactly.
 
 `@<path>` is one file in the skill. `@@<keyword>` is a scope, listed in
 `@index.md`. Read the scope, not a guess at which file holds the rule.

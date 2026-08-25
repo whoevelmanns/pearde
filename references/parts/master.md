@@ -41,7 +41,7 @@ is the forbidden two-orchestrators case.
 **Reconcile.** A transition in one member re-orders the whole board:
 
 ```sh
-python3 @resources/view/plan.py reconcile [board]   # schedule recomputed, anchor kept
+python3 @resources/board/plan.py reconcile [board]   # schedule recomputed, anchor kept
 ```
 
 The live service watches every member and reconciles within about a second.

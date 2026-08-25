@@ -22,12 +22,12 @@ arguments, "pearde status" in plain chat. The meanings are fixed.
 | who is working               | `persona` — the active one and why; `persona <id>` switches, for this session only. Stored nowhere        |
 | one persona's read on one problem | `ask <id> <question>` — calls that persona, pointed at this session for context, and talks to it until the question is settled. It answers and writes nothing; the session keeps its own persona. The board calls one on its own judgment too, unasked |
 | a persona for a new field    | `persona create <topic>` — research the field and its real practitioners, compose one from the best of them, per `@@personas` |
-| pre-plan the dispatch order  | `plan` — `@resources/view/plan.py plan`; print the frontier and queue it returns                                       |
-| the local timeline           | `gantt` — `@resources/view/plan.py gantt --open`: the plan as `prds/.view.html`, x = distance to the vision |
-| open the board               | `view` — `@resources/view/serve.py ensure`, then the URL it prints                                          |
+| pre-plan the dispatch order  | `plan` — `@resources/board/plan.py plan`; print the frontier and queue it returns                                       |
+| the local timeline           | `gantt` — `@resources/board/plan.py gantt --open`: the plan as `prds/.view.html`, x = distance to the vision |
+| open the board               | `view` — `@resources/board/serve.py ensure`, then the URL it prints                                          |
 | plan across projects         | `master <path> …` — writes `members:` in `prds/settings.md`, asks the group's `name:` the first time. This board is then the parent every round works in |
-| what a master merges         | `master` with no path — `@resources/view/plan.py members`: every member, its path, `MISSING` when not on disk |
-| re-order after anything moved| `reconcile` — `@resources/view/plan.py reconcile`: schedule recomputed, anchor kept. The live service already does it, on every board |
+| what a master merges         | `master` with no path — `@resources/board/plan.py members`: every member, its path, `MISSING` when not on disk |
+| re-order after anything moved| `reconcile` — `@resources/board/plan.py reconcile`: schedule recomputed, anchor kept. The live service already does it, on every board |
 | is this thing wired?         | `doctor` — `@resources/doctor.sh --fix`, per @@doctor; print every line |
 
 - `add` is the user asking, so `origin: requested`. Only the orchestrator

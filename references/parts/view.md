@@ -4,7 +4,7 @@ The board is files. The view is how a person reads and works them. Once per
 machine:
 
 ```sh
-python3 @resources/view/serve.py ensure # start if needed, register this board
+python3 @resources/board/serve.py ensure # start if needed, register this board
 ```
 
 From then on `http://127.0.0.1:8443/board/<name>` is the board, live — within
@@ -117,7 +117,7 @@ person.
 - The **asks** view is that same round for every waiting PRD at once (⌘⏎
   sends).
 - `+ PRD` (or `n`) writes a new one.
-- Every write goes through @resources/view/edit.py: one line at a time,
+- Every write goes through @resources/board/edit.py: one line at a time,
   atomically, frontmatter and body never in the same write.
 - A worker's report lands via `POST /report` (`{"board","prd","text"}` →
   `## Report`).
@@ -127,11 +127,11 @@ a filtered list, `#crit=1` the critical chain, `#collect=1` the finished work
 waiting to be closed.
 
 ```sh
-python3 @resources/view/plan.py plan         # the frontier and the queue, to stdout
-python3 @resources/view/plan.py reconcile    # re-order it, keep the anchor
-python3 @resources/view/plan.py gantt --open # the same view as one HTML file
-python3 @resources/view/plan.py status       # the board, its members, its memos
-python3 @resources/view/serve.py wait        # block until the board moves
+python3 @resources/board/plan.py plan         # the frontier and the queue, to stdout
+python3 @resources/board/plan.py reconcile    # re-order it, keep the anchor
+python3 @resources/board/plan.py gantt --open # the same view as one HTML file
+python3 @resources/board/plan.py status       # the board, its members, its memos
+python3 @resources/board/serve.py wait        # block until the board moves
 ```
 
 `gantt` writes `prds/.view.html` — the same render, self-contained, no service

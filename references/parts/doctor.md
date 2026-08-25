@@ -16,9 +16,9 @@ never reads `off` — the map is either right or wrong.
 
 | part         | `off`                                  | `broken`                                                        |
 |--------------|----------------------------------------|------------------------------------------------------------------|
-| `wired`      | no agent from @references/targets.md is here | a skill not linked, a block not written, or a copy where a link belongs |
+| `skills`     | —                                      | a skill file with no `name:`, no `description:`, or a `name:` that disagrees with its file name |
 | `index`      | —                                      | @index.md and the tree disagree, or an `@@` keyword is undefined  |
-| `statusline` | no agent here renders one, or none is configured in the file in force | configured, and its command does not resolve or renders nothing |
+| `statusline` | —                                      | @resources/statusline.sh renders nothing for this board                       |
 | `board`      | no board                               | off the contract path, or no `language`                          |
 | `members`    | not a master board — no `members:`     | an entry that is not a board on disk, or an empty list           |
 | `origin`     | no PRDs to read                        | a `derived` PRD with no `from:`, or the @references/parts/derived.md tripwire live |
@@ -26,20 +26,22 @@ never reads `off` — the map is either right or wrong.
 | `view`       | the service is not running             | it runs and this board is not registered                         |
 | `plan`       | no plan on record yet                  | —                                                                |
 
-- **No agent is named in `doctor.sh`.** `wired` and `statusline` read
-  @references/targets.md through @resources/targets.py — one row per agent,
-  holding where its skills go, which instructions file it reads, and where a
-  continuous line is configured. Adding an agent is adding a row.
-- A row's alternatives are read in the order the agent itself reads them, so
-  what doctor reports is the profile in force. A variable that moves an
-  agent's whole configuration means a machine can hold several, and a line
-  wired into the wrong one is correct and inert — the false green the
-  `statusline` row exists to catch.
-- `--fix` repairs three things: what @resources/install.sh owns — links and
-  blocks — a dead status-line symlink, and a view service down or not
-  watching this board. It never writes an agent's settings file; a missing
-  status line is printed, never pasted for you. A **copy** where a link
-  belongs is reported and never repaired: it may hold your edits.
+- **No agent is named in `doctor.sh`, and none is looked for.** Where a skill
+  folder goes and where a status line is configured are the reader's setup,
+  not this repo's — @references/install.md is that step, written to be worked
+  out rather than executed. So doctor checks only what is true regardless of
+  who is reading: the skill files parse, the map matches the tree, the status
+  line renders, the board is on its contract.
+- `skills` is about frontmatter, not placement. A skill is found by its
+  `name:` and fires on its `description:`; frontmatter that does not parse is
+  a skill that silently never fires, which reads exactly like a model
+  choosing not to use it. A `name:` that disagrees with the file name
+  installs one skill under another's name.
+- `statusline` answers the half that is ours. A line wired to a script that
+  renders nothing and a line that was never wired look identical in a
+  terminal; doctor runs the script against this board and says which it is.
+- `--fix` repairs two things: a dead status-line symlink, and a view service
+  down or not watching this board. It never writes a settings file.
 - `index` runs `@resources/index.py check`: a file on disk with no row, a row
   naming no file, a scope naming no file, an `@@` keyword nobody defined. It
   is not `--fix`-able — which row a new file belongs in is a judgement.

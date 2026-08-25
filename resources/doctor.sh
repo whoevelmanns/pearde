@@ -7,101 +7,78 @@
 # One part per line: `ok`, `off` (installed nowhere, nothing to repair), or
 # `broken` (installed and not working — the failure that otherwise runs
 # straight past). A broken part carries its exact fix on the next line.
-# `wired`, `index`, `statusline` and `board` always report. `memos`, `view`
+# `skills`, `index`, `statusline` and `board` always report. `memos`, `view`
 # and `plan` need a board in scope, `origin` needs PRDs in it, and `members`
 # only exists on a master board.
 #
-# No agent is named in this script. `wired` and `statusline` read
-# @references/targets.md through @resources/targets.py — a row per agent,
-# holding where its skills go, which instructions file it reads, and where a
-# continuous line is configured. An agent is added by editing that table.
+# No agent is named in this script and none is looked for. Where a skill goes
+# and where a status line is configured are things only the reader knows —
+# @references/install.md is the explanation, and it is written to be worked
+# out rather than executed. What doctor checks is everything that is true
+# regardless: the skill files are well-formed, the map matches the tree, the
+# status line renders, and the board is on its contract.
 #
-# `--fix` repairs three things and only three: the links and blocks that
-# @resources/install.sh owns, a dead status-line symlink, and a view service
-# that is down or not watching this board. A status line absent from an
-# agent's settings is printed, never written — that file is the user's. After
-# repairing, doctor re-checks itself once, so the report and the exit code
-# describe the state the repairs left behind.
+# `--fix` repairs two things and only two: a dead status-line symlink, and a
+# view service that is down or not watching this board. After repairing,
+# doctor re-checks itself once, so the report and the exit code describe the
+# state the repairs left behind.
 set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_ROOT="$(cd "$DIR/.." && pwd)"
 FIX=0
 [ "${1:-}" = "--fix" ] && { FIX=1; shift; }
 START="${1:-$PWD}"
 
 BROKEN=0
 REPAIRED=0
-UNWIRED=0
 note() { printf '  %-11s %-7s %s\n' "" "" "$1"; }
 row() { printf '  %-11s %-7s %s\n' "$1" "$2" "$3"; [ "$2" = broken ] && BROKEN=1; return 0; }
 fix() { printf '  %-11s %-7s fix: %s\n' "" "" "$1"; }
 did() { printf '  %-11s %-7s ✓ %s\n' "" "" "$1"; REPAIRED=1; }
 
 echo "pearde doctor — $START"
-python3 "$DIR/targets.py" agents "$START" 2>/dev/null \
-  | awk -F'\t' '$2 != "" { printf "  %-10s %s\n", $1, $2 }' \
-  | sed '1s/^/  agents found\n/'
 echo
 
-# ── wired: every skill, in every agent that takes one ────────────────────────
-# What "installed" means, per @references/targets.md: a skill folder linked
-# into an agent's skills directory, or the block from @references/system.md
-# in the instructions file an agent reads instead. Absent agents are not
-# damage and report nothing. A machine with no agent at all still gets the
-# paths — every skill folder reads where it lies.
-if ! command -v python3 >/dev/null 2>&1; then
-  row wired broken "no python3 to read references/targets.md"
-  fix "install python3 — targets.py is the only reader of that format"
+# ── skills: every entry point, well-formed ───────────────────────────────────
+# A skill is found by its frontmatter, so frontmatter that does not parse is a
+# skill that silently never fires — the failure that looks like the model
+# choosing not to use it. The folder name an install builds comes from the
+# file name, so a `name:` that disagrees with it installs one skill under
+# another's name.
+#
+# Where they are installed is not checked, and cannot be: only the reader
+# knows which directory their agent scans, and there is deliberately no list
+# of agents here. @references/install.md is that step.
+SKN=0; SKBAD=""
+for f in "$SKILL_ROOT"/skills/*.md; do
+  [ -e "$f" ] || continue
+  SKN=$((SKN + 1))
+  base="$(basename "$f" .md)"
+  nm=$(awk 'NR==1 && $0 !~ /^---/ {exit} /^---/ {n++; if (n==2) exit; next}
+            n==1 && $1=="name:" {sub(/^[[:space:]]*name:[[:space:]]*/,""); print; exit}' "$f")
+  ds=$(awk 'NR==1 && $0 !~ /^---/ {exit} /^---/ {n++; if (n==2) exit; next}
+            n==1 && $1=="description:" {print "y"; exit}' "$f")
+  if [ -z "$nm" ]; then SKBAD="$SKBAD
+skills/$base.md has no name: in frontmatter — it is not a skill"
+  elif [ "$nm" != "$base" ]; then SKBAD="$SKBAD
+skills/$base.md says name: $nm — an install would build it as $nm/"
+  elif [ -z "$ds" ]; then SKBAD="$SKBAD
+skills/$base.md has no description: — nothing decides when it fires"
+  fi
+done
+if [ "$SKN" -eq 0 ]; then
+  row skills broken "skills/ holds no .md file — there is nothing to install"
+  fix "one file per skill, frontmatter name: matching the file name, and description:"
+elif [ -n "$SKBAD" ]; then
+  NS=$(printf '%s' "$SKBAD" | grep -c . )
+  row skills broken "$SKN skill$([ "$SKN" = 1 ] || echo s) · $NS problem$([ "$NS" = 1 ] || echo s)"
+  printf '%s' "$SKBAD" | while IFS= read -r l; do [ -n "$l" ] && note "$l"; done
+  fix "frontmatter is what makes a skill findable — @references/install.md"
 else
-  WIRED=$(python3 "$DIR/targets.py" status "$START" 2>/dev/null)
-  HERE=$(printf '%s\n' "$WIRED" | awk -F'\t' '$3 != "absent"')
-  BAD=$(printf '%s\n' "$HERE" | awk -F'\t' '$3 != "ok" && $1 != ""')
-  NOK=$(printf '%s\n' "$HERE" | awk -F'\t' '$3 == "ok"' | grep -c . )
-  NAG=$(printf '%s\n' "$HERE" | awk -F'\t' '$1 != "" {print $1}' | sort -u | tr '\n' ' ')
-  if [ -z "$(printf '%s' "$HERE" | tr -d '[:space:]')" ]; then
-    UNWIRED=1
-    row wired off "no agent from references/targets.md is on this machine"
-    fix "point yours at these directly, or add a row to @references/targets.md:"
-    python3 "$DIR/targets.py" skills 2>/dev/null | while IFS=$'\t' read -r n p; do
-      note "$n  $p/SKILL.md"
-    done
-  elif [ -z "$(printf '%s' "$BAD" | tr -d '[:space:]')" ]; then
-    row wired ok "$NOK link$([ "$NOK" = 1 ] || echo s) · $NAG"
-  else
-    NB=$(printf '%s\n' "$BAD" | grep -c . )
-    # nothing wired anywhere and nothing in the way is a fresh clone, not
-    # damage: `off`, and one command away. `broken` is reserved for an
-    # install that exists and does not work — half-wired, or something
-    # pointing at the wrong place.
-    ODD=$(printf '%s\n' "$BAD" | awk -F'\t' '$3 != "missing"' | grep -c . )
-    if [ "$NOK" -eq 0 ] 2>/dev/null && [ "$ODD" -eq 0 ] 2>/dev/null; then
-      UNWIRED=1
-      row wired off "not wired anywhere yet · $NAG"
-      fix "bash $DIR/install.sh --apply $START"
-      if [ "$FIX" = 1 ] && bash "$DIR/install.sh" --apply "$START" >/dev/null 2>&1; then
-        did "wired $NB link$([ "$NB" = 1 ] || echo s)/block$([ "$NB" = 1 ] || echo s)"
-      fi
-      NB=0
-    fi
-    [ "$NB" -gt 0 ] 2>/dev/null || BAD=""
-  fi
-  if [ -n "$(printf '%s' "$BAD" | tr -d '[:space:]')" ]; then
-    # a copy is never repaired: `ln -s` without symlink rights silently
-    # copies, and a diverged copy may hold the user's edits
-    COPIES=$(printf '%s\n' "$BAD" | awk -F'\t' '$3 == "copy"' | grep -c . )
-    row wired broken "$NB of $((NOK + NB)) not wired · $NAG"
-    printf '%s\n' "$BAD" | while IFS=$'\t' read -r a k s p _w; do
-      [ -n "$a" ] && note "$a $k $s ${p}"
-    done
-    if [ "$COPIES" -gt 0 ] 2>/dev/null; then
-      fix "reconcile the copies by hand — they may hold your edits — then: bash $DIR/install.sh --apply $START"
-    else
-      fix "bash $DIR/install.sh --apply $START"
-      if [ "$FIX" = 1 ] && bash "$DIR/install.sh" --apply "$START" >/dev/null 2>&1; then
-        did "wired $NB missing link$([ "$NB" = 1 ] || echo s)/block$([ "$NB" = 1 ] || echo s)"
-      fi
-    fi
-  fi
+  NAMES=$(for f in "$SKILL_ROOT"/skills/*.md; do basename "$f" .md; done | tr '\n' ' ')
+  row skills ok "$SKN well-formed · $NAMES"
+  note "installed where your agent looks — @references/install.md, then: bash $DIR/install.sh --apply <skills-dir>"
 fi
 
 # ── index: does the map still match the tree? ─────────────────────────────────
@@ -127,61 +104,29 @@ else
   fi
 fi
 
-# ── status line: configured, and its command resolves ────────────────────────
-# Which agents render one, and which file each reads it from, is the `status`
-# column of @references/targets.md — several spellings in the order the agent
-# itself reads them. A machine can hold several profiles of the same agent,
-# and a line configured in one nothing loads is correct and inert: the false
-# green this whole check exists to catch. targets.py reports the file in
-# force, never the first that happens to exist.
-SL_ROWS=$(python3 "$DIR/targets.py" statusline "$START" 2>/dev/null)
-if [ -z "$(printf '%s' "$SL_ROWS" | tr -d '[:space:]')" ]; then
-  row statusline off "no agent here renders one — the board does not need it"
-  fix "the same numbers, on demand: bash $DIR/statusline.sh <<< '{}'"
+# ── status line: does it render, for this board ──────────────────────────────
+# Where a status line is wired is the reader's setup and not this repo's
+# business — a config path here would be one agent's, and there is no list of
+# agents. What doctor can answer is the half that is ours: given this board,
+# does the script produce the line. A wired status line that renders nothing
+# and one that is not wired at all look identical in the terminal, and this
+# tells them apart.
+out=$(PRD_STATUS_JSON="{\"current_dir\":\"$START\"}" bash "$DIR/statusline.sh" 2>/dev/null)
+if [ -z "$out" ]; then
+  row statusline broken "$DIR/statusline.sh renders nothing for $START"
+  fix "run it directly and read the error: bash $DIR/statusline.sh <<< '{}'"
 else
-  while IFS=$'\t' read -r SL_AGENT SL_FILE SL_KEY SL_CMD; do
-    [ -n "$SL_AGENT" ] || continue
-    if [ -z "$SL_CMD" ]; then
-      row statusline off "$SL_AGENT · no $SL_KEY in $SL_FILE — the board numbers show nowhere"
-      fix "set $SL_KEY in $SL_FILE to: bash $DIR/statusline.sh"
-      continue
-    fi
-    # the command's script path: the token that IS the script, quotes dropped.
-    # Word-splitting first would turn a quoted interpreter path with a space
-    # ("C:/Program Files/...") into fragments and report the first fragment as
-    # a missing file — a working status line read as broken.
-    SL_PATH=$(printf '%s\n' $SL_CMD | tr -d '"' | grep -E '\.sh$' | head -1)
-    [ -z "$SL_PATH" ] && SL_PATH=$(printf '%s\n' $SL_CMD | tr -d '"' | grep -E '/' | head -1)
-    if [ -n "$SL_PATH" ] && [ ! -e "$SL_PATH" ]; then
-      if [ -L "$SL_PATH" ]; then
-        row statusline broken "$SL_AGENT · $SL_PATH -> $(readlink "$SL_PATH") · dead symlink"
-        fix "ln -sfn $DIR/statusline.sh $SL_PATH"
-        [ "$FIX" = 1 ] && ln -sfn "$DIR/statusline.sh" "$SL_PATH" && did "repointed $SL_PATH"
-      else
-        row statusline broken "$SL_AGENT · $SL_PATH does not exist · configured in $SL_FILE"
-        fix "point $SL_KEY at: bash $DIR/statusline.sh"
-      fi
-      continue
-    fi
-    out=$(PRD_STATUS_JSON="{\"current_dir\":\"$START\"}" bash "${SL_PATH:-$DIR/statusline.sh}" 2>/dev/null)
-    if [ -z "$out" ]; then
-      row statusline broken "$SL_AGENT · $SL_PATH renders nothing for $START"
-      fix "bash $DIR/statusline.sh — compare, per @references/install.md"
-      continue
-    fi
-    # strip colours AND the OSC-8 hyperlink, or the preview prints the URL
-    # sequence raw and reads as garbage
-    clean=$(printf '%s' "$out" | perl -pe 's/\e\]8;;[^\e]*\e\\//g; s/\e\[[0-9;]*m//g' 2>/dev/null \
-            || printf '%s' "$out" | sed 's/\x1b\[[0-9;]*m//g')
-    # the preview keeps the status line's two rows, so what doctor shows is
-    # shaped like what the terminal shows
-    row statusline ok "$SL_AGENT · $(printf '%s' "$clean" | head -1)"
-    # `|| [ -n "$l" ]`: the last line carries no newline, and a bare `read`
-    # returns false on it and drops it
-    printf '%s' "$clean" | tail -n +2 | while IFS= read -r l || [ -n "$l" ]; do
-      [ -n "$l" ] && note "$l"
-    done
-  done <<< "$SL_ROWS"
+  # strip colours AND the OSC-8 hyperlink, or the preview prints the URL
+  # sequence raw and reads as garbage
+  clean=$(printf '%s' "$out" | perl -pe 's/\e\]8;;[^\e]*\e\\//g; s/\e\[[0-9;]*m//g' 2>/dev/null \
+          || printf '%s' "$out" | sed 's/\x1b\[[0-9;]*m//g')
+  # the preview keeps the status line's two rows, so what doctor shows is
+  # shaped like what the terminal shows
+  row statusline ok "$(printf '%s' "$clean" | head -1)"
+  printf '%s' "$clean" | tail -n +2 | while IFS= read -r l || [ -n "$l" ]; do
+    [ -n "$l" ] && note "$l"
+  done
+  note "wire it where your setup runs a command for one — @references/install.md"
 fi
 
 # ── board: on the contract path, with settings ────────────────────────────────
@@ -229,7 +174,7 @@ fi
 # matters: the plan silently loses a whole project, and the board looks smaller
 # rather than broken.
 if [ -n "$BOARD" ] && grep -qE '^[[:space:]]*members:' "$BOARD/settings.md" 2>/dev/null; then
-  MEM=$(python3 "$DIR/view/plan.py" members "$BOARD" 2>/dev/null | grep .)
+  MEM=$(python3 "$DIR/board/plan.py" members "$BOARD" 2>/dev/null | grep .)
   NM=$(printf '%s\n' "$MEM" | grep -c . )
   MISS=$(printf '%s\n' "$MEM" | grep -c MISSING || true)
   NAMES=$(printf '%s\n' "$MEM" | awk '{print $1}' | tr '\n' ' ')
@@ -249,7 +194,7 @@ if [ -n "$BOARD" ] && grep -qE '^[[:space:]]*members:' "$BOARD/settings.md" 2>/d
     # the name is reported, never repaired: what a group of projects is called
     # is the user's call, and the first round that meets an unnamed master
     # board asks for it. Inference keeps the board working until then.
-    BNAME=$(python3 -c "import sys;sys.path.insert(0,'$DIR/view');import plan;print(plan.board_name('$BOARD'))" 2>/dev/null)
+    BNAME=$(python3 -c "import sys;sys.path.insert(0,'$DIR/board');import plan;print(plan.board_name('$BOARD'))" 2>/dev/null)
     if grep -qE '^[[:space:]]*name:' "$BOARD/settings.md" 2>/dev/null; then
       row members ok "$NM member board(s) · ${NAMES}· $MPRDS member PRDs planned here · name $BNAME"
     else
@@ -330,8 +275,8 @@ if [ -n "$BOARD" ]; then
   SRV=$(curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
   if [ -z "$SRV" ]; then
     row view off "not running — the board reads and plans without it"
-    fix "python3 $DIR/view/serve.py ensure $BOARD"
-    if [ "$FIX" = 1 ] && python3 "$DIR/view/serve.py" ensure "$BOARD" >/dev/null 2>&1; then
+    fix "python3 $DIR/board/serve.py ensure $BOARD"
+    if [ "$FIX" = 1 ] && python3 "$DIR/board/serve.py" ensure "$BOARD" >/dev/null 2>&1; then
       did "view service started"
     fi
   elif printf '%s' "$SRV" | grep -qF "\"$BOARD\"" \
@@ -341,8 +286,8 @@ if [ -n "$BOARD" ]; then
     row view ok "watching · http://127.0.0.1:$SRV_PORT/board/${BN:-?}"
   else
     row view broken "the service is up but this board is not registered"
-    fix "python3 $DIR/view/serve.py ensure $BOARD"
-    if [ "$FIX" = 1 ] && python3 "$DIR/view/serve.py" ensure "$BOARD" >/dev/null 2>&1; then
+    fix "python3 $DIR/board/serve.py ensure $BOARD"
+    if [ "$FIX" = 1 ] && python3 "$DIR/board/serve.py" ensure "$BOARD" >/dev/null 2>&1; then
       did "board registered"
     fi
   fi
@@ -357,7 +302,7 @@ if [ -n "$BOARD" ]; then
             "$BOARD/.plan.json" 2>/dev/null | head -1)
   if [ -z "$PLANNED" ]; then
     row plan off "no plan on record — the view has no bars until there is one"
-    fix "python3 $DIR/view/plan.py plan $BOARD"
+    fix "python3 $DIR/board/plan.py plan $BOARD"
   else
     row plan ok "planned $PLANNED"
   fi
@@ -370,8 +315,7 @@ if [ "$FIX" = 1 ] && [ "$REPAIRED" = 1 ]; then
   exec bash "$0" "$START"
 fi
 [ "$BROKEN" = 1 ] && echo "pearde: something is installed and not working — the fixes are above." && exit 1
-# `off` everywhere is not `ok`: an unwired repo works when run by hand and is
-# one command from being reached by name. Saying "wired" here would be the
-# false green the whole report exists to avoid.
-[ "$UNWIRED" = 1 ] && echo "pearde: nothing is broken, and no agent has been pointed at it yet." && exit 0
-echo "pearde: installed and wired."
+# What doctor cannot see is where the skills were installed — that is the
+# reader's setup, and @references/install.md is the step. So the last line
+# claims only what was checked.
+echo "pearde: every part this repo owns checks out."

@@ -9,7 +9,7 @@ never dispatched, invisible to the loop and to the progress line. It records
 what was decided and what it beat. @references/memo.md is the format. This
 file is its only reader, so the format has one home.
 
-Python 3 stdlib only. @resources/view/plan.py and @resources/view/serve.py
+Python 3 stdlib only. @resources/board/plan.py and @resources/board/serve.py
 import `scan` from here rather than growing a second frontmatter parser.
 """
 import os
