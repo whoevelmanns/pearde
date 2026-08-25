@@ -33,7 +33,7 @@ explains the rest.
 
 | keyword | is | read |
 |---|---|---|
-| `@@loop` | the round, start to finish | @references/parts/loop.md · @references/parts/roles.md · @references/parts/order.md · @references/parts/states.md · @references/parts/commits.md · @references/parts/progress.md |
+| `@@loop` | the round, start to finish | @skills/pearde.md · @references/parts/loop.md · @references/parts/roles.md · @references/parts/order.md · @references/parts/states.md · @references/parts/commits.md · @references/parts/progress.md |
 | `@@board` | what the scan walks and what it parses | @references/parts/board.md · @references/parts/contract.md · @references/parts/states.md · @references/templates/prd.md · @references/settings.md |
 | `@@states` | the nine states and what moves a PRD between them | @references/parts/states.md · @references/parts/contract.md · @references/parts/commits.md |
 | `@@order` | what runs next, and why no axis is a clock | @references/parts/order.md · @references/parts/derived.md · @resources/board/plan.py |
@@ -42,16 +42,16 @@ explains the rest.
 | `@@personas` | who is working, how one is chosen, consulted or made | @references/parts/personas.md · @references/personas/INDEX.md · @references/personas/engineer.md · @references/personas/designer.md · @references/personas/mentor.md · @references/personas/skeptic.md · @references/parts/roles.md · @references/parts/workers.md · @references/parts/progress.md |
 | `@@derived` | work the board found, and its tripwire | @references/parts/derived.md · @references/parts/order.md · @references/templates/prd.md |
 | `@@commits` | one PRD, one commit, on the transition that lands it | @references/parts/commits.md · @references/parts/states.md |
-| `@@memos` | recording a decision and checking it | @references/memo.md · @references/parts/memos.md · @references/templates/memo.md · @resources/memos.py |
-| `@@drill` | asking until the request is a contract | @references/drill.md · @references/templates/prd.md · @references/parts/handles.md |
+| `@@memos` | recording a decision and checking it | @skills/memo.md · @references/memo.md · @references/parts/memos.md · @references/templates/memo.md · @resources/memos.py |
+| `@@drill` | asking until the request is a contract | @skills/drill.md · @references/drill.md · @references/templates/prd.md · @references/parts/handles.md |
 | `@@handles` | every command the board answers to | @references/parts/handles.md · @references/parts/loop.md · @references/drill.md |
-| `@@view` | the live view — service, plan, render, writers | @references/parts/view.md · @resources/board/serve.py · @resources/board/plan.py · @resources/board/render.py · @resources/board/view.css · @resources/board/view.js · @resources/board/edit.py |
+| `@@view` | the live view — service, plan, render, writers | @skills/view.md · @references/parts/view.md · @resources/board/serve.py · @resources/board/plan.py · @resources/board/render.py · @resources/board/view.css · @resources/board/view.js · @resources/board/edit.py |
 | `@@progress` | the line printed on every state change | @references/parts/progress.md · @resources/statusline.sh · @references/parts/states.md |
 | `@@statusline` | the numbers rendered continuously in the terminal | @resources/statusline.sh · @references/parts/progress.md · @references/parts/personas.md · @references/install.md |
 | `@@install` | putting every skill where this agent finds it | @references/install.md · @SKILL.md · @resources/install.sh · @references/system.md · @references/parts/doctor.md · @resources/doctor.sh |
-| `@@skills` | the entry points, and what each one is a door to | @SKILL.md · @skills/pearde.md · @skills/scout.md · @skills/ask-persona.md · @references/install.md |
-| `@@doctor` | telling a broken install from an absent one | @references/parts/doctor.md · @resources/doctor.sh · @resources/index.py · @references/install.md |
-| `@@master` | one plan across several repos | @references/parts/master.md · @references/settings.md · @references/parts/board.md |
+| `@@skills` | the entry points, and what each one is a door to | @SKILL.md · @skills/pearde.md · @skills/drill.md · @skills/memo.md · @skills/view.md · @skills/master.md · @skills/doctor.md · @skills/ask-persona.md · @skills/scout.md · @references/install.md |
+| `@@doctor` | telling a broken install from an absent one | @skills/doctor.md · @references/parts/doctor.md · @resources/doctor.sh · @resources/index.py · @references/install.md |
+| `@@master` | one plan across several repos | @skills/master.md · @references/parts/master.md · @references/settings.md · @references/parts/board.md |
 | `@@settings` | every board-wide knob | @references/settings.md · @references/parts/contract.md |
 | `@@language` | how everything on the board is written | @references/language.md · @references/templates/prd.md · @references/templates/spec.md · @references/templates/memo.md |
 | `@@templates` | the three files a handle writes from | @references/templates/prd.md · @references/templates/spec.md · @references/templates/memo.md |
@@ -144,11 +144,20 @@ Every tracked file, one row.
 Frontmatter, and a body that points into `references/`. @references/install.md
 turns each into a folder of links wherever this agent looks.
 
-| anchor | is |
-|---|---|
-| @skills/pearde.md | the board — every handle, the loop, the workers |
-| @skills/scout.md | star-ranked discovery, and the passive quality gates |
-| @skills/ask-persona.md | one problem, one persona, no board and no state |
+One per feature. The cut follows the scopes above: a scope a person or an
+agent **invokes** gets a skill; a scope the loop **reads mid-task** stays a
+reference and is reached through `@@`.
+
+| anchor | is | scope |
+|---|---|---|
+| @skills/pearde.md | the round, and every handle that moves a PRD | `@@loop` |
+| @skills/drill.md | asking until the request is a contract | `@@drill` |
+| @skills/memo.md | recording a decision, and checking the record | `@@memos` |
+| @skills/view.md | the timeline, the order, and editing through it | `@@view` |
+| @skills/master.md | one plan across several repositories | `@@master` |
+| @skills/doctor.md | a broken install against an absent one | `@@doctor` |
+| @skills/ask-persona.md | one problem, one persona, no board and no state | `@@personas` |
+| @skills/scout.md | star-ranked discovery, and the quality gates | `@@scout` |
 
 #### `resources/scout/` — a self-contained tool
 
