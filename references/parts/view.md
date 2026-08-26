@@ -117,6 +117,12 @@ person.
 - A `blocked` PRD's wall renders the same way when it is written as a round.
   The heading is matched by prefix, so `## Blocked on a human with a browser`
   is the same section as `## Blocked`.
+- **Each question answers on its own.** `answer Q1` writes that one under
+  `## Answers` and leaves the rest of the round open. The PRD only goes back
+  to `open` when nothing in the round is left unanswered.
+- Which questions are already answered is read off `## Answers`, not
+  remembered by the page — a redraw, a reload and a second reader all agree,
+  and nothing is answered twice.
 - **"take the recommended"** picks the analyst's recommendation on every
   question that carries one and sends in the same click. It appears only when
   the round recommends something.

@@ -157,6 +157,12 @@ const file = served ? arg : path.resolve(arg);
           // every rendered round must offer a recommendation to take
           recWithoutButton: cards.filter(c =>
             c.querySelector(".qq .rec") && c.querySelector(".act.rec")?.hidden).length,
+          // every question answers on its own, and one already written back
+          // is marked rather than offered again
+          roundsMissingSend: [...document.querySelectorAll(".qq")].filter(q =>
+            !q.classList.contains("answered") && !q.querySelector(".qsend")).length,
+          answeredStillOffering: [...document.querySelectorAll(".qq.answered")]
+            .filter(q => q.querySelector(".qsend:not([disabled])")).length,
         };
       });
       checks.push(["no ask card failed to read its PRD", a.broken === 0,
@@ -165,6 +171,10 @@ const file = served ? arg : path.resolve(arg);
                    `${a.withPicks} of ${a.n} cards carry picks`]);
       checks.push(["a recommended round offers the one-click take",
                    a.recWithoutButton === 0, ""]);
+      checks.push(["every open question has its own submit",
+                   a.roundsMissingSend === 0, ""]);
+      checks.push(["an answered question is not offered again",
+                   a.answeredStillOffering === 0, ""]);
     }
   }
 

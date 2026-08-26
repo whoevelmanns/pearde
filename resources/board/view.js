@@ -1614,7 +1614,10 @@ function questionsHTML(qs, prefix) {
       '<label class="opt own"><span class="ohd"><input type="radio" name="' +
       name + '" value="own"><span class="ot">your own answer</span></span>' +
       '<textarea placeholder="in your words — typing here picks this"></textarea>' +
-      "</label></div>";
+      "</label>" +
+      '<div class="qfoot"><button class="act qsend" data-qi="' + i +
+      '">answer ' + esc(q.id) + '</button>' +
+      '<span class="qdone">answered</span></div></div>';
   }).join("");
 }
 
@@ -1628,7 +1631,7 @@ function takeRecommended(root) {
   }
 }
 
-function wireQuestions(root) {
+function wireQuestions(root, qs, send) {
   // typing an own answer is picking it — nobody types a sentence they do not
   // mean, and forcing the radio first loses the first keystroke
   for (const ta of root.querySelectorAll(".qq .opt.own textarea"))
@@ -1636,6 +1639,54 @@ function wireQuestions(root) {
       const r = ta.closest(".opt").querySelector("input");
       if (ta.value.trim()) r.checked = true;
     });
+  if (!send) return;
+  // each question answers on its own. The round only reopens the PRD once
+  // nothing in it is left unanswered — answering Q1 must not lose Q2.
+  root.querySelectorAll(".qq .qsend").forEach(btn => {
+    btn.onclick = async () => {
+      const el = btn.closest(".qq");
+      const i = +btn.dataset.qi;
+      const text = answerText(el, qs[i]);
+      if (!text) { toast("Pick an answer or write one", true); return; }
+      btn.disabled = true;
+      const ok = await send("**" + qs[i].id + "** — " + text, () =>
+        [...root.querySelectorAll(".qq")].every(x =>
+          x === el || x.classList.contains("answered")));
+      btn.disabled = false;
+      if (ok) markAnswered(el);
+    };
+  });
+}
+
+/* Which questions are already answered is on disk, not in this page: an
+   answer writes `**Q1** — …` under `## Answers`. Reading it back means a
+   redraw, a reload and a second reader all agree, and nothing is answered
+   twice. */
+function markAnsweredFrom(root, qs, answers) {
+  if (!answers) return;
+  const done = new Set();
+  const re = /^\s*\*\*(Q?[\w-]+)\*\*/gim;
+  let m;
+  while ((m = re.exec(answers))) done.add(m[1].toUpperCase());
+  root.querySelectorAll(".qq").forEach((el, i) => {
+    const id = (qs[i] && qs[i].id || el.dataset.qid || "").toUpperCase();
+    if (done.has(id)) markAnswered(el);
+  });
+}
+
+function markAnswered(el) {
+  el.classList.add("answered");
+  for (const inp of el.querySelectorAll("input, textarea, button"))
+    inp.disabled = true;
+}
+
+function answerText(el, q) {
+  const pick = el.querySelector("input:checked");
+  if (!pick) return "";
+  if (pick.value === "own")
+    return el.querySelector(".opt.own textarea").value.trim();
+  const o = q.opts[+pick.value];
+  return (o.label && o.text !== o.label ? o.label + " — " : "") + o.text;
 }
 
 function collectAnswers(root, qs) {
@@ -1644,16 +1695,9 @@ function collectAnswers(root, qs) {
   const out = [];
   root.querySelectorAll(".qq").forEach((el, i) => {
     const q = qs[i];
-    const pick = el.querySelector("input:checked");
-    if (!pick) return;
-    let text;
-    if (pick.value === "own") {
-      text = el.querySelector(".opt.own textarea").value.trim();
-      if (!text) return;
-    } else {
-      const o = q.opts[+pick.value];
-      text = (o.label && o.text !== o.label ? o.label + " — " : "") + o.text;
-    }
+    if (el.classList.contains("answered")) return;   // already written
+    const text = answerText(el, q);
+    if (!text) return;
     out.push("**" + q.id + "** — " + text);
   });
   return out.join("\n\n");
@@ -1763,7 +1807,8 @@ function drawBody() {
         '<button id="danswer">answer &amp; reopen</button>' +
         (dQs && dQs.some(x => x.opts.some(o => o.rec))
           ? '<button id="drec">take the recommended</button>' : "") +
-        '<span class="hint">writes ## Answers, sets state open</span></div></div>';
+        '<span class="hint">writes ## Answers, reopens once the round is ' +
+        'answered</span></div></div>';
     const ans = section(d.body, "Answers");
     if (ans && t.state !== "question")
       h += "<h4>answers</h4><pre class=sec>" + esc(ans) + "</pre>";
@@ -1806,7 +1851,11 @@ function drawBody() {
   const ansBtn = $("danswer");
   if (ansBtn) {
     const askEl = ansBtn.closest(".ask");
-    if (dQs) wireQuestions(askEl);
+    if (dQs) {
+      markAnsweredFrom(askEl, dQs, section(d.body, "Answers"));
+      wireQuestions(askEl, dQs, (text, isLast) =>
+        answerOne(dTask.rel, text, isLast()));
+    }
     const send = () => answer(dTask.rel,
       dQs ? collectAnswers(askEl, dQs) : $("dsay").value);
     ansBtn.onclick = send;
@@ -1827,6 +1876,27 @@ function drawBody() {
     if (el) el.oninput = () => { dDirty = true; $("dmsg").textContent = "unsaved"; };
   }
   $("dtitle").oninput = () => { dDirty = true; $("dmsg").textContent = "unsaved"; };
+}
+
+/* One question of a round, written on its own. The PRD reopens only on the
+   last one — answering Q1 must not set the PRD `open` and take Q2 off the
+   asks view with it. */
+async function answerOne(rel, text, last) {
+  const body = {append: text, heading: "Answers"};
+  if (last) body.fm = {state: "open"};
+  const out = await save(rel, body);
+  toast(out.error ? "Not saved — " + out.error
+        : last ? "Answered — " + rel.split("/").pop() + " is open again"
+               : "Answered — the rest of the round still waits",
+        !!out.error);
+  if (out.error) return false;
+  prdCache.delete(rel);
+  if (last) {
+    const row = allByRel.get(rel);
+    if (row) row.state = "open";              // optimistic, until /data lands
+    refresh();
+  }
+  return true;
 }
 
 /* the one write the board is waiting for */
@@ -2095,7 +2165,8 @@ async function drawAsks() {
       '</button>' + '<button class="act rec" hidden>take the ' +
         'recommended</button>' + (blocked
         ? '<button class="act reopen">just reopen</button>' : "") +
-      '<span class="hint">writes ## Answers · sets state open</span>' +
+      '<span class="hint">writes ## Answers · reopens once the round is ' +
+      'answered</span>' +
       "</div></div>"
         : '<div class="foot"><span class="hint">read-only — open this board ' +
           "through the service to answer here</span></div>") + "</div>";
@@ -2153,7 +2224,17 @@ async function drawAsks() {
         holder.className = "qs";
         holder.innerHTML = questionsHTML(cardQs, "aq-" + esc(rel));
         q.after(holder);
-        wireQuestions(holder);
+        markAnsweredFrom(holder, cardQs, section(d.body, "Answers"));
+        wireQuestions(holder, cardQs, async (text, isLast) => {
+          const last = isLast();
+          const ok = await answerOne(rel, text, last);
+          if (ok && last) {
+            card.classList.add("gone");
+            setTimeout(() => { if (view === "asks") drawAsks(); },
+                       reduced ? 0 : 280);
+          }
+          return ok;
+        });
         if (box) box.style.display = "none";
         // every question the analyst recommended an answer to, in one click
         const rec = card.querySelector(".act.rec");
