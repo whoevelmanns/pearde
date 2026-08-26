@@ -1605,6 +1605,16 @@ function questionsHTML(qs, prefix) {
   }).join("");
 }
 
+/* Check the recommended option on every question that has one. The radios
+   render pre-checked, so this only matters after a reader has changed some —
+   and it is the one click that says "the analyst was right". */
+function takeRecommended(root) {
+  for (const qq of root.querySelectorAll(".qq")) {
+    const rec = qq.querySelector(".opt .rec");
+    if (rec) rec.closest(".opt").querySelector("input").checked = true;
+  }
+}
+
 function wireQuestions(root) {
   // typing an own answer is picking it — nobody types a sentence they do not
   // mean, and forcing the radio first loses the first keystroke
@@ -1738,6 +1748,8 @@ function drawBody() {
                'numbered to match"></textarea>') +
         '<div class="row2">' +
         '<button id="danswer">answer &amp; reopen</button>' +
+        (dQs && dQs.some(x => x.opts.some(o => o.rec))
+          ? '<button id="drec">take the recommended</button>' : "") +
         '<span class="hint">writes ## Answers, sets state open</span></div></div>';
     const ans = section(d.body, "Answers");
     if (ans && t.state !== "question")
@@ -1782,8 +1794,11 @@ function drawBody() {
   if (ansBtn) {
     const askEl = ansBtn.closest(".ask");
     if (dQs) wireQuestions(askEl);
-    ansBtn.onclick = () => answer(dTask.rel,
+    const send = () => answer(dTask.rel,
       dQs ? collectAnswers(askEl, dQs) : $("dsay").value);
+    ansBtn.onclick = send;
+    const recBtn = $("drec");
+    if (recBtn) recBtn.onclick = () => { takeRecommended(askEl); send(); };
   }
   const noteBtn = $("dnoteadd");
   if (noteBtn) noteBtn.onclick = async () => {
@@ -2051,7 +2066,12 @@ async function drawAsks() {
         esc(r.title || r.name) + "</div>" +
       '<div class="rel">' + esc(r.rel) + (r.board ? " · " + esc(r.board) : "") +
         " · p" + r.prio + (t.critical ? " · ★ critical" : "") +
-        (r.weight ? " · " + fmtW(r.weight) : "") + "</div></div>" +
+        (r.weight ? " · " + fmtW(r.weight) : "") +
+        // what answering it releases: the reason to take this one first
+        (t.unblocks ? " · unblocks " + fmtW(t.unblocks) +
+          (t.downstream ? " · " + t.downstream + " PRD" +
+            (t.downstream === 1 ? "" : "s") : "") : "") +
+        "</div></div>" +
       '<span class="flag' + (blocked ? " blocked" : "") + '">' +
         (blocked ? "blocked" : "question") + "</span></div>" +
       '<div class="q skel">reading the PRD…</div>' +
@@ -2059,22 +2079,24 @@ async function drawAsks() {
         (blocked ? "what unblocks it — this goes in as the answer"
                  : "the answer — numbered to match") + '"></textarea>' +
       '<div class="row2"><button class="act send primary">answer &amp; reopen' +
-      '</button>' + (blocked
+      '</button>' + (blocked ? "" : '<button class="act rec" hidden>take the ' +
+        'recommended</button>') + (blocked
         ? '<button class="act reopen">just reopen</button>' : "") +
       '<span class="hint">writes ## Answers · sets state open</span>' +
       "</div></div>"
         : '<div class="foot"><span class="hint">read-only — open this board ' +
           "through the service to answer here</span></div>") + "</div>";
   }).join("");
-  for (const card of el.querySelectorAll(".ask2")) {
+  el.querySelectorAll(".ask2").forEach((card, ci) => {
     const rel = card.dataset.rel;
+    const blocked = asks[ci].state === "blocked";
     const box = card.querySelector("textarea");
     const send = card.querySelector(".send");
     if (!SERVED) {
       card.querySelector(".q").textContent =
         "the question is in the PRD — open this board through the service to " +
         "read and answer it here";
-      continue;
+      return;
     }
     let cardQs = null;                    // parsed round, once the PRD loads
     const fire = async only => {
@@ -2100,6 +2122,13 @@ async function drawAsks() {
     // an own-answer box per question — and the card's one textarea goes
     // away: the options carry their own
     fetchPrd(rel).then(d => {
+      // the frontmatter the payload does not carry, the way the inspector
+      // shows it — what breaks if this is answered wrong
+      const blast = d.fm && d.fm["blast-radius"];
+      if (blast) {
+        const line = card.querySelector(".rel");
+        if (line) line.textContent += " · " + blast + " blast";
+      }
       const q = card.querySelector(".q");
       const qtxt = section(d.body, "Questions");
       cardQs = blocked ? null : parseQuestions(qtxt);
@@ -2112,16 +2141,24 @@ async function drawAsks() {
         q.after(holder);
         wireQuestions(holder);
         if (box) box.style.display = "none";
+        // every question the analyst recommended an answer to, in one click
+        const rec = card.querySelector(".act.rec");
+        if (rec && cardQs.some(x => x.opts.some(o => o.rec))) {
+          rec.hidden = false;
+          rec.onclick = () => { takeRecommended(holder); fire(); };
+        }
         return;
       }
       const txt = qtxt || section(d.body, "Blocked") ||
         section(d.body, "Notes") || (d.body || "").slice(0, 700);
       q.textContent = txt || "(the PRD says nothing yet)";
-    }).catch(() => {
+    }).catch(err => {
+      // say which PRD and why — a bare "could not read" hides the cause
+      console.error("asks: " + rel + " — " + (err && err.message || err));
       const q = card.querySelector(".q");
-      q.textContent = "could not read the PRD";
+      q.textContent = "could not read the PRD — " + (err && err.message || err);
     });
-  }
+  });
 }
 
 /* ── list ──────────────────────────────────────────────────────────────── */

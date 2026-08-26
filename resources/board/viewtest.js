@@ -139,6 +139,27 @@ const file = served ? arg : path.resolve(arg);
     }, v);
     checks.push([`view "${v}" switches clean`, errors.length === before && shown,
                  errors.slice(before).join(" | ") || (shown ? "" : "section not shown")]);
+    // asks reads each PRD over the wire and renders its round as picks. A card
+    // that could not read, or a parsed round showing no options, is the view
+    // degrading quietly — which is exactly what it used to do.
+    if (v === "asks") {
+      await page.waitForTimeout(900);
+      const a = await page.evaluate(() => {
+        const cards = [...document.querySelectorAll(".ask2")];
+        return {
+          n: cards.length,
+          broken: cards.filter(c => /could not read the PRD/.test(c.textContent)).length,
+          questionCards: cards.filter(c => !/blocked/.test(
+            c.querySelector(".flag")?.textContent || "")).length,
+          withPicks: cards.filter(c => c.querySelector(".qq .opt")).length,
+        };
+      });
+      checks.push(["no ask card failed to read its PRD", a.broken === 0,
+                   `${a.broken} of ${a.n}`]);
+      checks.push(["every question card renders its picks",
+                   a.withPicks === a.questionCards,
+                   `${a.withPicks} of ${a.questionCards}`]);
+    }
   }
 
   // --snap <dir> writes each view's DOM; --check <dir> compares against it.

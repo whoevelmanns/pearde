@@ -114,8 +114,12 @@ person.
   picks under `## Answers` (`**Q1** — <text>`) and sets it `open`. A
   `## Questions` section not in @references/drill.md's format falls back to
   raw text and a free textarea.
+- **"take the recommended"** picks the analyst's recommendation on every
+  question that carries one and sends in the same click. It appears only when
+  the round recommends something.
 - The **asks** view is that same round for every waiting PRD at once (⌘⏎
-  sends).
+  sends). It renders exactly what the inspector renders — the same picks, the
+  same prose, the same buttons — because both build from the same parse.
 - `+ PRD` (or `n`) writes a new one.
 - Every write goes through @resources/board/edit.py: one line at a time,
   atomically, frontmatter and body never in the same write.
