@@ -114,6 +114,9 @@ person.
   picks under `## Answers` (`**Q1** — <text>`) and sets it `open`. A
   `## Questions` section not in @references/drill.md's format falls back to
   raw text and a free textarea.
+- A `blocked` PRD's wall renders the same way when it is written as a round.
+  The heading is matched by prefix, so `## Blocked on a human with a browser`
+  is the same section as `## Blocked`.
 - **"take the recommended"** picks the analyst's recommendation on every
   question that carries one and sends in the same click. It appears only when
   the round recommends something.

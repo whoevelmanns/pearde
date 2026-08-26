@@ -1529,6 +1529,19 @@ const HOLDS = [() => dDirty];
 window.__pearde_hold = () => HOLDS.some(f => f());
 
 // one `## Heading` section out of a body, ending at the next heading
+/* The wall's heading is written by whoever hit it — `## Blocked on a human
+   with a browser` is the same section as `## Blocked`. Matched by prefix, so
+   only the exact-name lookups stay strict. */
+function sectionLike(body, prefix) {
+  const re = new RegExp("^##\\s+" + prefix + "\\b[^\\n]*$", "im");
+  const m = re.exec(body || "");
+  if (!m) return "";
+  const rest = body.slice(m.index + m[0].length);
+  const nxt = rest.search(/^##\s+/m);
+  return (nxt < 0 ? rest : rest.slice(0, nxt))
+    .replace(/<!--[\s\S]*?-->/g, "").trim();
+}
+
 function section(body, name) {
   const re = new RegExp("^##\\s+" + name + "\\s*$", "im");
   const m = re.exec(body || "");
@@ -2079,8 +2092,8 @@ async function drawAsks() {
         (blocked ? "what unblocks it — this goes in as the answer"
                  : "the answer — numbered to match") + '"></textarea>' +
       '<div class="row2"><button class="act send primary">answer &amp; reopen' +
-      '</button>' + (blocked ? "" : '<button class="act rec" hidden>take the ' +
-        'recommended</button>') + (blocked
+      '</button>' + '<button class="act rec" hidden>take the ' +
+        'recommended</button>' + (blocked
         ? '<button class="act reopen">just reopen</button>' : "") +
       '<span class="hint">writes ## Answers · sets state open</span>' +
       "</div></div>"
@@ -2130,8 +2143,9 @@ async function drawAsks() {
         if (line) line.textContent += " · " + blast + " blast";
       }
       const q = card.querySelector(".q");
-      const qtxt = section(d.body, "Questions");
-      cardQs = blocked ? null : parseQuestions(qtxt);
+      const qtxt = section(d.body, "Questions") ||
+        (blocked ? sectionLike(d.body, "Blocked") : "");
+      cardQs = parseQuestions(qtxt);
       q.classList.remove("skel");
       if (cardQs) {
         q.style.display = "none";
@@ -2149,7 +2163,7 @@ async function drawAsks() {
         }
         return;
       }
-      const txt = qtxt || section(d.body, "Blocked") ||
+      const txt = qtxt || sectionLike(d.body, "Blocked") ||
         section(d.body, "Notes") || (d.body || "").slice(0, 700);
       q.textContent = txt || "(the PRD says nothing yet)";
     }).catch(err => {

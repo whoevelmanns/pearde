@@ -149,16 +149,22 @@ const file = served ? arg : path.resolve(arg);
         return {
           n: cards.length,
           broken: cards.filter(c => /could not read the PRD/.test(c.textContent)).length,
-          questionCards: cards.filter(c => !/blocked/.test(
-            c.querySelector(".flag")?.textContent || "")).length,
           withPicks: cards.filter(c => c.querySelector(".qq .opt")).length,
+          // a round that parsed but rendered no options is the failure mode:
+          // a card showing an empty question block answers nothing
+          emptyRounds: cards.filter(c =>
+            c.querySelector(".qq") && !c.querySelector(".qq .opt")).length,
+          // every rendered round must offer a recommendation to take
+          recWithoutButton: cards.filter(c =>
+            c.querySelector(".qq .rec") && c.querySelector(".act.rec")?.hidden).length,
         };
       });
       checks.push(["no ask card failed to read its PRD", a.broken === 0,
                    `${a.broken} of ${a.n}`]);
-      checks.push(["every question card renders its picks",
-                   a.withPicks === a.questionCards,
-                   `${a.withPicks} of ${a.questionCards}`]);
+      checks.push(["no card renders a round with no options", a.emptyRounds === 0,
+                   `${a.withPicks} of ${a.n} cards carry picks`]);
+      checks.push(["a recommended round offers the one-click take",
+                   a.recWithoutButton === 0, ""]);
     }
   }
 
