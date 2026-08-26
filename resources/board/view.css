@@ -743,3 +743,11 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
 #tip .r{color:var(--ink2)}
 #tip .k{color:var(--ink3)}
 #tip .warn{color:var(--warn)}
+
+/* a seam is nothing until a board registers an element for it — no wrapper,
+   no gap, no box on a page that extends nothing */
+.seam:empty{display:none}
+.seam{display:block}
+#seam-sidebar{position:fixed;right:12px;bottom:12px;z-index:20;
+  display:flex;flex-direction:column;gap:8px;max-width:300px}
+#seam-sidebar:empty{display:none}

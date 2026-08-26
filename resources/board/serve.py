@@ -194,10 +194,15 @@ def lane_digest(path):
 
 def digest(path):
     """(rel, mtime, size) over every .md under the board — prd.md, specs,
-    memos, settings — and under every member board when this is a master: the
-    master's plan is a function of their states, so a change there is a change
-    here. The map file and the rendered gantt are ours and excluded, or every
-    sync would trigger the next."""
+    memos, settings — plus the board's own `view.user.css` and `view.user.js`,
+    and the same under every member board when this is a master: the master's
+    plan is a function of their states, so a change there is a change here.
+    The map file and the rendered gantt are ours and excluded, or every sync
+    would trigger the next.
+
+    A user asset is board content, not skill source — it belongs here rather
+    than in SOURCES, so editing one reloads the page without re-execing the
+    daemon."""
     rows = []
     roots = [path] + member_paths(path)
     mdir, external = memoslib.memos_dir(path)
@@ -207,7 +212,8 @@ def digest(path):
         for root, dirs, files in os.walk(base):
             dirs[:] = [d for d in dirs if not d.startswith(".")]
             for f in files:
-                if f.endswith(".md"):
+                if f.endswith(".md") or (root == base and f in (
+                        renderlib.USER_CSS, renderlib.USER_JS)):
                     fp = os.path.join(root, f)
                     try:
                         st = os.stat(fp)
@@ -361,6 +367,11 @@ def restart(stamp):
     if source_stamp() != stamp:
         return                        # still moving; the next tick finds it
     for p in SOURCES:
+        # only the Python is compile-checked. The page's .css and .js are in
+        # SOURCES so that editing one changes the boot stamp and every open
+        # page reloads — they are not Python and never compile.
+        if not p.endswith(".py"):
+            continue
         try:
             with open(p, "rb") as fh:
                 compile(fh.read(), p, "exec")
@@ -590,7 +601,7 @@ class Handler(BaseHTTPRequestHandler):
                        .replace("__BOOT__", BOOT))
             # into the head: the page's own script reads __BOARD/__BASE at
             # module level, so they have to exist before it runs
-            html = (renderlib.render(payload)
+            html = (renderlib.render(payload, b.path)
                     .replace("</head>", head + "</head>")
                     .replace("</body>", live + "</body>"))
             return self.reply(200, html, "text/html; charset=utf-8")

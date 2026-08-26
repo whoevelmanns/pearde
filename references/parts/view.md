@@ -152,3 +152,105 @@ prds/.plan.json
 prds/.history.jsonl
 prds/.view.html
 ```
+
+**Extending it.** A board styles and scripts its own view. Two optional files
+at the board root, inlined into the page after everything the skill ships:
+
+| file                 | is                                              |
+|----------------------|-------------------------------------------------|
+| `prds/view.user.css` | rules that win the cascade over the skill's own  |
+| `prds/view.user.js`  | a script that runs against a built page          |
+
+- They belong to the **board**, never to the skill — a skill upgrade leaves
+  them untouched, and two boards extend differently.
+- A board with neither renders exactly what it renders without this.
+- Editing either reloads the open page within about a second. They are board
+  content, so the daemon never re-execs for them.
+- A `</style>` or `</script>` inside one is escaped, not honoured.
+- Gitignore them with the rest, or commit them — the board's call.
+
+`window.pearde` is what a script may use. Nothing else is a contract:
+
+| member      | is                                                       |
+|-------------|----------------------------------------------------------|
+| `data`      | the enriched payload the page is drawing, `cpm` included  |
+| `board`     | the board key this page was rendered for                  |
+| `refresh()` | re-fetch the payload and swap it in place                 |
+| `apply(p)`  | swap a payload in without fetching                        |
+| `onHold(f)` | hold live updates while `f()` returns true                |
+
+```js
+// prds/view.user.js — pause the live swap while a dialog of your own is open
+pearde.onHold(() => document.body.classList.contains("my-dialog-open"));
+```
+
+**Your own element in the page.** `view.user.js` is a module, and Lit ships
+with the view, so a board writes a component and the page renders it. The
+browser owns that contract — there is no plugin API to learn beyond where an
+element goes.
+
+| seam        | where it renders                         |
+|-------------|------------------------------------------|
+| `toolbar`   | under the numbers, above the view         |
+| `sidebar`   | floating at the bottom right of the page  |
+| `inspector` | inside the PRD panel, above its buttons   |
+
+- `pearde.slot(name, tag)` renders one registered element into one seam.
+- Every slotted element gets the payload as its `data` property, updated on
+  every live swap.
+- A seam with nothing registered renders nothing — no wrapper, no gap.
+- An unknown seam name is ignored, never an error.
+- Registering after the page has painted works.
+
+```js
+// prds/view.user.js — a panel of your own, fed by the board
+import { LitElement, html } from "lit";
+
+class BoardAge extends LitElement {
+  static properties = { data: {} };
+  render() {
+    return html`<b>${this.data?.all?.length ?? 0} PRDs</b>`;
+  }
+}
+customElements.define("board-age", BoardAge);
+pearde.slot("sidebar", "board-age");
+```
+
+**Replacing a whole view.** A custom element name is unique per document, so
+a board cannot define its own `pearde-list` over the page's. It registers an
+element of its own and takes the view instead:
+
+```js
+// prds/view.user.js — this board draws its own list
+import { LitElement, html } from "lit";
+class MyList extends LitElement {
+  static properties = { data: {} };
+  createRenderRoot() { return this; }
+  render() { return html`<div>${this.data.all.length} PRDs</div>`; }
+}
+customElements.define("my-list", MyList);
+pearde.replace("list", "my-list");
+```
+
+- `board`, `asks`, `list`, `analytics` and `memos` can be replaced. The
+  timeline cannot — it is a canvas the plan arithmetic draws.
+- The page stops drawing a view it has handed over.
+- A replaced view gets the payload as `data` on every swap, like a seam.
+- An unreplaceable name is ignored, never an error.
+
+**Checking a change.** `node @resources/board/viewtest.js prds/.view.html`
+opens the rendered page in a real browser and reports what it built — Lit
+bound, every seam, every view. It needs `playwright-core` installed where you
+run it, and exits 2 saying so when it is absent.
+
+`--snap <dir>` writes every view's markup and text. `--check <dir>` compares
+against it, so a change to how a view is built is provable rather than
+eyeballed — the text a reader sees must not move.
+
+Give it the served URL as well as the file — `node @resources/board/viewtest.js
+http://127.0.0.1:8443/board/<name>`. They are different code paths, and a page
+that is correct as a file can be broken as a service.
+
+It compares a page against a board in a known state. A PRD that moved changes
+what the views draw, and every check fails for that reason alone. Snapshot the
+board, change the code, compare — never across a round.

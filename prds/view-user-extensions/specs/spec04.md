@@ -14,15 +14,15 @@ table, a rule set is bullets, no paragraph that is not an argument.
 
 ## Acceptance
 
-- [ ] `references/parts/view.md` names `view.user.css` and `view.user.js`,
+- [x] `references/parts/view.md` names `view.user.css` and `view.user.js`,
       and says they live on the board
-- [ ] It carries the `window.pearde` member table
-- [ ] It states the load order — user files after core
-- [ ] It states that the files are the board's and survive a skill upgrade
-- [ ] No sentence joins two thoughts with a semicolon or a comma
-- [ ] No line over 82 characters outside a table or a code fence
-- [ ] `resources/index.py check` exits 0
-- [ ] `resources/doctor.sh` exits 0
+- [x] It carries the `window.pearde` member table
+- [x] It states the load order — user files after core
+- [x] It states that the files are the board's and survive a skill upgrade
+- [x] No sentence joins two thoughts with a semicolon or a comma
+- [x] No line over 82 characters outside a table or a code fence
+- [x] `resources/index.py check` exits 0
+- [x] `resources/doctor.sh` exits 0
 
 ## Verify and Proof
 

@@ -32,8 +32,10 @@ the page draws and the numbers an agent reads out of it are the same numbers.
 plan.py builds the payload — it owns the scan, the map and the settings. This
 module enriches it, renders it and writes it.
 """
+import base64
 import json
 import os
+import re
 
 VIEW_FILE = ".view.html"
 
@@ -242,21 +244,66 @@ def asset(name):
         return fh.read()
 
 
-def render(payload):
+LIT_FILE = "lit-core.min.js"
+USER_CSS = "view.user.css"
+USER_JS = "view.user.js"
+
+
+def lit_map():
+    """Lit as an import map, inlined. The page opens over `file://` with no
+    network, so the module is carried as a data: URL rather than fetched. The
+    name it binds is `lit`, so a board's own `view.user.js` imports it exactly
+    as any Lit code does."""
+    src = asset(LIT_FILE).encode("utf-8")
+    url = "data:text/javascript;base64," + base64.b64encode(src).decode("ascii")
+    return ('<script type="importmap">'
+            + json.dumps({"imports": {"lit": url}})
+            + "</script>")
+
+
+def user_asset(board, name):
+    """A board's own stylesheet or script, or "". It lives on the board, not
+    in this skill, so it survives a skill upgrade and differs per board."""
+    if not board:
+        return ""
+    try:
+        with open(os.path.join(board, name), encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return ""
+
+
+def untag(text, tag):
+    """`</script` inside the text would close the tag it is inlined into.
+    `<\\/` is the same character sequence to both a JS string and a CSS
+    escape, so the page reads what the author wrote."""
+    return re.sub(r"</(?=%s)" % tag, r"<\\/", text, flags=re.I)
+
+
+def render(payload, board=None):
     p = enrich(payload)
     data = json.dumps(p, sort_keys=True).replace("</", "<\\/")
     # the assets first: `let DATA = __PAYLOAD__` lives inside view.js
-    return (TEMPLATE
+    html = (TEMPLATE
+            .replace("__LIT__", lit_map())
             .replace("__CSS__", asset("view.css"))
             .replace("__JS__", asset("view.js"))
             .replace("__TITLE__", p["board"])
             .replace("__PAYLOAD__", data))
+    # the board's own last, so a user rule wins the cascade and a user script
+    # sees a built page. A module, so it can `import ... from "lit"` the way
+    # the page itself does.
+    css, js = user_asset(board, USER_CSS), user_asset(board, USER_JS)
+    tail = ((f"<style>\n{untag(css, 'style')}\n</style>\n" if css else "")
+            + (f'<script type="module">\n{untag(js, "script")}\n</script>\n'
+               if js else ""))
+    return html.replace("</body>", tail + "</body>") if tail else html
 
 
 def write(board, payload):
     path = os.path.join(board, VIEW_FILE)
     with open(path, "w", encoding="utf-8") as f:
-        f.write(render(payload))
+        f.write(render(payload, board))
     return path
 
 
@@ -299,6 +346,7 @@ TEMPLATE = r"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>__TITLE__ — plan</title>
+<link rel="icon" href="data:,">
 <style>
 __CSS__</style>
 </head>
@@ -328,6 +376,7 @@ __CSS__</style>
   </div>
 </header>
 <div id="statsbar"><span id="stats"></span><span id="inview"></span></div>
+<div class="seam" id="seam-toolbar"></div>
 <div id="purpose"></div>
 <div class="bar-controls" id="tcontrols">
   <span class="seg">
@@ -359,23 +408,23 @@ __CSS__</style>
     </div>
     <div id="empty"></div>
   </div>
-  <aside id="land" aria-label="waiting to land in main"></aside>
+  <pearde-frontier id="land" aria-label="waiting to land in main"></pearde-frontier>
 </div>
 <div id="legend"></div>
 <div id="note"></div>
 </section>
-<section data-view="board"><div id="board"></div></section>
+<section data-view="board"><pearde-board id="board"></pearde-board></section>
 <section data-view="asks"><div id="asks"></div></section>
 <section data-view="list">
   <div id="listbar"><input type="search" id="lq" placeholder="filter  /">
     <span class="tokens" id="ltokens"></span>
     <span class="n" id="lcount"></span></div>
-  <div id="list"></div>
+  <pearde-list id="list"></pearde-list>
 </section>
 <section data-view="analytics">
   <div id="tiles"></div><div id="charts"></div>
 </section>
-<section data-view="memos"><div id="memos"></div></section>
+<section data-view="memos"><pearde-memos id="memos"></pearde-memos></section>
 <div id="newbox"><div class="card2">
   <h3>a new PRD</h3>
   <input type="text" id="ntitle" placeholder="title — what exists when this is done">
@@ -389,6 +438,7 @@ __CSS__</style>
 </div></div>
 <div id="tip"></div>
 <div id="toast" role="status" aria-live="polite"></div>
+<div class="seam" id="seam-sidebar"></div>
 <aside id="drawer">
   <div id="dhead">
     <div class="who">
@@ -398,13 +448,15 @@ __CSS__</style>
     <button id="dclose" title="close (Esc)">✕</button>
   </div>
   <div id="dbody"></div>
+  <div class="seam" id="seam-inspector"></div>
   <div id="dsave">
     <button class="go" id="dgo">save</button>
     <button id="drevert">revert</button>
     <span class="msg" id="dmsg"></span>
   </div>
 </aside>
-<script>
+__LIT__
+<script type="module">
 __JS__</script>
 </body>
 </html>

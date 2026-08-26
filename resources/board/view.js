@@ -1,3 +1,4 @@
+import { LitElement, html, css } from "lit";
 "use strict";
 /* ═══════════════════════════════════════════════════════════════════════════
    The page has one datum — the enriched payload — and five readings of it,
@@ -1102,104 +1103,130 @@ function setMode(next) {
                  finished. In flight underneath it: lanes still being worked
 
    Nothing is truncated here; the column scrolls.                            */
+/* ── the frontier column, as an element ───────────────────────────────────
+   What to do next: finished work to collect, the dispatch frontier, and the
+   lanes main has not seen. A custom element rather than a string of HTML, so
+   a board can register its own for the same job.
+
+   Light DOM, not shadow. view.css carries 41 rules aimed at `#land .cap`,
+   `#land .lrow` and their kin, and the stylesheet is the only place a colour
+   is written down. A shadow root would cut every one of them off. */
+class PeardeFrontier extends LitElement {
+  static properties = { data: {}, cpm: {}, open: { type: Boolean } };
+  createRenderRoot() { return this; }
+
+  cap(label, n, dest, why, hue) {
+    return html`<button class="cap" data-go=${JSON.stringify(dest)} title=${why}
+      >${label}<span class="n ${hue && n ? "on" : ""}">${n}</span></button>`;
+  }
+  // the state mark: `st` carries the ink, `stRing` decides outline or fill
+  mark(st) {
+    return html`<span class="st" title=${st}
+      style=${stRing(st) ? "border-color:" + stVar(st) : "background:" + stVar(st)}
+    ></span>`;
+  }
+  // why a row is worth the eye: blocked or asking beats finished, finished
+  // beats critical, and most rows are none of those and stay graphite
+  rail(t, got) {
+    return HOT[t.state] === undefined
+      ? (got ? " got" : t.critical ? " crit" : "")
+      : (t.state === "question" ? " ask" : " hot");
+  }
+  door(t, big) {
+    return t.unblocks
+      ? html`<span class="door ${big ? "big" : ""}"
+          title="weight this unblocks downstream">▸${fmtW(t.unblocks)}</span>`
+      : "";
+  }
+  bar(b) {
+    return b[1]
+      ? html`<span class="track ${b[0] === b[1] ? "full" : ""}"
+          ><span style=${"width:" + (b[0] / b[1] * 100).toFixed(1) + "%"}></span
+          ></span><span>${b[0]}/${b[1]}</span>`
+      : "";
+  }
+  row(t, extra, cls) {
+    return html`<button class="lrow${cls}" data-go=${JSON.stringify({prd: t.rel})}
+      title=${(t.title || t.name) + " · " + t.state}>
+      <div class="top">${this.mark(t.state)}${t.critical
+        ? html`<span class="tick" title="on the critical chain">★</span>` : ""}
+        <span class="nm">${t.name}</span></div>
+      <div class="meta">${extra}</div></button>`;
+  }
+  lane(r) {
+    return html`<button class="lrow ${r.ready ? "got" : "flight"}"
+      data-go=${JSON.stringify({prd: r.rel})}
+      title=${r.branch + (r.title ? " — " + r.title : "")}>
+      <div class="top">${this.mark(r.state)}${r.ready
+        ? html`<span class="tick">✓</span>` : ""}
+        <span class="nm">${r.name}</span></div>
+      <div class="meta">${r.board ? html`<span class="bd">${r.board}</span>` : ""}${
+        r.boxes[1] ? this.bar(r.boxes)
+                   : html`<span>${r.orphan ? "no PRD" : r.state}</span>`}</div>
+      </button>`;
+  }
+
+  render() {
+    if (!this.open || !this.data) return html``;
+    const C = this.cpm || {};
+    const collect = (C.collect || []).map(r => byRel.get(r)).filter(Boolean);
+    const ready = (C.ready || []).map(r => byRel.get(r)).filter(Boolean);
+    const all = this.data.landing || [], repos = this.data.repos || [];
+    const land = all.filter(r => r.ready), flight = all.filter(r => !r.ready);
+    // the biggest door in the frontier sets the ramp: anything worth half of
+    // it is a door too, and says so in ink
+    const top = Math.max(0, ...ready.map(t => t.unblocks || 0));
+    const big = t => top > 0 && (t.unblocks || 0) >= top / 2;
+
+    return html`<div class="rows">
+      ${collect.length ? html`
+        ${this.cap("to collect", collect.length, {view: "timeline", collect: 1},
+                   "finished work waiting to be committed and closed", true)}
+        ${collect.map(t => this.row(t,
+            html`<span class="tick">✓</span>${this.bar(t.boxes)}${this.door(t, big(t))}`,
+            this.rail(t, true)))}` : ""}
+
+      ${this.cap("ready now", ready.length, {view: "timeline", ready: 1},
+                 "everything dispatchable this second — this is the dispatch order")}
+      ${ready.length
+        ? ready.map(t => this.row(t,
+            html`<span>${fmtW(t.est)}</span>${this.door(t, big(t))}`,
+            this.rail(t, false)))
+        : html`<div class="none">${tasks.length
+            ? "nothing — every PRD left waits on another"
+            : "nothing scheduled — run plan"}</div>`}
+
+      ${all.length || repos.length ? html`
+        ${this.cap("to land", land.length, {view: "timeline"},
+                   "a lane branch main has never seen, whose PRD is finished", true)}
+        ${land.length
+          ? html`<div class="why">done and tested here — main has never seen it</div>`
+          : ""}
+        ${land.length ? land.map(r => this.lane(r))
+          : html`<div class="none">${all.length
+              ? "nothing finished yet — the lanes below are still open"
+              : "nothing held back: every lane is merged"}</div>`}
+        ${flight.length ? html`
+          <div class="sub">in flight · ${flight.length}</div>
+          ${flight.map(r => this.lane(r))}` : ""}` : ""}
+    </div>
+    ${repos.length ? html`<div class="feet">${repos.map(r => html`
+      <div><b>${String(r.board)}</b>${r.ahead === null
+        ? html`<span class="n">no remote</span>`
+        : r.ahead
+          ? html`<span class="n up"
+              title="commits on main that origin has not got">↑${r.ahead}</span>`
+          : html`<span class="n in">in sync</span>`}</div>`)}</div>` : ""}`;
+  }
+}
+customElements.define("pearde-frontier", PeardeFrontier);
+
 function drawSide() {
   const el = $("land");
   el.classList.toggle("off", !landOpen);
-  if (!landOpen) return;
-  const collect = (CPM.collect || []).map(r => byRel.get(r)).filter(Boolean);
-  const ready = (CPM.ready || []).map(r => byRel.get(r)).filter(Boolean);
-  const all = DATA.landing || [], repos = DATA.repos || [];
-  const land = all.filter(r => r.ready), flight = all.filter(r => !r.ready);
-
-  const cap = (label, n, dest, why, hue) =>
-    '<button class="cap" data-go="' + esc(JSON.stringify(dest)) + '" title="' +
-    esc(why) + '">' + label + '<span class="n' + (hue && n ? " on" : "") +
-    '">' + n + "</span></button>";
-
-  // the state mark: `st` carries the ink, `stRing` decides outline or fill
-  const mark = st =>
-    '<span class="st" title="' + esc(st) + '" style="' +
-    (stRing(st) ? "border-color:" + stVar(st)
-                : "background:" + stVar(st)) + '"></span>';
-  // why a row is worth the eye: blocked or asking beats finished, finished
-  // beats critical, and most rows are none of those and stay graphite
-  const rail = (t, got) => HOT[t.state] === undefined ? (got ? " got"
-      : t.critical ? " crit" : "")
-    : (t.state === "question" ? " ask" : " hot");
-  const door = (t, big) => t.unblocks
-    ? '<span class="door' + (big ? " big" : "") +
-      '" title="weight this unblocks downstream">▸' +
-      fmtW(t.unblocks) + "</span>" : "";
-  const bar = b => b[1]
-    ? '<span class="track' + (b[0] === b[1] ? " full" : "") +
-      '"><span style="width:' + (b[0] / b[1] * 100).toFixed(1) +
-      '%"></span></span><span>' + b[0] + "/" + b[1] + "</span>" : "";
-  const open = (t, extra, cls) =>
-    '<button class="lrow' + cls + '" data-go="' +
-    esc(JSON.stringify({prd: t.rel})) + '" title="' +
-    esc((t.title || t.name) + " · " + t.state) + '"><div class="top">' +
-    mark(t.state) +
-    (t.critical ? '<span class="tick" title="on the critical chain">★</span>'
-      : "") +
-    '<span class="nm">' + esc(t.name) + "</span></div>" +
-    '<div class="meta">' + extra + "</div></button>";
-
-  let h = "";
-  // the biggest door in the frontier sets the ramp: anything worth half of it
-  // is a door too, and says so in ink
-  const top = Math.max(0, ...ready.map(t => t.unblocks || 0));
-  const big = t => top > 0 && (t.unblocks || 0) >= top / 2;
-
-  if (collect.length)
-    h += cap("to collect", collect.length, {view: "timeline", collect: 1},
-             "finished work waiting to be committed and closed", true) +
-      collect.map(t => open(t, '<span class="tick">✓</span>' +
-        bar(t.boxes) + door(t, big(t)), rail(t, true))).join("");
-
-  h += cap("ready now", ready.length, {view: "timeline", ready: 1},
-           "everything dispatchable this second — this is the dispatch order");
-  h += ready.length ? ready.map(t => open(t,
-        "<span>" + fmtW(t.est) + "</span>" + door(t, big(t)),
-        rail(t, false))).join("")
-    : '<div class="none">' + (tasks.length
-        ? "nothing — every PRD left waits on another"
-        : "nothing scheduled — run plan") + "</div>";
-
-  if (all.length || repos.length) {
-    h += cap("to land", land.length, {view: "timeline"},
-             "a lane branch main has never seen, whose PRD is finished", true) +
-      (land.length
-        ? '<div class="why">done and tested here — main has never seen it</div>'
-        : "");
-    const lrow = r =>
-      '<button class="lrow' + (r.ready ? " got" : " flight") + '" data-go="' +
-      esc(JSON.stringify({prd: r.rel})) + '" title="' +
-      esc(r.branch + (r.title ? " — " + r.title : "")) + '">' +
-      '<div class="top">' + mark(r.state) +
-      (r.ready ? '<span class="tick">✓</span>' : "") +
-      '<span class="nm">' + esc(r.name) + "</span>" +
-      "</div>" + '<div class="meta">' +
-      (r.board ? '<span class="bd">' + esc(r.board) + "</span>" : "") +
-      (r.boxes[1] ? bar(r.boxes)
-        : "<span>" + esc(r.orphan ? "no PRD" : r.state) + "</span>") +
-      "</div></button>";
-    h += land.length ? land.map(lrow).join("")
-      : '<div class="none">' + (all.length
-          ? "nothing finished yet — the lanes below are still open"
-          : "nothing held back: every lane is merged") + "</div>";
-    if (flight.length)
-      h += '<div class="sub">in flight · ' + flight.length + "</div>" +
-        flight.map(lrow).join("");
-  }
-
-  el.innerHTML = '<div class="rows">' + h + "</div>" + (repos.length
-    ? '<div class="feet">' + repos.map(r =>
-        "<div><b>" + esc(String(r.board)) + "</b>" +
-        (r.ahead === null ? '<span class="n">no remote</span>'
-          : r.ahead ? '<span class="n up" title="commits on main that origin ' +
-            'has not got">↑' + r.ahead + "</span>"
-          : '<span class="n in">in sync</span>') + "</div>").join("") + "</div>"
-    : "");
+  el.open = landOpen;
+  el.cpm = CPM;
+  el.data = DATA;
 }
 
 function syncToggles() {
@@ -1495,9 +1522,11 @@ const API = window.__BASE || "";
 const SERVED = !!BOARD_KEY;
 const STATE_LIST = Object.keys(STATES).concat(["done"]);
 let dTask = null, dData = null, dDirty = false;
-// the live page updates itself on every board change; it must not do that
-// while someone is halfway through typing into this panel
-window.__pearde_hold = () => dDirty;
+// the live page updates itself on every board change. It must not do that
+// while someone is halfway through typing into this panel, and a board's own
+// script may hold it too — see `pearde.onHold`.
+const HOLDS = [() => dDirty];
+window.__pearde_hold = () => HOLDS.some(f => f());
 
 // one `## Heading` section out of a body, ending at the next heading
 function section(body, name) {
@@ -1887,6 +1916,7 @@ function toast(msg, bad) {
 }
 
 function repaintView() {
+  if (replaced.has(view)) return;   // a board's own element draws itself
   if (view === "board") drawBoard();
   else if (view === "list") drawList();
   else if (view === "asks") drawAsks();
@@ -1915,76 +1945,83 @@ for (const b of $("views").querySelectorAll("button"))
   b.onclick = () => setView(b.dataset.v);
 
 /* ── board ─────────────────────────────────────────────────────────────── */
-function drawBoard() {
-  const cols = new Map();
-  for (const s of STATE_ORDER) cols.set(s, []);
-  for (const r of ALL) {
-    if (!cols.has(r.state)) cols.set(r.state, []);   // a state of the user's own
-    cols.get(r.state).push(r);
+/* ── the board, as an element ─────────────────────────────────────────────
+   Kanban by state, one column each, a card per PRD. Drag a card to write its
+   `state:` — the drop is the edit, applied optimistically and reconciled by
+   the save. Light DOM keeps every `#board .col` rule in the one stylesheet. */
+class PeardeBoard extends LitElement {
+  static properties = { rows: {}, served: { type: Boolean } };
+  createRenderRoot() { return this; }
+
+  async drop(e, st) {
+    e.preventDefault();
+    e.currentTarget.classList.remove("over");
+    const rel = e.dataTransfer.getData("text/plain");
+    const row = allByRel.get(rel);
+    if (!row || row.state === st) return;
+    row.state = st;                       // optimistic: the drop is the edit
+    drawBoard();
+    const out = await save(rel, { fm: { state: st } });
+    if (out.error) toast("Not saved — " + out.error, true);
+    else { prdCache.delete(rel); refresh(); }
   }
-  const el = $("board");
-  el.innerHTML = "";
-  for (const [st, rowsIn] of cols) {
-    if (!rowsIn.length && !STATE_ORDER.includes(st)) continue;
-    rowsIn.sort((p, q) => q.prio - p.prio || p.rel.localeCompare(q.rel));
-    const col2 = document.createElement("div");
-    col2.className = "col" + (rowsIn.length ? "" : " bare");
-    col2.dataset.state = st;
+
+  card(r) {
+    const t = byRel.get(r.rel);
+    return html`<div class="card" draggable=${this.served} data-rel=${r.rel}
+      @click=${() => { const x2 = taskFor(r.rel); if (x2) openDrawer(x2); }}
+      @dragstart=${e => { e.dataTransfer.setData("text/plain", r.rel);
+                          e.currentTarget.classList.add("drag"); }}
+      @dragend=${e => e.currentTarget.classList.remove("drag")}
+      ><div class="t">${t && t.critical ? html`<span class="star">★ </span>` : ""
+      }${r.title || r.name}</div><div class="m">${
+        r.board ? html`<span class="chip">${r.board}</span>` : ""
+      }<span>p${r.prio}</span>${
+        r.weight ? html`<span>${fmtW(r.weight)}</span>` : ""}</div></div>`;
+  }
+
+  column(st, rowsIn) {
     const w = rowsIn.reduce((a, r) => a + (r.weight || 0), 0);
-    col2.innerHTML = '<h3 data-go="' +
-      esc(JSON.stringify({view:"list", state:st})) + '" title="' + esc(st) +
-      ' as a table"><i class="' + (stRing(st) ? "ring" : "") + '" style="' +
-      (stRing(st) ? "color:" : "background:") + stVar(st) + '"></i>' +
-      esc(st) + '<span class="n">' + rowsIn.length +
-      (w ? " · " + fmtW(w) : "") + "</span></h3>";
-    const box = document.createElement("div");
-    box.className = "cards";
     const CAP = st === "done" ? 40 : 200;
-    for (const r of rowsIn.slice(0, CAP)) {
-      const t = byRel.get(r.rel);
-      const c = document.createElement("div");
-      c.className = "card"; c.draggable = SERVED; c.dataset.rel = r.rel;
-      c.innerHTML = '<div class="t">' + (t && t.critical ?
-        '<span class="star">★ </span>' : "") + esc(r.title || r.name) +
-        '</div><div class="m">' + (r.board ?
-        '<span class="chip">' + esc(r.board) + "</span>" : "") +
-        "<span>p" + r.prio + "</span>" + (r.weight ? "<span>" + fmtW(r.weight) +
-        "</span>" : "") +
-        "</div>";
-      c.onclick = () => { const x2 = taskFor(r.rel); if (x2) openDrawer(x2); };
-      c.addEventListener("dragstart", e => {
-        e.dataTransfer.setData("text/plain", r.rel);
-        c.classList.add("drag");
-      });
-      c.addEventListener("dragend", () => c.classList.remove("drag"));
-      box.append(c);
-    }
-    if (rowsIn.length > CAP) {
-      const more = document.createElement("div");
-      more.className = "card"; more.style.cursor = "pointer";
-      more.dataset.go = JSON.stringify({view:"list", state:st});
-      more.innerHTML = '<div class="m">+' + (rowsIn.length - CAP) +
-        " more — the list has all of them</div>";
-      more.draggable = false;
-      box.append(more);
-    }
-    col2.append(box);
-    col2.addEventListener("dragover", e => { e.preventDefault();
-      col2.classList.add("over"); });
-    col2.addEventListener("dragleave", () => col2.classList.remove("over"));
-    col2.addEventListener("drop", async e => {
-      e.preventDefault(); col2.classList.remove("over");
-      const rel = e.dataTransfer.getData("text/plain");
-      const row = allByRel.get(rel);
-      if (!row || row.state === st) return;
-      row.state = st;                       // optimistic: the drop is the edit
-      drawBoard();
-      const out = await save(rel, {fm: {state: st}});
-      if (out.error) toast("Not saved — " + out.error, true);
-      else { prdCache.delete(rel); refresh(); }
-    });
-    el.append(col2);
+    return html`<div class="col ${rowsIn.length ? "" : "bare"}" data-state=${st}
+      @dragover=${e => { e.preventDefault(); e.currentTarget.classList.add("over"); }}
+      @dragleave=${e => e.currentTarget.classList.remove("over")}
+      @drop=${e => this.drop(e, st)}
+      ><h3 data-go=${JSON.stringify({ view: "list", state: st })}
+        title=${st + " as a table"}><i class=${stRing(st) ? "ring" : ""}
+        style=${(stRing(st) ? "color:" : "background:") + stVar(st)}></i>${st
+        }<span class="n">${rowsIn.length}${w ? " · " + fmtW(w) : ""
+        }</span></h3><div class="cards">${rowsIn.slice(0, CAP).map(r => this.card(r))}${
+        rowsIn.length > CAP
+          ? html`<div class="card" style="cursor:pointer" draggable="false"
+              data-go=${JSON.stringify({ view: "list", state: st })}
+              ><div class="m">+${rowsIn.length - CAP} more — the list has all of them</div></div>`
+          : ""}</div></div>`;
   }
+
+  render() {
+    const cols = new Map();
+    for (const s of STATE_ORDER) cols.set(s, []);
+    for (const r of this.rows || []) {
+      if (!cols.has(r.state)) cols.set(r.state, []);  // a state of the user's own
+      cols.get(r.state).push(r);
+    }
+    const out = [];
+    for (const [st, rowsIn] of cols) {
+      if (!rowsIn.length && !STATE_ORDER.includes(st)) continue;
+      rowsIn.sort((p, q) => q.prio - p.prio || p.rel.localeCompare(q.rel));
+      out.push(this.column(st, rowsIn));
+    }
+    return out;
+  }
+}
+customElements.define("pearde-board", PeardeBoard);
+
+function drawBoard() {
+  const el = $("board");
+  el.served = SERVED;
+  el.rows = ALL;
+  el.requestUpdate();
 }
 
 /* ── asks: the board waiting on a person ──────────────────────────────────
@@ -2104,10 +2141,56 @@ function listRows() {
   });
 }
 
+/* ── the list, as an element ──────────────────────────────────────────────
+   All of it, sortable and filterable, one row per PRD. Light DOM so the table
+   keeps its rules from the one stylesheet, and the header and rows carry
+   their own handlers rather than being re-bound after every paint. */
+const LIST_COLS = [["rel", "prd"], ["state", "state"], ["prio", "prio"],
+                   ["weight", "weight"], ["actual", "actual"], ["board", "board"],
+                   ["unblocks", "unblocks"]];
+
+class PeardeList extends LitElement {
+  static properties = { rows: {}, by: {}, desc: { type: Boolean } };
+  createRenderRoot() { return this; }
+
+  sortBy(k) {
+    listDesc = listBy === k ? !listDesc : true;
+    listBy = k;
+    drawList();
+  }
+  render() {
+    const rowsOut = this.rows || [];
+    if (!rowsOut.length)
+      return html`<div class="none">nothing matches${
+        listState || listBoard || listQ
+          ? html` — <button class="lnk"
+              data-go=${JSON.stringify({state: null, board: null, q: ""})}
+              >clear the filters</button>` : ""}</div>`;
+    // no whitespace between cells: a text node inside a <tr> is stray, and
+    // the table this replaces emitted none
+    const th = ([k, l]) => html`<th data-k=${k} class=${listBy === k ? "by" : ""
+      } @click=${() => this.sortBy(k)}>${l}${
+      listBy === k ? (listDesc ? " ↓" : " ↑") : ""}</th>`;
+    const tr = r => {
+      const t = byRel.get(r.rel) || {};
+      return html`<tr class="r" data-rel=${r.rel} @click=${() => {
+        const x2 = taskFor(r.rel); if (x2) openDrawer(x2); }}><td><i
+        class=${stRing(r.state) ? "ring" : ""} style=${
+        (stRing(r.state) ? "color:" : "background:") + stVar(r.state)
+        }></i>${r.rel}</td><td><span class="st ${
+        r.state === "question" ? "warn" : HOT[r.state] ? "danger" : ""
+        }">${r.state}</span></td><td>${r.prio}</td><td>${
+        r.weight ? fmtW(r.weight) : ""}</td><td>${
+        r.actual ? fmtHr(r.actual) : ""}</td><td>${
+        r.board || ""}</td><td>${t.unblocks ? fmtW(t.unblocks) : ""}</td></tr>`;
+    };
+    return html`<table><thead><tr>${LIST_COLS.map(th)}</tr></thead><tbody>${
+      rowsOut.map(tr)}</tbody></table>`;
+  }
+}
+customElements.define("pearde-list", PeardeList);
+
 function drawList() {
-  const cols = [["rel", "prd"], ["state", "state"], ["prio", "prio"],
-                ["weight", "weight"], ["actual", "actual"], ["board", "board"],
-                ["unblocks", "unblocks"]];
   const rowsOut = listRows().sort((p, q) => {
     const k = listBy;
     const A = k === "unblocks" ? ((byRel.get(p.rel) || {}).unblocks || 0) : p[k];
@@ -2123,60 +2206,51 @@ function drawList() {
     (listBoard ? '<button class="token" data-go="' +
       esc(JSON.stringify({board:null})) + '">board <b>' + esc(listBoard) +
       '</b><span class="x">✕</span></button>' : "");
-  $("list").innerHTML = rowsOut.length
-    ? "<table><thead><tr>" + cols.map(([k, l]) =>
-        `<th data-k="${k}" class="${listBy === k ? "by" : ""}">${l}` +
-        (listBy === k ? (listDesc ? " ↓" : " ↑") : "") + "</th>").join("") +
-      "</tr></thead><tbody>" + rowsOut.map(r => {
-        const t = byRel.get(r.rel) || {};
-        return `<tr class="r" data-rel="${esc(r.rel)}"><td><i class="` +
-          (stRing(r.state) ? "ring" : "") + '" style="' +
-          (stRing(r.state) ? "color:" : "background:") + stVar(r.state) +
-          '"></i>' + esc(r.rel) + '</td><td><span class="st ' +
-          (r.state === "question" ? "warn" : HOT[r.state] ? "danger" : "") +
-          '">' + esc(r.state) + "</span></td><td>" + r.prio + "</td><td>" +
-          (r.weight ? fmtW(r.weight) : "") + "</td><td>" +
-          (r.actual ? fmtHr(r.actual) : "") + "</td><td>" +
-          esc(r.board || "") + "</td><td>" +
-          (t.unblocks ? fmtW(t.unblocks) : "") + "</td></tr>";
-      }).join("") + "</tbody></table>"
-    : '<div class="none">nothing matches' +
-      (listState || listBoard || listQ ? " — " +
-        lnk("clear the filters", {state:null, board:null, q:""}) : "") + "</div>";
+  const el = $("list");
+  el.rows = rowsOut; el.by = listBy; el.desc = listDesc;
   $("lcount").textContent = rowsOut.length + " of " + ALL.length +
     " · click a row for the PRD";
-  for (const th of $("list").querySelectorAll("th"))
-    th.onclick = () => { const k = th.dataset.k;
-      listDesc = listBy === k ? !listDesc : true; listBy = k; drawList(); };
-  for (const tr of $("list").querySelectorAll("tr.r"))
-    tr.onclick = () => { const x2 = taskFor(tr.dataset.rel);
-                         if (x2) openDrawer(x2); };
 }
 $("lq").oninput = () => { listQ = $("lq").value; drawList(); };
 
 /* ── memos: the board's decisions, read where the work is ─────────────── */
 let memosLoaded = null;
-async function drawMemos() {
-  if (!SERVED) {
-    $("memos").innerHTML = '<div class="blank">memos are read live — open ' +
-      "this board through the service to see them</div>";
-    return;
+/* ── memos, as an element ─────────────────────────────────────────────────
+   The board's decisions, read where the work is. Light DOM, so view.css keeps
+   styling `.memo` and its parts from the one stylesheet. */
+class PeardeMemos extends LitElement {
+  static properties = { memos: {}, served: { type: Boolean } };
+  createRenderRoot() { return this; }
+  render() {
+    if (!this.served)
+      return html`<div class="blank">memos are read live — open this board
+        through the service to see them</div>`;
+    const ms = this.memos || [];
+    if (!ms.length)
+      return html`<div class="blank">no memos yet — a decision gets one when
+        there is a decision</div>`;
+    return ms.map(m => html`<div class="memo">
+      <h3>${m.subject || m.slug}</h3>
+      <div class="f"><b>${m.slug}</b> · ${m.kind || ""} · ${m.status || ""} ·
+        ${m.date || ""}${m.prds && m.prds.length ? html` · governs ${
+          m.prds.map(pr => html`<button class="lnk"
+            data-go=${JSON.stringify({prd: pr})}>${pr}</button> `)}` : ""}</div>
+      <pre>${(m.body || "").slice(0, 3000)}</pre></div>`);
   }
+}
+customElements.define("pearde-memos", PeardeMemos);
+
+async function drawMemos() {
+  const el = $("memos");
+  el.served = SERVED;
+  if (!SERVED) return;
   if (!memosLoaded) {
     try {
       const r = await fetch(API + "/memos?board=" + encodeURIComponent(BOARD_KEY));
       memosLoaded = (await r.json()).memos || [];
     } catch (e) { memosLoaded = []; }
   }
-  $("memos").innerHTML = memosLoaded.length ? memosLoaded.map(m =>
-    '<div class="memo"><h3>' + esc(m.subject || m.slug) + "</h3>" +
-    '<div class="f"><b>' + esc(m.slug) + "</b> · " + esc(m.kind || "") + " · " +
-    esc(m.status || "") + " · " + esc(m.date || "") +
-    (m.prds && m.prds.length ? " · governs " + m.prds.map(p =>
-      lnk(esc(p), {prd:p})).join(" ") : "") +
-    "</div><pre>" + esc((m.body || "").slice(0, 3000)) + "</pre></div>").join("")
-    : '<div class="blank">no memos yet — a decision gets one when there is ' +
-      "a decision</div>";
+  el.memos = memosLoaded;
 }
 
 /* ── analytics ─────────────────────────────────────────────────────────────
@@ -2387,6 +2461,7 @@ function apply(payload) {
   const keepRel = selected ? selected.rel : null;
   const sx = scroll.scrollLeft, sy = scroll.scrollTop;
   DATA = payload;
+  slotsApply();          // a board's own elements see every swap too
   hydrate();
   remode(); M = MODE[mode];
   if (!GROUPS[groupBy]) groupBy = "none";
@@ -2404,8 +2479,67 @@ function apply(payload) {
   }
 }
 // the daemon's live loop calls this when the board's sequence moves
+// Lit is bound and usable — the harness reads this
+window.__litOK = typeof LitElement === "function";
+
 window.__pearde_apply = apply;
 window.__pearde_refresh = refresh;
+
+/* ── seams: where a board's own elements render ────────────────────────────
+   A board registers a custom element for a seam and the page renders it,
+   passing the payload down as `data` and updating it on every swap. The
+   browser owns the element contract, so this file does not invent one — it
+   only says where an element goes and when its data changes. */
+const SEAMS = ["toolbar", "sidebar", "inspector"];
+const slotted = [];
+
+function slot(name, tag) {
+  if (!SEAMS.includes(name)) return;          // an unknown seam is ignored
+  const host = $("seam-" + name);
+  if (!host) return;
+  const el = document.createElement(tag);
+  el.data = DATA;
+  host.appendChild(el);
+  slotted.push(el);
+  return el;
+}
+
+/* Replacing a view outright. A custom element name is unique per document, so
+   a board cannot define its own `pearde-list` over ours — it registers a
+   different element for the view instead, and the page hands that element the
+   view rather than drawing its own. */
+const VIEWS_REPLACEABLE = ["board", "asks", "list", "analytics", "memos"];
+const replaced = new Set();
+
+function replace(view, tag) {
+  if (!VIEWS_REPLACEABLE.includes(view)) return;
+  const section = document.querySelector(`section[data-view="${view}"]`);
+  if (!section) return;
+  const el = document.createElement(tag);
+  el.data = DATA;
+  section.replaceChildren(el);
+  replaced.add(view);          // the built-in draw for it stops running
+  slotted.push(el);            // it sees every payload swap like any other
+  if (view === currentView()) repaintView();
+  return el;
+}
+
+function currentView() { return view; }
+
+// every slotted element sees the payload the page is drawing
+function slotsApply() { for (const el of slotted) el.data = DATA; }
+
+// The surface a board's own `view.user.js` may use. The `__pearde_*` globals
+// above stay: serve.py injects LIVE_JS into this page and calls them by name.
+window.pearde = {
+  slot,
+  replace,
+  get data() { return DATA; },   // a getter — `apply` replaces the payload
+  get board() { return BOARD_KEY; },
+  refresh,
+  apply,
+  onHold(f) { HOLDS.push(f); },
+};
 
 /* ── the URL is the view ──────────────────────────────────────────────────
    Where you are is a link you can send: which view, which filter, which PRD.

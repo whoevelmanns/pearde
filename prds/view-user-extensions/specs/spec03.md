@@ -1,7 +1,7 @@
 ---
 complexity: 5
 footprint:
-  - resources/view/serve.py
+  - resources/board/serve.py
 ---
 
 # spec03 — the watcher reaches a board's user files
@@ -16,11 +16,11 @@ what makes the live page reload.
 
 ## Acceptance
 
-- [ ] `digest()` stats `view.user.css` and `view.user.js` at the board root
-- [ ] Writing `view.user.css` changes `digest()`'s return value
-- [ ] Deleting it changes it back
-- [ ] A member board's user files are digested too, on a master board
-- [ ] The daemon does not re-exec on a user file change — it is board content,
+- [x] `digest()` stats `view.user.css` and `view.user.js` at the board root
+- [x] Writing `view.user.css` changes `digest()`'s return value
+- [x] Deleting it changes it back
+- [x] A member board's user files are digested too, on a master board
+- [x] The daemon does not re-exec on a user file change — it is board content,
       so the page reloads through the normal sequence bump
 
 ## Verify and Proof

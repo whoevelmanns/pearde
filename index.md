@@ -45,7 +45,7 @@ explains the rest.
 | `@@memos` | recording a decision and checking it | @skills/pearde-memo.md · @references/memo.md · @references/parts/memos.md · @references/templates/memo.md · @resources/memos.py |
 | `@@drill` | asking until the request is a contract | @skills/pearde-drill.md · @references/drill.md · @references/templates/prd.md · @references/parts/handles.md |
 | `@@handles` | every command the board answers to | @references/parts/handles.md · @references/parts/loop.md · @references/drill.md |
-| `@@view` | the live view — service, plan, render, writers | @skills/pearde-view.md · @references/parts/view.md · @resources/board/serve.py · @resources/board/plan.py · @resources/board/render.py · @resources/board/view.css · @resources/board/view.js · @resources/board/edit.py |
+| `@@view` | the live view — service, plan, render, writers | @skills/pearde-view.md · @references/parts/view.md · @resources/board/serve.py · @resources/board/plan.py · @resources/board/render.py · @resources/board/view.css · @resources/board/view.js · @resources/board/lit-core.min.js · @resources/board/viewtest.js · @resources/board/edit.py |
 | `@@progress` | the line printed on every state change | @references/parts/progress.md · @resources/statusline.sh · @references/parts/states.md |
 | `@@statusline` | the numbers rendered continuously in the terminal | @resources/statusline.sh · @references/parts/progress.md · @references/parts/personas.md · @references/install.md |
 | `@@install` | putting every skill where this agent finds it | @references/install.md · @SKILL.md · @resources/install.sh · @references/system.md · @references/parts/doctor.md · @resources/doctor.sh |
@@ -137,6 +137,8 @@ Every tracked file, one row.
 | @resources/board/render.py | the page — markup, and the arithmetic behind it |
 | @resources/board/view.css | the page's stylesheet, inlined at render |
 | @resources/board/view.js | the page's script, inlined at render |
+| @resources/board/viewtest.js | the view's gate — a rendered page in a real browser |
+| @resources/board/lit-core.min.js | Lit 3, vendored — the page's component base |
 | @resources/board/edit.py | the writers — one line at a time |
 
 ### `skills/` — one file per skill
