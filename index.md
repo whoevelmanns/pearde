@@ -18,7 +18,7 @@ it fires, and a body that points into `references/` and stops. The knowledge
 is never in the skill. What a skill *runs* lives under `resources/`, one
 folder per skill where there is one: @resources/board/ and @resources/scout/.
 
-Installing turns each file into a folder of links elsewhere; nothing in this
+Installing turns each file into a folder of links elsewhere. Nothing in this
 repo moves. @references/install.md is the whole of it, and it names no agent
 — which directory to build in is the reader's to work out.
 
@@ -145,8 +145,8 @@ Frontmatter, and a body that points into `references/`. @references/install.md
 turns each into a folder of links wherever this agent looks.
 
 One per feature. The cut follows the scopes above: a scope a person or an
-agent **invokes** gets a skill; a scope the loop **reads mid-task** stays a
-reference and is reached through `@@`.
+agent **invokes** gets a skill. A scope the loop **reads mid-task** stays a
+reference, reached through `@@`.
 
 **The file name is the command.** A skill's `name:` must equal its file name,
 and an install builds the folder from it, so `skills/pearde-view.md` is
@@ -175,7 +175,7 @@ Nothing outside it links in past `@@scout`. Its docs ship with it.
 
 | anchor | is |
 |---|---|
-| @resources/scout/README.md | the scout manual — what @skills/scout.md is a door to |
+| @resources/scout/README.md | the scout manual — what @skills/pearde-scout.md is a door to |
 | @resources/scout/scout.sh | sweep / delta / trending |
 | @resources/scout/toolscout.sh | one-off dependency ranker |
 | @resources/scout/buckets.txt | the taxonomy — the knob |

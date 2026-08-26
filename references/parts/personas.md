@@ -170,8 +170,8 @@ You are talking to a colleague, not filling in a form.
   it your reading of the problem, which is the thing you were asking someone
   else for. Let it look. The brief is in @references/parts/workers.md.
 - **Your persona does not move**, and the round line still carries yours. A
-  consultant never prints a `▸ … · as <id>` line: that form is what the status
-  line reads, and one emitted by a consultant would show the terminal a
+  consultant never prints a `▸ … · as <id>` line — that form is what the
+  status line reads, and one emitted by a consultant would show the terminal a
   persona nobody is wearing.
 
 ### Relaying

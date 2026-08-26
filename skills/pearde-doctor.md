@@ -14,10 +14,10 @@ bash @resources/doctor.sh --fix [board]   # report, then repair
   absent.** That is the whole reason this exists: `off` means installed
   nowhere and nothing to repair, `broken` means installed and not working.
 - **No agent is named, and none is looked for.** Where a skill folder goes
-  and where a status line is wired are the reader's setup — @references/install.md
-  is that step. Doctor checks only what is true regardless.
-- `--fix` repairs two things: a dead status-line symlink, and a view service
-  down or not watching this board. It never writes a settings file.
+  and where a status line is wired are the reader's setup, and
+  @references/install.md is that step. Doctor checks what is true regardless.
+- `--fix` repairs one thing: a view service down or not watching this board.
+  It never writes a settings file.
 - `index` is never `--fix`-able — which row a new file belongs in is a
   judgement, not a repair.
 

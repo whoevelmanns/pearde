@@ -44,9 +44,9 @@ Rules for every worker:
 >   a check can fail, and a verify command. Report the spec list, the PRD's
 >   `complexity` (1-100) and `blast-radius` (`high`|`mid`|`low`) with one
 >   line of reasoning each, and the union of the footprints. **Do not
->   estimate how long anything will take** — nothing schedules on time. If a
->   spec's compute cost is large enough to change its scope, price that
->   inside the spec.
+>   estimate how long anything will take.** Score `complexity`, which is what
+>   the board weighs. If a spec's compute cost is large enough to change its
+>   scope, price that inside the spec.
 > - **REFINE** — the PRD holds more than one contract, or is too thin to spec.
 >   Report the proposed children, `<dir-name> — one-line contract` each, and
 >   what detail is missing.

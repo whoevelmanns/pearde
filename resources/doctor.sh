@@ -18,8 +18,10 @@
 # regardless: the skill files are well-formed, the map matches the tree, the
 # status line renders, and the board is on its contract.
 #
-# `--fix` repairs two things and only two: a dead status-line symlink, and a
-# view service that is down or not watching this board. After repairing,
+# `--fix` repairs one thing and only one: a view service that is down or not
+# watching this board. Nothing else here is unambiguous enough to repair
+# unasked — a status line lives in a settings file that is the user's, and
+# which index row a new file belongs in is a judgement. After repairing,
 # doctor re-checks itself once, so the report and the exit code describe the
 # state the repairs left behind.
 set -uo pipefail

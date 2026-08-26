@@ -17,7 +17,7 @@ Three folders, and the split between them is the whole design.
 
 A skill file is thin on purpose. Its frontmatter — `name` and `description` —
 is what makes it findable and what decides when it fires. Its body points into
-`references/` and stops. The knowledge is not in the skill; the skill is the
+`references/` and stops. The knowledge is not in the skill — the skill is the
 door.
 
 **The file name is the command.** `name:` must equal the file name, and an
@@ -76,7 +76,7 @@ bash @resources/install.sh --remove <skills-dir> # take it back out
 
 ## Finding where the links go
 
-You know your own setup; this repo does not. Work it out, in this order, and
+You know your own setup. This repo does not. Work it out, in this order, and
 stop at the first that is true.
 
 1. **This repo is already inside a skills directory**, under the name of one
@@ -108,7 +108,7 @@ stop at the first that is true.
 3. **Your agent reads one instructions file instead** — a single file it loads
    every session, whatever it is called. Append `@references/system.md` to it,
    creating it if absent. The block carries `pearde:begin` / `pearde:end`
-   markers, so nothing outside them is ever read back out; marker already
+   markers, so nothing outside them is ever read back out. A marker already
    there means installed — leave it alone, or replace what is between the
    markers if the block has changed.
    - **Substitute `<PEARDE>` for this repo's absolute path** as you write it.
@@ -140,7 +140,7 @@ is none, so it is safe to wire globally.
 - **Compose, never overwrite.** An existing status line keeps working: export
   `$PRD_STATUS_JSON` once, call both, join the output. Only the board segment
   is this repo's — drop the dir/branch/model part if the other line shows it.
-- A settings file is the user's. Print the line to add; do not write it.
+- A settings file is the user's. Print the line to add. Never write it.
 
 ## The view
 
@@ -161,7 +161,7 @@ board is listed at `/`.
   files, writes the same files back on an edit.
 - `@resources/board/serve.py status` says what it watches;
   `@resources/board/serve.py stop` ends it. `@resources/doctor.sh` reports a
-  board the service is not watching; `--fix` registers it.
+  board the service is not watching, and `--fix` registers it.
 - `resources/board/state/` holds the registry and the log — machine-local,
   gitignored.
 - No service at all? `python3 @resources/board/plan.py gantt --open` writes
@@ -182,7 +182,7 @@ members:
 - The members stay where they are, boards in their own right. The parent gets
   the merged scan, the merged plan, one timeline.
 - Run the round in the parent from then on. `@resources/doctor.sh` grows a
-  `members` row; the status line marks the group `⊞N`.
+  `members` row, and the status line marks the group `⊞N`.
 - `@references/parts/master.md` is the contract.
 
 ## The first run
@@ -194,8 +194,9 @@ and nothing about installing touches `prds/`.
 ## Uninstall
 
 Remove the skill folders you made, or `bash @resources/install.sh --remove
-<skills-dir>`. `git checkout SKILL.md` if the installer was retired. Delete the `pearde:begin`/`:end` block from the instructions
-file, leaving the rest of it alone. Unwire the status line yourself — that
+<skills-dir>`. `git checkout SKILL.md` restores the installer if `--apply`
+retired it. Delete the `pearde:begin`/`:end` block from the instructions file,
+leaving the rest of it alone. Unwire the status line yourself — that
 file is yours.
 
 `prds/` is your data: untouched by installing, and it survives uninstalling.

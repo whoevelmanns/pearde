@@ -995,7 +995,6 @@ def reconcile(board):
     if (mp.get("after") == r["after"] and mp.get("schedule") == r["schedule"]
             and mp.get("planned_at")):
         return False
-    mp.pop("waves", None)
     mp["after"], mp["schedule"] = r["after"], r["schedule"]
     mp.setdefault("planned_at", datetime.date.today().isoformat())
     save_map(mp, mp_path)
@@ -1065,7 +1064,6 @@ def cmd_plan(board, workers):
           " guess, not a promise. The dependency structure above is the plan")
 
     mp, mp_path = load_map(board)
-    mp.pop("waves", None)
     mp["after"] = r["after"]
     mp["schedule"] = r["schedule"]
     mp["planned_at"] = datetime.date.today().isoformat()

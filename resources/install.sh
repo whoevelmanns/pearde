@@ -23,9 +23,9 @@
 # One case is different. When this repo is itself sitting in <skills-dir>
 # under the name of one of its skills, that slot is taken and no folder is
 # built over it — the repo *is* that skill. Its @SKILL.md is the installer,
-# and it has done its job the moment the siblings exist, so --apply replaces
-# it with a link to the skill file it was standing in for. The installer is
-# gone, the skill it named is live, and there is one `pearde` rather than two.
+# and its job is done the moment the siblings exist, so --apply replaces it
+# with a link to the skill file it stands in for. The installer gives way, the
+# skill it shadows goes live, and there is one `pearde` rather than two.
 # `git checkout SKILL.md` brings the installer back if you want to re-run it.
 set -uo pipefail
 
@@ -37,9 +37,10 @@ MODE=report
 case "${1:-}" in
   --apply)  MODE=apply;  shift ;;
   --remove) MODE=remove; shift ;;
-  -h|--help|"") sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -h|--help|"") awk 'NR>1 && /^#/ {sub(/^# ?/,""); print; next} NR>1 {exit}' \
+                    "$0"; exit 0 ;;
 esac
-[ $# -ge 1 ] || { sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+[ $# -ge 1 ] || { sed -n '3,6p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 DEST="$1"
 
 CHANGED=0; BLOCKED=0
@@ -74,7 +75,7 @@ for f in "$ROOT"/skills/*.md; do
 
   if [ "$name" = "$SELF" ] && [ "$(cd "$DEST" 2>/dev/null && pwd -P)" = "$(dirname "$ROOT")" ]; then
     # The repo occupies this slot, so the folder is already correct. What is
-    # left is @SKILL.md: the installer, which shadows the skill of the same
+    # left is @SKILL.md — the installer, which shadows the skill of the same
     # name for exactly as long as it exists.
     gate="$ROOT/SKILL.md"
     # relative, so the repo survives being moved — an absolute link into a

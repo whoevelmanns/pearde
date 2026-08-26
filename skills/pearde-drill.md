@@ -11,8 +11,9 @@ Read @references/drill.md. The scope is `@@drill`.
 - **Recommend, do not survey.** A question with no recommendation attached
   hands the work back to the user.
 - **It ends in a tree, not a transcript.** The settled contract becomes the
-  body, each branch a child directory, `state: open` — @references/templates/prd.md
-  is the shape, @references/parts/contract.md the keys.
+  body, each branch a child directory, `state: open`.
+  @references/templates/prd.md is the shape, @references/parts/contract.md
+  the keys.
 - **Dispatch nothing while a drill is running.** The board picks the tree up
   when the drill is finished, per `@@loop`.
 

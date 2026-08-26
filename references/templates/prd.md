@@ -6,9 +6,9 @@ priority: 0        # higher first
 complexity: 0      # analyst, at spec time — 1-100. THE WEIGHT the board schedules by
 blast-radius:      # analyst, at spec time — high|mid|low. What breaks if this is wrong
 repo:              # the sub-repo the code lands in; delete if n/a
-time:              # OPTIONAL, and read by no decision. See @references/parts/order.md
-  est:             # a record only — nothing on the board schedules on time
-  actual:          # a record only
+time:              # OPTIONAL. See @references/parts/order.md
+  est:             # the weight, only when complexity is absent. Not a duration
+  actual:          # a record. Nothing reads it
   # claim: <worker> <started>   # orchestrator-only, present while a worker holds this PRD
 ---
 <!-- Ordering reads three axes and no clock: dependency (needs + footprint),

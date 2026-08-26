@@ -4,17 +4,19 @@
     index.py files                 every anchor in the Files tables, one per line
     index.py keywords              every keyword, one per line
     index.py scope <keyword>       the anchors that keyword resolves to
-    index.py check                 problems, one per line; silent and 0 when clean
+    index.py check                 problems, one per line. Silent and 0 when clean
 
 index.md is the map: `@<path>` is one file, `@@<keyword>` is a scope. A
 drifted map is worse than none — it answers confidently and wrongly. `check`
-catches all four ways it drifts, and `doctor` runs it:
+catches all five ways it drifts, and `doctor` runs it:
 
     a file on disk with no row            the map is incomplete
     a row naming no file                  the map points at nothing
     a scope naming no file                a keyword resolves to a dead path
     a keyword used and never defined      a document names a scope that does
                                           not exist
+    an `@<path>` naming no file           a document addresses a file that is
+                                          not there, wherever it wrote it
 """
 import os
 import re
@@ -33,6 +35,9 @@ TEXT_EXT = {".md", ".sh", ".py", ".txt"}
 ROW = re.compile(r"^\|\s*@([A-Za-z0-9_./-]+)\s*\|", re.M)
 KEYWORD_ROW = re.compile(r"^\|\s*`@@([a-z][a-z0-9-]*)`\s*\|(.*)\|(.*)\|\s*$", re.M)
 KEYWORD_USE = re.compile(r"@@([a-z][a-z0-9-]*)")
+# an `@<path>` written anywhere, not only in a Files row. A trailing `.` is a
+# sentence ending, never part of the path.
+ANCHOR_USE = re.compile(r"(?<!@)@([A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:md|py|sh|txt|toml|yml))")
 
 
 def index_text():
@@ -108,6 +113,9 @@ def check():
         for name in sorted(set(KEYWORD_USE.findall(body))):
             if name not in scopes:
                 problems.append(f"{path} references @@{name} — no such keyword")
+        for anchor in sorted(set(ANCHOR_USE.findall(body))):
+            if not os.path.exists(os.path.join(ROOT, anchor)):
+                problems.append(f"{path} references @{anchor} — not on disk")
 
     return problems
 

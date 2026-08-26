@@ -52,7 +52,7 @@ each skill file says what it does with no board in scope.
   is both the filename and the `memo:` key, and `doctor` fails if they
   disagree. Write the memo when the call is made, not when the work lands.
 - `persona <id>` and `ask <id>` are the switch and the question. Switch when
-  the whole round wants a different reading; ask when one problem does.
+  the whole round wants a different reading. Ask when one problem does.
   Neither writes a file — a persona is session state, per `@@personas`, and
   the round's `· as <id>` is the only record it has.
 - `ask` is a handle, not a permission. The board reaches a persona on its own

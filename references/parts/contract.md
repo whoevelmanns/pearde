@@ -11,8 +11,8 @@ is yours and no tool touches it.
 | `priority`  | user                           | **vision importance** — dispatch order, higher first |
 | `complexity`| analyst, at spec time          | **weight** — the progress line, `plan`'s ordering. 1-100 |
 | `blast-radius` | analyst, at spec time       | **what breaks if it is wrong** — `high` \| `mid` \| `low`. Breaks ties, and decides what a round leads with |
-| `est`       | analyst, optional              | a record, never an input. See @references/parts/order.md |
-| `actual`    | orchestrator, optional         | a record, never an input                          |
+| `est`       | analyst, optional              | the weight of a PRD with no `complexity`. See @references/parts/order.md |
+| `actual`    | orchestrator, optional         | a record. Nothing reads it                        |
 | `claim`     | orchestrator                   | the sweep, elapsed on `done`                      |
 | `repo`      | user                           | the worker brief. Optional                        |
 | `needs`     | user                           | a hard gate in `plan`'s order. PRD dir names. Optional |
@@ -26,7 +26,7 @@ is yours and no tool touches it.
 |-------------|------------|------------------------------|
 | `complexity`| analyst    | summed into the PRD's `complexity` |
 | `footprint` | analyst    | the overlap check in step 5        |
-| `est`       | analyst    | optional record; nothing schedules on it |
+| `est`       | analyst    | optional. Read as the weight only when `complexity` is absent |
 
 `state` is the only key the loop cannot run without. The rest default:
 

@@ -33,15 +33,15 @@ never reads `off` — the map is either right or wrong.
   who is reading: the skill files parse, the map matches the tree, the status
   line renders, the board is on its contract.
 - `skills` is about frontmatter, not placement. A skill is found by its
-  `name:` and fires on its `description:`; frontmatter that does not parse is
+  `name:` and fires on its `description:`. Frontmatter that does not parse is
   a skill that silently never fires, which reads exactly like a model
   choosing not to use it. A `name:` that disagrees with the file name
   installs one skill under another's name.
 - `statusline` answers the half that is ours. A line wired to a script that
-  renders nothing and a line that was never wired look identical in a
-  terminal; doctor runs the script against this board and says which it is.
-- `--fix` repairs two things: a dead status-line symlink, and a view service
-  down or not watching this board. It never writes a settings file.
+  renders nothing and a line that is not wired look identical in a terminal.
+  Doctor runs the script against this board and says which it is.
+- `--fix` repairs one thing: a view service down or not watching this board.
+  It never writes a settings file — a status line lives in the user's own.
 - `index` runs `@resources/index.py check`: a file on disk with no row, a row
   naming no file, a scope naming no file, an `@@` keyword nobody defined. It
   is not `--fix`-able — which row a new file belongs in is a judgement.
