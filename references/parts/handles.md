@@ -22,7 +22,7 @@ each skill file says what it does with no board in scope.
 | deeper spec pipeline         | `pipeline=5` — written to `prds/settings.md`, persists                                                   |
 | new PRD                      | `add <title>` — dir + `prd.md` from `@references/templates/prd.md`, `state: open`, `origin: requested`    |
 | park a derived PRD           | `defer <prd>` — `state: deferred`, per @references/parts/derived.md |
-| work out what is wanted      | `drill <prd>` — interview per `@references/drill.md`; with no `<prd>`, into a new tree                    |
+| work out what is wanted      | `drill <prd>` — interview per `@references/drill.md`. With no `<prd>`: the board's own open frontier where there is one, else a new tree |
 | retry a failed PRD           | `retry <prd>` — moves `## Failure` into the body as history, sets `open`                                 |
 | a blocked PRD's event landed | `unblock <prd>` — re-runs only the open boxes; `done` when they close                                    |
 | close what is finished       | `collect` — every PRD whose acceptance boxes are all `[x]`: verify, commit, `done`. Loop step 6, run on its own |

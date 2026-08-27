@@ -71,7 +71,9 @@ Rules for every worker:
 >   ending in `?` — never the PRD restated — with **three prepared
 >   answers**, each a complete, paste-ready decision, three genuinely
 >   different versions of the outcome, one `(recommended)`. Say what the
->   build was doing when it hit each. Report the questions.
+>   build was doing when it hit each. Report the questions. Write the
+>   `## Questions` heading only with the round under it — an empty one stops
+>   the board on nothing, and `@resources/questions.py` reports it.
 >
 > Spec what this PRD asks for. A wrong claim you find elsewhere, or a check
 > that could not fail, goes in your report as a finding — not into a spec, and

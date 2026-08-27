@@ -18,7 +18,7 @@ changing nothing. Full text: `@@loop`.
 | 4 | **Spec ahead** | Dispatch analysts on `open` PRDs until the spec pipeline is full |
 | 5 | **Implement** | Dispatch implementers on `specced` PRDs until `workers` is full, skipping footprint clashes |
 | 6 | **Collect** | On each finished worker: verify, commit, write the transition, print the progress line |
-| 7 | **Stop** | Nothing dispatchable: report counts, name what waits on the user, park `wait` in background |
+| 7 | **Drill, then stop** | Nothing dispatchable means blocked on a person: drill the whole open frontier as one round. Report counts and park `wait` only when every question is already out |
 
 Three rules hold the loop:
 

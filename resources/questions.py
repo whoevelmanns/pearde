@@ -67,14 +67,25 @@ ITEM_LIST_RE = re.compile(r"^\s*-\s+(.*?)\s*$")
 # word. Both owe a round.
 WAITING = ("question", "hitl", "waiting", "blocked-on-user", "user")
 
+# Terminal: nothing waits on anyone. A closed PRD still flying a
+# waiting-on-a-human label is the label outliving the work, and it is why a
+# board reports someone as blocked on a node that closed months ago.
+CLOSED = ("done", "deferred", "out-of-scope")
+
 
 def strip_comment(v):
     return re.sub(r"\s+#.*$", "", v).strip().strip("\"'")
 
 
+# A heading inside an HTML comment is not a heading — @references/templates/
+# prd.md names all three in comments so a fresh copy ships none of them live.
+COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+
+
 def parse(path):
     """(frontmatter, body). Mirrors @resources/board/plan.py's dialect: a
-    `---` fence, one `key: value` per line, `- item` for lists."""
+    `---` fence, one `key: value` per line, `- item` for lists. Commented-out
+    markdown is dropped from the body before anything reads it."""
     text = open(path, encoding="utf-8", errors="replace").read()
     lines = text.splitlines()
     fm, start = {}, 0
@@ -91,7 +102,7 @@ def parse(path):
                     fm[cur].append(v)
             i += 1
         start = i + 1
-    return fm, "\n".join(lines[start:])
+    return fm, COMMENT_RE.sub("", "\n".join(lines[start:]))
 
 
 def sections(body, pattern):
@@ -186,9 +197,13 @@ def check(board):
                            "an answer to a question nobody wrote down")
 
         waiting = state.lower() in WAITING or mode.lower() in WAITING
-        if waiting and not any(t.strip() for _h, t in qs):
-            said = f"state `{state}`" if state.lower() in WAITING \
-                else f"mode `{mode}`"
+        said = f"state `{state}`" if state.lower() in WAITING \
+            else f"mode `{mode}`"
+        if waiting and state.lower() in CLOSED:
+            bad.append(f"{rel}: state `{state}` and {said} — a closed PRD that "
+                       "still says it is waiting on you; the label outlived "
+                       "the work")
+        elif waiting and not any(t.strip() for _h, t in qs):
             bad.append(f"{rel}: {said} — parked on the user with no "
                        "`## Questions` round saying what is being asked")
 

@@ -56,6 +56,49 @@ Answer format, written under `## Answers`, numbers matching:
 **Q1** — <the picked option's text verbatim, or the user's own words>
 ```
 
+## The heading is the claim
+
+Neither heading is a slot to leave empty. `## Questions` says a round is
+waiting on the user, and `## Answers` says one came back — so an empty
+`## Questions` stops the board on nothing, and an empty `## Answers` reads as
+answered when it is not. **Write the heading when it has content, and delete
+it when it does not.** The same goes the other way: an `## Answers` section
+with no `## Questions` above it is an answer to a question nobody wrote down,
+and a PRD parked on the user that carries no round never says what it is
+asking — both are indistinguishable, from outside, from a board with nothing
+to ask.
+
+`python3 @resources/questions.py check [board]` is that paragraph as a
+mechanism, and `doctor`'s `questions` row runs it. It reports a heading with
+nothing under it, a question that asks nothing or carries no recommended
+answer, an answer to nothing, and a parked PRD that never asked. An answered
+round is history and is left alone.
+
+## The board's own frontier
+
+A blocked board is a drill whose questions are already written down. Step 7 of
+@references/parts/loop.md is that entry point: nothing dispatchable means every
+remaining PRD waits on a person, and the round's last act is one drill round
+over all of them rather than a report naming them.
+
+Round one's frontier is the board itself — every unanswered `## Questions`,
+every PRD parked on a person with no round written, every `refine` with no
+usable split, every `failed`, every `blocked` whose `needs:` only a person can
+land. From there the rules above are unchanged: the frontier is recomputed
+after every answer, and the drill ends when it is empty.
+
+- **One round for the board, never one per PRD.** Five stuck PRDs are one
+  numbered round, not five conversations.
+- **A question already out is carried, not re-put** — `## Asked` in
+  `prds/.round.md` is what is out. Widen instead: ask what the stalled question
+  depends on. A frontier that is entirely already out is where the round stops.
+- **Answers go back where they were asked** — `## Answers` in each PRD, numbers
+  matching, then `open`; a `refine` answer becomes children per step 3 of the
+  loop. The tree below is for a drill that starts from a request, not from a
+  board that already holds one.
+- **The orchestrator runs it.** A worker has no user to ask, so a drill is
+  never dispatched, and nothing else is dispatched while one runs.
+
 ## Facts vs decisions
 
 | kind         | whose job | how                                                     |

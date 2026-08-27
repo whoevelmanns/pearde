@@ -63,7 +63,7 @@ explains the rest.
 | `@@statusline` | the numbers rendered continuously in the terminal | @references/parts/statusline.md · @resources/statusline.sh · @references/install.md |
 | `@@install` | putting every skill where this agent finds it | @references/install.md · @SKILL.md · @resources/install.sh · @resources/guard.py · @references/system.md · @references/parts/doctor.md · @resources/doctor.sh |
 | `@@skills` | the entry points, what each is a door to, and how one is named | @SKILL.md · @skills/pearde.md · @skills/pearde-drill.md · @skills/pearde-memo.md · @skills/pearde-view.md · @skills/pearde-report.md · @skills/pearde-master.md · @skills/pearde-doctor.md · @skills/pearde-persona.md · @skills/pearde-persona-ask.md · @skills/pearde-persona-create.md · @skills/pearde-scout.md · @references/install.md |
-| `@@doctor` | telling a broken install from an absent one | @skills/pearde-doctor.md · @references/parts/doctor.md · @resources/doctor.sh · @resources/guard.py · @resources/index.py · @references/install.md |
+| `@@doctor` | telling a broken install from an absent one | @skills/pearde-doctor.md · @references/parts/doctor.md · @resources/doctor.sh · @resources/guard.py · @resources/index.py · @resources/questions.py · @references/install.md |
 | `@@master` | one plan across several repos | @skills/pearde-master.md · @references/parts/master.md · @references/settings.md · @references/parts/board.md |
 | `@@settings` | every board-wide knob | @references/settings.md · @references/parts/contract.md |
 | `@@language` | how everything on the board is written | @references/language.md · @references/templates/prd.md · @references/templates/spec.md · @references/templates/memo.md |

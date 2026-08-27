@@ -34,3 +34,10 @@ A `state` outside this table is the user's own and **parked**: never
 dispatched, never scheduled by `plan`, out of the progress line and the status
 line, not folded into `open`. Report parked PRDs by name — neither progress
 nor backlog.
+
+**Parked on a person owes a round.** A parked state, or a `mode:`, that names
+a human — `hitl`, `waiting`, `user` — makes `question`'s claim without
+`question`'s obligation: the board is stopped and nobody wrote down what is
+being asked. Whichever word it uses, it carries `## Questions` in the format
+of @references/drill.md, and step 2 of the loop puts it to the user with the
+`question` PRDs. `doctor`'s `questions` row is that rule as a check.

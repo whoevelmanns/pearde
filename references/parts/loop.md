@@ -78,9 +78,11 @@ not a failed attempt:
 
 - A PRD whose `## Answers` grew, or one a person moved in the view, is the
   user talking to the board — the view writes those directly.
-- Collect `## Questions` from every `question` PRD. Put them to the user as one
-  round per @references/drill.md — the whole frontier, numbered, each with its
-  three prepared answers so answering is a pick, not an essay. Use the
+- Collect `## Questions` from every `question` PRD, and from every **parked**
+  PRD whose state or `mode:` names a human — parked is not asked, and a PRD
+  waiting on someone with no round is waiting on nothing. Put them to the user
+  as one round per @references/drill.md — the whole frontier, numbered, each
+  with its three prepared answers so answering is a pick, not an essay. Use the
   ask-user-question mechanism where one exists, the three answers as the
   options. A question depending on one still open waits for the next round. A
   `## Questions` section that is a fork with no three answers is not askable
@@ -88,6 +90,12 @@ not a failed attempt:
 - Write answers under `## Answers` (`**Q1** — <text>`), set those PRDs
   `open`. No reply: leave them `question`, work the rest — the **asks** view
   shows the same round with the same three answers as buttons.
+- What goes under `## Answers` is the **decision**, in the user's words or the
+  picked option's, and nothing else. A remark about the question is not an
+  answer to it: if the user's reply says the question was wrong, the round is
+  what changes — rewrite it or delete it — and the answer records what was
+  settled. `python3 @resources/questions.py check` is this paragraph as a
+  mechanism, and it runs in `doctor`'s `questions` row.
 
 **3. Refine**
 
@@ -173,11 +181,42 @@ Check the tripwire before filing.
 A finished analyst refills the pipeline. A finished implementer frees a slot.
 Do not poll where results are pushed to you.
 
-**7. Stop**
+**7. Drill, then stop**
 
-Nothing in flight and nothing dispatchable: report per-state counts, every
-`question` / `refine` / `failed` PRD by name with what it needs, and the final
-progress line.
+Nothing in flight and nothing dispatchable means the board is blocked on a
+person, and a report is not what unblocks it. **A blocked board drills.** The
+round's last act is one drill round over the whole open frontier —
+@references/drill.md — not a list of what is stuck.
+
+- **Assemble one frontier from the whole board**, never one PRD's. Each row is
+  a fork with three prepared answers, numbered in one round:
+
+  | what is stuck                                   | the fork put to the user                                  |
+  |-------------------------------------------------|------------------------------------------------------------|
+  | `question` whose `## Questions` are unanswered   | those questions, as the analyst wrote them                  |
+  | parked on a person with no round written         | what it waits for, written as a fork — @references/parts/states.md |
+  | `refine` with no usable split proposal           | the split itself: the children, and where the line falls    |
+  | `failed`                                         | retry as it stands, redefine the contract, or drop it       |
+  | `blocked` whose `needs:` only a person can land  | whether the event is coming, and what the board does meanwhile |
+
+- **Ask what has not been asked.** `## Asked` in `prds/.round.md` says what is
+  already out; a question out and unanswered is carried, never re-put. The
+  drill widens instead — what the stalled question depends on, and what it
+  would take to answer it.
+- **It is a drill, not a status list.** Every fork carries three complete
+  answers with one `(recommended)`, in the round format of
+  @references/drill.md, through the ask-user-question mechanism where one
+  exists. A fork with no prepared answers hands the board back to the user.
+- **The orchestrator runs it.** A worker has no user to ask, so a drill is
+  never dispatched, and nothing else is dispatched while one is running.
+- **Answers land as step 2 lands them** — `## Answers`, then `open`, then the
+  children a `refine` answer implies. Anything answered, and the round returns
+  to step 1: a drill that unblocks work is a round that continues, not a round
+  that ended.
+
+Stop when the whole frontier is already out and nothing came back: report
+per-state counts, every `question` / `refine` / `failed` PRD by name with what
+it needs, and the final progress line.
 
 - Rewrite `prds/report.md` per `@@report` — a round that moved anything owes
   the reader the new state, in their words rather than the board's.

@@ -16,7 +16,9 @@ On "pearde", "work the board", "run the prds", or "pearde status": read
 feature is made of, not a reading list.
 
 - **The round** — `@@loop`: scan, answer, refine, spec ahead, implement,
-  collect, stop. `@@board` is what the scan walks. `@@states` is what a state
+  collect, drill-then-stop. A board with nothing dispatchable is blocked on a
+  person: put its whole open frontier as one drill round, per `@@drill`, rather
+  than reporting what is stuck. `@@board` is what the scan walks. `@@states` is what a state
   means and what may set it.
 - **Settings** — `language`, `workers`, `pipeline` live in `prds/settings.md`.
   Read it before working the board. Write it when the user changes one.

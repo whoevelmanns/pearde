@@ -318,7 +318,11 @@ if [ -n "$BOARD" ] && [ "$N" -gt 0 ] 2>/dev/null; then
     QSTAT=$(python3 "$DIR/questions.py" list "$BOARD" 2>/dev/null | wc -l | tr -d ' ')
     QBAD=$(python3 "$DIR/questions.py" check "$BOARD" 2>&1)
     if [ -z "$QBAD" ]; then
-      row questions ok "$QSTAT PRD$([ "$QSTAT" = 1 ] || echo s) carry a round · every one asks and answers"
+      if [ "$QSTAT" = 0 ]; then
+        row questions ok "no PRD carries a round — nothing is waiting on you"
+      else
+        row questions ok "$QSTAT PRD$([ "$QSTAT" = 1 ] || echo s) carr$([ "$QSTAT" = 1 ] && echo ies || echo y) a round · each asks and offers an answer"
+      fi
     else
       NQ=$(echo "$QBAD" | wc -l | tr -d ' ')
       row questions broken "$NQ round$([ "$NQ" = 1 ] || echo s) the user cannot act on"

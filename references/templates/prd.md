@@ -35,18 +35,26 @@ time:              # OPTIONAL. See @references/parts/order.md
 One contract per PRD. "And also…" is a second PRD — write it separately, or
 let the analyst split it via refine.>
 
-## Questions
-<!-- analyst-only, when blocked on the user: one round in the format of
-     drill.md — `### Q1: <title>`, the fork in 1-3 sentences ending in "?",
-     then exactly three prepared answers, each a complete decision, one
-     `(recommended)`. Only real forks the user must settle (naming, scope,
-     cost) — never facts a worker could look up, never the PRD restated. -->
+<!-- Three more headings exist, and none of them is a slot to copy down. Each
+     is a claim about the state of this PRD, so an empty copy of it is a false
+     one: an empty `## Questions` stops the board on nothing, an empty
+     `## Answers` reads as answered, an empty `## Failure` reads as a failed
+     attempt. Write the heading when it has content; until then it is absent,
+     which is the honest state. @resources/questions.py reports the empty
+     ones, and `doctor`'s `questions` row runs it. -->
 
-## Answers
-<!-- orchestrator-only (or the view), written after asking the user:
-     `**Q1** — <the picked answer verbatim, or the user's own words>`.
-     Analysts read these before speccing. -->
+<!-- `## Questions` — analyst-only, when blocked on the user: one round in the
+     format of drill.md — `### Q1: <title>`, the fork in 1-3 sentences ending
+     in "?", then exactly three prepared answers, each a complete decision,
+     one `(recommended)`. Only real forks the user must settle (naming, scope,
+     cost) — never facts a worker could look up, never the PRD restated. A PRD
+     parked on the user with no such round never says what it is asking. -->
 
-## Failure
-<!-- implementer-only, after a FAILED attempt: what broke, what was tried.
-     `retry` moves this into the body as history and reopens the PRD. -->
+<!-- `## Answers` — orchestrator-only (or the view), written after asking the
+     user: `**Q1** — <the picked answer verbatim, or the user's own words>`,
+     numbers matching the round above it. Analysts read these before speccing.
+     An `## Answers` with no `## Questions` above it answers nothing. -->
+
+<!-- `## Failure` — implementer-only, after a FAILED attempt: what broke, what
+     was tried. `retry` moves this into the body as history and reopens the
+     PRD. -->
