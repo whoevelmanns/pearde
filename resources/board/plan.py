@@ -4,6 +4,10 @@
     plan.py plan  [board] [--workers N]   the frontier and the dispatch order
     plan.py reconcile [board]             re-order the schedule, keep the anchor
     plan.py gantt [board] [--open]        render the view to prds/.view.html
+    plan.py calibrate [board]             fit hours-per-weight from every done
+                                          PRD with an `actual:` on every
+                                          registered board; the view prints
+                                          real hours beside weight from it
     plan.py members [board]               what a master board merges
     plan.py status [board]                the board, its members, its memos
 
@@ -401,6 +405,34 @@ def board_name(board):
     return re.sub(r"[^A-Za-z0-9_. -]", "-", raw) or infer_name(board)
 
 
+def plane_name(board):
+    """What the board calls itself in Plane, or "" — `.plane.env`'s
+    PLANE_PROJECT_NAME. Mirrors allboards.plane_name so the axis addresses
+    match the ones vision.py writes."""
+    try:
+        for line in open(os.path.join(board, ".plane.env"), encoding="utf-8"):
+            k, sep, v = line.strip().partition("=")
+            if sep and k.strip() == "PLANE_PROJECT_NAME":
+                return v.strip()
+    except OSError:
+        pass
+    return ""
+
+
+def axis_depth(board):
+    """{addr: depth} from the vision axis — `.vision.json` when the board has
+    one, else {} (a member board has no axis of its own; the master's plan is
+    the one that dispatches it)."""
+    vj = os.path.join(board, ".vision.json")
+    if not os.path.isfile(vj):
+        return {}
+    try:
+        data = json.load(open(vj, encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {n["addr"]: n["depth"] for n in data.get("prds", [])}
+
+
 def scan_memos(board):
     """{slug: memo} — the board's own memos, plus every member board's when
     this is a master, slugged `@<member>/<slug>`. The file never moves: a
@@ -674,7 +706,8 @@ def gantt_payload(board, prds, mp, settings):
             "est": round(hours(p["fm"].get("est", "")), 2),
             "actual": round(hours(p["fm"].get("actual", "")), 2),
             # the weight the board schedules by — complexity, falling back
-            # to est. est and actual are records, never inputs
+            # to est. est and actual are records the plan never schedules
+            # by; `calibrate` fits real hours from them
             "weight": round(float(p["fm"].get("complexity", 0) or 0)
                             or hours(p["fm"].get("est", "")), 2),
             "boxes": [closed, total],
@@ -693,6 +726,11 @@ def gantt_payload(board, prds, mp, settings):
             {p["state"] for p in prds.values()} - LIVE_STATES - {"done"}),
         "anchor": mp.get("planned_at") or datetime.date.today().isoformat(),
         "dayHours": day_h,
+        # the machine-wide fit from `calibrate` — weight to real hours at the
+        # display edge only; the schedule above never read it. `tune` is the
+        # hand-set margin the view multiplies on top of the fit
+        "calib": read_calibration(),
+        "tune": TUNE,
         "workers": str(settings.get("workers", "3")),
         "counts": {"done": done, "parked": parked, "containers": containers,
                    "collect": sum(1 for t in tasks if t["collect"]),
@@ -753,6 +791,110 @@ def write_history(board, prds=None):
             f.write(json.dumps(r, sort_keys=True) + "\n")
     os.replace(tmp, path)
     return row
+
+
+# ── calibration ───────────────────────────────────────────────────────────────
+# One constant per machine, not per board: how many real hours a unit of
+# weight costs THIS agent, fitted from every done PRD that recorded an
+# `actual:` on every board the service has ever registered. The plan still
+# schedules in weight — the constant only translates at the display edge,
+# so a bad fit can mislabel an axis but never re-order the work.
+
+STATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state")
+CALIB_PATH = os.path.join(STATE_DIR, "calibration.json")
+
+# The one hand-tunable knob. Hours shown = weight × fitted kw × TUNE.
+# The fit says how fast this machine has been; TUNE is the margin on top —
+# raise it when the board keeps finishing later than it promised, lower it
+# when it keeps beating the number.
+TUNE = 1.618
+
+
+def fmt_w(w, calib):
+    """Weight, printed as tuned real hours when a fit exists, else as raw
+    weight. Display only — nothing schedules by this."""
+    if calib and calib.get("kw"):
+        return f"{w * calib['kw'] * TUNE:.1f}h"
+    return f"{w:.1f}w"
+
+
+def read_calibration():
+    """The fitted constants, or None before `calibrate` has run."""
+    try:
+        c = json.load(open(CALIB_PATH, encoding="utf-8"))
+        return c if c.get("n") else None
+    except (OSError, ValueError):
+        return None
+
+
+def calib_rows():
+    """(board, rel, est_h, actual_h, weight) for every done PRD carrying an
+    `actual:`, across every registered board. est and actual are records the
+    plan never schedules by — which is exactly what makes them honest
+    calibration data: nobody gamed a number nothing was reading."""
+    try:
+        boards = json.load(open(os.path.join(STATE_DIR, "serve.json"),
+                                encoding="utf-8"))
+    except (OSError, ValueError):
+        boards = []
+    rows = []
+    for b in boards:
+        if not os.path.isdir(b):
+            continue
+        name = os.path.basename(os.path.dirname(b)) or b
+        for rel, p in sorted(_scan_one(b).items()):
+            if p["state"] != "done":
+                continue
+            act = hours(p["fm"].get("actual", ""))
+            if act <= 0:
+                continue
+            try:
+                w = float(p["fm"].get("complexity", 0) or 0)
+            except (TypeError, ValueError):
+                w = 0.0
+            rows.append((name, rel, hours(p["fm"].get("est", "")), act, w))
+    return rows
+
+
+def cmd_calibrate(board):
+    rows = calib_rows()
+    if not rows:
+        print("calibrate: no done PRD carries an `actual:` on any registered"
+              " board — nothing to fit.\n"
+              "Record `actual:` on the DONE transition and run this again.")
+        return
+    for name, rel, e, a, w in rows:
+        print(f"  {name:12} {rel:32} "
+              + (f"est {e:6.2f}h" if e else "est      —")
+              + f" · actual {a:6.2f}h"
+              + (f" · w {w:.0f}" if w else ""))
+    ew = [(e, a) for _, _, e, a, _ in rows if e > 0]
+    ww = [(w, a) for _, _, _, a, w in rows if w > 0]
+    # ratio of sums, not mean of ratios: a five-minute PRD must not outvote
+    # a three-day one. The quantiles of the per-PRD ratio are the band.
+    ke = round(sum(a for _, a in ew) / sum(e for e, _ in ew), 4) if ew else 0
+    kw = round(sum(a for w, a in ww) / sum(w for w, _ in ww), 4) if ww else 0
+    q = sorted(a / w for w, a in ww)
+    pick = lambda p: round(q[min(len(q) - 1, int(p * len(q)))], 4) if q else 0
+    calib = {"kw": kw, "ke": ke, "n": len(rows), "nw": len(ww),
+             "p20": pick(.2), "p80": pick(.8),
+             "boards": sorted({r[0] for r in rows}),
+             "fitted": datetime.date.today().isoformat()}
+    os.makedirs(STATE_DIR, exist_ok=True)
+    json.dump(calib, open(CALIB_PATH, "w", encoding="utf-8"), indent=1)
+    print(f"\nn={len(rows)} done PRDs across {len(calib['boards'])} board(s)")
+    if ke:
+        print(f"k est→actual    = {ke}  (agent is {round(1 / ke, 1)}× faster"
+              " than its estimates)")
+    if kw:
+        print(f"k weight→hours  = {kw} h/w · band P20 {calib['p20']}"
+              f" – P80 {calib['p80']}")
+        print(f"hours shown     = weight × {kw} × {TUNE}"
+              " (TUNE — the hand-set margin, hard-coded in plan.py)")
+    print(f"saved: {CALIB_PATH}")
+    # re-render so the open page shows the new constant without waiting for
+    # the next board edit
+    cmd_gantt(board)
 
 
 def cmd_gantt(board, open_after=False):
@@ -906,6 +1048,27 @@ def compute_plan(board, workers=None, warn=True):
         except ValueError:
             return 0.0
 
+    # The vision axis orders the frontier: asap lanes first, then on-axis
+    # deepest-first, then the old widest-door order. A PRD off the axis (or a
+    # board with no axis) keeps the old order. The axis is `.vision.json`,
+    # written by prds/vision.py; the asap lane is a PRD declaring `axis: asap`
+    # in its frontmatter — the "see it working" ask, scheduled by priority,
+    # not hops.
+    axis = axis_depth(board)
+    master = plane_name(board) or project_name(board)
+    def addr_of(r):
+        return r if r.startswith(MEMBER_SIGIL) else f"{MEMBER_SIGIL}{master}/{r}"
+    def asap(r):
+        return str(todo[r]["fm"].get("axis", "")).strip() == "asap"
+    def axis_rank(r, unblocks=None):
+        u = (unblocks or {}).get(r, 0)
+        if asap(r):
+            return (0, 0, -u, -prio(r), r)
+        d = axis.get(addr_of(r))
+        if d is not None:
+            return (1, -d, -u, -prio(r), r)
+        return (2, 0, -u, -prio(r), r)
+
     # A footprint clash serializes the PAIR, never a round. An agent starts
     # the moment its own gates clear, so a barrier would hold back every PRD
     # it shares nothing with. The clash is an edge: the lower-priority PRD is
@@ -923,7 +1086,7 @@ def compute_plan(board, workers=None, warn=True):
         return any(d not in _seen and path(d, b, _seen) for d in edges[a])
 
     after = {r: [] for r in todo}
-    ranked = sorted(todo, key=lambda x: (-prio(x), x))
+    ranked = sorted(todo, key=lambda x: axis_rank(x))
     for i, r in enumerate(ranked):
         for s in ranked[i + 1:]:
             if (overlap(feet[r], feet[s])
@@ -971,7 +1134,7 @@ def compute_plan(board, workers=None, warn=True):
     ready = [r for r in todo if not left[r]]
     running, schedule, order, t0 = [], {}, [], 0.0
     def take(pool):
-        best = min(pool, key=lambda x: (-unblocks[x], -prio(x), x))
+        best = min(pool, key=lambda x: axis_rank(x, unblocks))
         pool.remove(best)
         return best
     def finish(r):
@@ -1040,9 +1203,11 @@ def cmd_plan(board, workers):
     prds, todo, parked = r["prds"], r["todo"], r["parked"]
     est, feet, needs, after = r["est"], r["feet"], r["needs"], r["after"]
     sched, unblocks = r["schedule"], r["unblocks"]
+    cal = read_calibration()
+    fw = lambda w: fmt_w(w, cal)
     mem = [n for n, _ in members(board)]
     print(f"plan: {len(todo)} PRDs"
-          f" · workers={r['workers']} · unspecced est'd at {r['avg']:.1f}w"
+          f" · workers={r['workers']} · unspecced est'd at {fw(r['avg'])}"
           + (f" · master of {len(mem) + 1} boards: "
              + ", ".join([os.path.basename(os.path.dirname(board))] + mem)
              if mem else "")
@@ -1069,7 +1234,7 @@ def cmd_plan(board, workers):
             p = todo[x]
             hot = p["state"] in ("question", "blocked", "refine", "failed")
             print(f"  · {x} [{p['state']}] p{p['fm'].get('priority', 0)}"
-                  f" {est[x]:.1f}w · unblocks {unblocks[x]:.0f}w"
+                  f" {fw(est[x])} · unblocks {fw(unblocks[x])}"
                   + ("  (waiting on you)" if hot
                      else "" if feet[x] else "  (unspecced)"))
     gated = [x for x in r["order"] if (needs[x] or after[x]) and est[x] > 0]
@@ -1088,8 +1253,8 @@ def cmd_plan(board, workers):
             if not feet[x]:
                 why.append("unspecced")
             print(f"  · {x} [{p['state']}] p{p['fm'].get('priority', 0)}"
-                  f" {est[x]:.1f}w" + (f"  ({'; '.join(why)})" if why else ""))
-    print(f"\n≈ {r['wall']:.1f}w wall @ {r['workers']} workers — a staffing"
+                  f" {fw(est[x])}" + (f"  ({'; '.join(why)})" if why else ""))
+    print(f"\n≈ {fw(r['wall'])} wall @ {r['workers']} workers — a staffing"
           " guess, not a promise. The dependency structure above is the plan")
 
     mp, mp_path = load_map(board)
@@ -1152,11 +1317,13 @@ def main():
             print(f"@{name}\t{path}{mark}")
     elif cmd == "gantt":
         cmd_gantt(board, open_after="--open" in flags)
+    elif cmd == "calibrate":
+        cmd_calibrate(board)
     elif cmd == "status":
         cmd_status(board)
     else:
         die(f"unknown command '{cmd}' — plan | reconcile | gantt"
-            " | members | status")
+            " | calibrate | members | status")
 
 
 if __name__ == "__main__":
