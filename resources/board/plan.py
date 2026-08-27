@@ -298,17 +298,46 @@ def claim_of(fm):
     return {"who": who, "since": m.group(1) if m else ""}
 
 
+def body_has_open_box(prd):
+    """True when `prd.md` itself still carries a `- [ ]`.
+
+    The specs are not the whole contract. Every tree's own `done` gate reads
+    the boxes in `prd.md` — `realm/src/gates/tests/done_boxes_are_ticked.rs`
+    over the whole file, `mitosys/src/mitosys/gates/tests/` under
+    `## Acceptance` — so a PRD whose specs are all closed can still be one
+    the gate refuses. The widest of the two is what `collect` has to clear,
+    because saying "collect" on a PRD a gate would reject is how a board
+    manufactures the `done`-with-open-boxes defect it is trying to remove.
+
+    `- [~]` is a closure, not an open box: both gates read it as struck. This
+    is the one place the marker set matters, which is why it is not
+    `acceptance_of`'s `== "x"` test."""
+    try:
+        text = open(os.path.join(prd["dir"], "prd.md"), encoding="utf-8").read()
+    except OSError:
+        return False
+    return any(l.lstrip().startswith("- [ ]") for l in text.splitlines())
+
+
 def standing(prd):
     """(fraction closed, closed, total, collect) for one PRD.
 
     `collect` is the whole point of reading the boxes: a PRD whose every
     acceptance box is closed while a worker still holds it is finished work
     waiting to be committed and set `done`. Until that happens every PRD
-    behind it waits too, so it is the most valuable thing on the board."""
+    behind it waits too, so it is the most valuable thing on the board.
+
+    `frac`/`closed`/`total` stay the SPECS' numbers — they are the only thing
+    that moves while a worker works, which is what the lane bar is drawn
+    from. `collect` is the stricter question and answers from `prd.md` too;
+    the two deliberately disagree, and `prds/memos/done-counts-which-boxes.md`
+    is why."""
     closed, total = acceptance(prd)
     frac = (closed / total) if total else 0.0
     held = prd["state"] in HOLDING_STATES
-    return frac, closed, total, bool(held and total and closed == total)
+    ready = bool(held and total and closed == total
+                 and not body_has_open_box(prd))
+    return frac, closed, total, ready
 
 
 def hours(v):
