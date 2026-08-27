@@ -24,53 +24,64 @@ Rules for every worker:
   Say what is wrong, what you measured, and which requested PRD it would get
   wrong. The orchestrator decides what it becomes, per
   @references/parts/derived.md.
-- A measured claim gets one of three verdicts — `reproduced`, `refuted`,
-  `unmeasured`, never `exact` — with the fixture named in a parenthesis
-  beside it, because a reason is only as good as the fixture it was measured
-  on. A claim cheap to run is run twice, with a different input.
-- A census enumerates its population; it never names the members it already
-  knows. A check written from the answer passes on the answer and is blind to
-  everything else. The words catch nothing on their own — only the second run
-  does.
+- Two rules for **contested or load-bearing claims** — never for every
+  sentence of a routine report, which states what was done and quotes its
+  verify output, nothing more: a measured claim gets `reproduced`, `refuted`
+  or `unmeasured` with the fixture named beside it, and a census enumerates
+  its population rather than the members it already knows — a check written
+  from the answer passes on the answer.
 
-**Analyst** — one per `open` PRD being specced:
+**Analyst** — one per `open` PRD being probed:
 
-> Read `prds/<prd>/prd.md`, including `## Answers`, and explore `<repo>` as
-> needed. Return exactly one verdict:
+> Read `prds/<prd>/prd.md`, including `## Answers`. Then **build it** — never
+> spec from reading. Attempt the implementation in `<repo>` and keep going
+> until it works or until it hits something undefined. The attempt is the
+> analysis: whatever the build passes through needs no question, and whatever
+> it hits is the finding. Leave the probe code in the tree, uncommitted, on
+> every verdict — it is pass one, and the next worker continues it. Return
+> exactly one verdict:
 >
-> - **SPECCED** — write `specs/specNN.md` files, template
+> - **SPECCED** — the build went through, or far enough that only defined
+>   work remains. Write `specs/specNN.md` files from what you built, template
 >   `@references/templates/spec.md`, each one implementable unit: goal,
 >   `complexity:` and `footprint:` in frontmatter, `- [ ]` acceptance boxes
->   a check can fail, and a verify command. Report the spec list, the PRD's
+>   a check can fail, and a verify command. Each spec says what already
+>   stands and what is left to finish. Report the spec list, the PRD's
 >   `complexity` (1-100) and `blast-radius` (`high`|`mid`|`low`) with one
 >   line of reasoning each, and the union of the footprints. **Do not
->   estimate how long anything will take.** Score `complexity`, which is what
->   the board weighs. If a spec's compute cost is large enough to change its
->   scope, price that inside the spec.
-> - **REFINE** — the PRD holds more than one contract, or is too thin to spec.
->   Report the proposed children, `<dir-name> — one-line contract` each, and
->   what detail is missing.
-> - **QUESTION** — a real fork only the user can settle: naming, scope, cost.
->   Never a fact you could look up — find facts yourself. Write `## Questions`
->   into `prd.md` in the round format of `@references/drill.md`: each question
->   is the fork in 1-3 sentences ending in `?` — never the PRD restated — with
->   **three prepared answers**, each a complete, paste-ready decision, three
->   genuinely different versions of the outcome, one `(recommended)`. The user
->   picks one or writes their own. Writing the three is your work, not theirs.
->   Report the questions.
+>   estimate how long anything will take.** If a spec's compute cost is
+>   large enough to change its scope, price that inside the spec.
+> - **REFINE** — the build hit a missing piece big enough to be its own
+>   contract, or the PRD holds more than one. Report the proposed children,
+>   `<dir-name> — one-line contract` each, and for each the thing the build
+>   hit that it answers.
+> - **QUESTION** — the build hit a fork it cannot pick and cannot build
+>   around. **Only a fork you actually hit** — never a hedge, never "should
+>   I also check", never a fact: the build is how facts are found, and a
+>   question your probe did not run into is not yours to ask. Write
+>   `## Questions` into `prd.md` in the round format of
+>   `@references/drill.md`: each question is the fork in 1-3 sentences
+>   ending in `?` — never the PRD restated — with **three prepared
+>   answers**, each a complete, paste-ready decision, three genuinely
+>   different versions of the outcome, one `(recommended)`. Say what the
+>   build was doing when it hit each. Report the questions.
 >
 > Spec what this PRD asks for. A wrong claim you find elsewhere, or a check
 > that could not fail, goes in your report as a finding — not into a spec, and
 > not into a new PRD. Widening the contract is REFINE, not initiative.
 
 On return: SPECCED → confirm the spec files exist, write `complexity:` and
-`blast-radius:`, set `specced`.
-REFINE / QUESTION → set the state, keep the report.
+`blast-radius:`, set `specced` — and hand it to its implementer in the same
+round, never to a shelf.
+REFINE / QUESTION → set the state, keep the report. The probe code stays in
+the tree either way; a PRD abandoned with probe code in it is named in the
+report, so the sweep reads it as pass one and not as damage.
 
 **Implementer** — one per `specced` PRD dispatched:
 
-> Read `prds/<prd>/prd.md` and every file in `specs/`. Implement the specs in
-> `<repo>`. Run each spec's `verify:` command and the repo's own gate. Tick a
+> Read `prds/<prd>/prd.md` and every file in `specs/`. The tree already
+> holds the probe's uncommitted code — continue it, it is pass one; the specs
+> were written from it. Implement the specs in `<repo>`. Run each spec's `verify:` command and the repo's own gate. Tick a
 > box `[x]` only for a check you actually ran, quoting output — and tick it
 > **as you close it**, not in a batch at the end: those boxes are the board's
 > only live view of your run, and the plan is drawn from them. If blocked,
