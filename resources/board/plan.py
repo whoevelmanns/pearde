@@ -1325,23 +1325,28 @@ def cmd_scan(board):
             bits.append(f"questions {q}/{a} answered")
         return "  " + " · ".join(bits)
 
-    # One PRD, one section, in the order the loop acts on them: close what is
-    # finished, leave what is running, answer what is asking, dispatch what is
-    # free, and read the rest as a queue. A PRD listed twice is a round that
-    # has to work out which line meant it.
+    # One PRD, one section, in THE PRESSURE ORDER — the single ranking this
+    # board is worked in, and the same one the timeline stacks its rows by.
+    # See @references/parts/order.md. Everything above `in flight` is something
+    # this round can act on now; `in flight` is held by somebody else. A PRD
+    # listed twice is a round that has to work out which line meant it.
     collect = list(r["collect"]) if r else []
     rest = [x for x in order if x not in collect]
-    flight = [x for x in rest if prds[x]["state"] in ("analyzing", "claimed")]
-    yours = [x for x in rest if prds[x]["state"] in ("question", "refine",
-                                                     "failed")]
+    # `blocked` is a wall a person has to take down, not a free PRD. It holds
+    # its worker, so it is not in flight either — filing it under `ready` was
+    # the scan calling a PRD dispatchable that nothing can dispatch.
+    yours = [x for x in rest if prds[x]["state"] in ("question", "blocked",
+                                                     "refine", "failed")]
+    flight = [x for x in rest if prds[x]["state"] in ("analyzing", "claimed")
+              and x not in yours]
     free = [x for x in rest if x not in flight and x not in yours]
     ready = [x for x in free if not needs.get(x) and not after.get(x)]
     gated = [x for x in free if needs.get(x) or after.get(x)]
     for title, group in (
             (f"collect — {len(collect)} finished, waiting to be closed",
              collect),
-            (f"in flight — {len(flight)} held by a worker", flight),
             (f"waiting on you — {len(yours)}", yours),
+            (f"in flight — {len(flight)} held by a worker", flight),
             (f"ready — {len(ready)} dispatchable now, in order", ready),
             (f"gated — {len(gated)}, as their gates clear", gated)):
         if not group:

@@ -62,27 +62,54 @@ at zero: visible, weighed, and scheduled by nothing.
 
 **The y axis is pressure, not the schedule.** Read top to bottom by start
 date, the one PRD asking you a question sits three hundred rows down, and a
-board you have to hunt through is a board nobody glances at. Rows band by how
-much they want a person *now*, and only inside a band by the plan arithmetic —
-earliest start, then critical, then the size of the door it opens:
+board you have to hunt through is a board nobody glances at. Rows stack in the
+pressure order — to collect, waiting on you, in flight, ready now, gated,
+parked, landed — which is @references/parts/order.md's ranking and the same one
+`plan.py scan` prints a round in. The top of the chart and the top of the scan
+are one claim. Inside a band the plan arithmetic breaks the tie: earliest
+start, then critical, then the size of the door it opens.
 
-| band | is |
-|------|----|
-| **to collect** | every box closed, a worker still holding it. One commit, and a whole frontier can open |
-| **asks** | `question` and `blocked` — nothing here moves until you answer |
-| **failed** | a run that came back with nothing. Parked, and still yours |
-| **in flight** | a worker holds it and its boxes are ticking — the moving state the page exists to show |
-| **ready now** | dispatchable this second, biggest door first |
-| **the plan** | everything else still to do, in schedule order |
-| **parked** | `deferred` and the board's own states — weighed, scheduled by nothing |
-| **landed** | `done`, laid out to the left of now |
+The bands apply inside every grouping, and in **tree** a branch is as pressing
+as the most pressing thing inside it — a folded parent holding one `question`
+rises carrying it. Tree is one click away and it is not what a board opens on:
+under it a container's aggregate track and the landed work inside an early
+branch sit above the run that is happening right now.
 
-Progress is deliberately not part of that order. A bar filling as its checks
-land would drag its own row up the page, and a row that moves while you read it
-is what the banding is for — a row changes band when a state or a claim does,
-which is when the board has something new to say. The bands apply inside every
-grouping, and in **tree** a branch is as pressing as the most pressing thing
-inside it — a folded parent holding one `question` rises carrying it.
+**A name rides its own work.** There is no column of names to correlate
+against: a PRD's name is written inside its pill where the pill can hold it,
+and floating just off the end where it cannot — off the *start* instead when
+the end is against the right edge — with what is left of it beside it, boxes
+while a worker holds it and weight otherwise. Ink inside a pill is chosen from
+that pill's own colour, so it is legible on a near-white `open` and a
+near-black `specced` alike.
+
+Two names can want one patch of canvas, and at six pixels a row most of them
+do. Rows are in the pressure order, so placement is greedy from the top: what
+is to collect, waiting on you, in flight and ready claim their names first, and
+the settled tail is what loses one to a collision. A row without its name keeps
+its bar, its hover and its click — the name is the cheapest thing on a row to
+drop and the only one that can go without the work going with it.
+
+`names` (or `t`) brings the old column back for when a sorted list of names is
+the thing you want; it slides in rather than appears, and the plan re-lays out
+under it. At dense row heights that column staggers into two, each name still
+on its own row's centre line and its row banded behind it, because the band is
+what pairs a name to a bar.
+
+**Both axes fit the window.** `ppu` fits the weight across. Down, `rows` is a
+slider between the two honest answers: at one end every row is the height it is
+meant to be read at and the board scrolls; at the other the whole board is on
+the screen and the rows are as short as that takes. Neither end is right for
+every board, which is why it is a slider and not a rule. `fit` (or `f`) puts
+the horizontal half back after a zoom. Row height still has two clamps — a
+ceiling so four PRDs are not four fat stripes, and a floor below which a bar
+stops being a shape, past which the remainder scrolls.
+
+**Two cards, not one.** The plan and **focus** sit side by side with air
+between them, and focus pushes in and out from the right — `focus` (or `L`).
+The plan takes the width back as it goes. The stage takes whatever height the
+page has left under it, measured rather than guessed, so a wrapped toolbar
+never pushes the legend off the bottom and never leaves dead page under it.
 
 **The plan moves while the work does.** The live service reconciles every
 board it watches — not only masters — so a bar re-sizes and everything
@@ -97,7 +124,7 @@ them:
 |----------------------------|----------------------------------------------------------------------|
 | the solid part of a bar    | the fraction of that PRD's acceptance boxes an implementer has closed |
 | the ghosted part           | what it has not proven yet. The edge between them moves as boxes close |
-| `6/8` in the task column   | the same count, for a PRD in flight. It replaces the weight, which is already what is left |
+| `6/8` beside a name        | the same count, for a PRD in flight. It replaces the weight, which is already what is left |
 | a shrinking bar            | a held PRD weighs what is **left** of it, so the chain shortens as the run lands checks |
 | **✓** before a name        | every box closed — this one is yours to collect                      |
 | `implementer-1 holding 40m`| off `claim:`, in the tooltip and the pane. Counted in the page, so it ticks between board changes |
@@ -106,7 +133,8 @@ them:
 - A worker that ticks nothing shows no progress. That is correct — an
   unproven run has produced nothing the board can schedule around.
 
-**The task column is the board's own tree.** A PRD's children sit indented
+**With `names` on, that column is the board's own tree** — under `group: tree`,
+which is one click from the urgency order a board opens on. A PRD's children sit indented
 under it, a member board is the root of everything under it, and a branch
 opens and closes from its `▸`. Two things decide whether a branch is open, in
 that order: what you last clicked, and — for every branch you have not touched
@@ -115,8 +143,9 @@ or zoom past a branch and it folds itself away, carrying a thin bar that says
 how far its work reaches; pan back and it opens again. A closed branch's row
 still reads its whole subtree: how many PRDs, their weight, how many are
 critical. Clicking a container's name opens the PRD; clicking its caret folds
-it. `group` picks something else to sort by — state, parent, board — and
-`collapse all` shuts or opens every branch at once.
+it. `group` picks what the rows stack by — `urgency` (the pressure order, flat,
+and what a board opens on), `tree`, state, parent, board — and `collapse all`
+shuts or opens every branch at once. Pressure bands inside whichever is picked.
 
 The chart is one canvas, drawn virtualised — a 40-PRD board and a 4000-PRD one
 cost the same. Greyscale carries the plan — state is ink weight, not hue — and
@@ -127,7 +156,7 @@ person.
 |---|---|
 | drag | pan |
 | ctrl/⌘+wheel | zoom at the pointer |
-| drag the column edge | widen the names |
+| drag the column edge | widen the names, when `names` is on |
 | `↑` `↓` | move the selection |
 | `⏎` | open it |
 | ⌘1–6 | switch view |

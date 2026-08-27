@@ -33,8 +33,32 @@ const $ = id => document.getElementById(id);
 const cv = $("cv"), scroll = $("scroll"), spacer = $("spacer"),
       plot = $("plot"), tip = $("tip"), mini = $("mini");
 const ctx = cv.getContext("2d"), mctx = mini.getContext("2d");
-const ROW = 26, HEAD = 44, PAD = 5, MS = 86400000;
-let LEFT = Math.min(360, Math.max(210, Math.round(innerWidth * 0.24)));
+const HEAD = 44, PAD = 5, MS = 86400000;
+/* ── the vertical scale ───────────────────────────────────────────────────
+   A chart you have to scroll to see is a chart you read, not one you glance
+   at. Rows are therefore not a fixed height: the plan is scaled to the window
+   on BOTH axes — `ppu` fits the weight across, `ROW` fits every row down.
+   The clamps are the two honest limits. ROW_MAX stops four PRDs becoming four
+   fat stripes; ROW_MIN is the pitch below which a bar stops being a shape, and
+   a board past it scrolls the remainder rather than drawing a smear. */
+const ROW_MIN = 5.5, ROW_MAX = 30, ROW_READ = 26;
+let ROW = ROW_READ;
+/* `rows` on the toolbar, 0 to 100: at 0 every row is at the size it is meant
+   to be read at and the board scrolls; at 100 the whole board is on the screen
+   and the rows are as short as that takes. Neither end is the right answer for
+   every board, which is why it is a slider and not a rule. */
+let vscale = 100;
+/* ── where the names live ─────────────────────────────────────────────────
+   A name column is a second list to correlate: you read a name on the left,
+   carry its y across an empty field, and hope you land on the right bar. Dense
+   enough and it has to split into two columns, and then there are three lists.
+   So by default a name rides its own work — inside the pill when the pill can
+   hold it, floating just off its end when it cannot — and the chart is the
+   whole width. `names` puts the column back for the times a sorted list of
+   names is the thing you want. */
+let onBars = true;
+const COLW = () => Math.min(360, Math.max(210, Math.round(innerWidth * 0.24)));
+let LEFT = onBars ? 0 : COLW();
 let dpr = 1;
 
 /* ── tokens ───────────────────────────────────────────────────────────────
@@ -54,12 +78,46 @@ function readTokens() {
 }
 readTokens();
 const col = s => T[stTok(s)];
+/* Which ink to write ON a fill. A label inside a pill is only worth having if
+   it is legible on every state's colour, and the states run from a near-white
+   `open` to a near-black `specced` — so the fill decides, not a guess. The
+   canvas normalises whatever the stylesheet said into `#rgb`/`rgba()`, and an
+   alpha is composited over the card it sits on before the luminance is read. */
+const inkCache = new Map();
+function inkOn(fill) {
+  let out = inkCache.get(fill);
+  if (out) return out;
+  ctx.fillStyle = fill;
+  const norm = String(ctx.fillStyle);
+  let r = 0, g = 0, b = 0, a = 1;
+  if (norm[0] === "#") {
+    const h = norm.length === 4
+      ? norm[1] + norm[1] + norm[2] + norm[2] + norm[3] + norm[3]
+      : norm.slice(1);
+    r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16);
+    b = parseInt(h.slice(4, 6), 16);
+  } else {
+    const m = norm.match(/[\d.]+/g) || [];
+    r = +m[0] || 0; g = +m[1] || 0; b = +m[2] || 0;
+    a = m[3] === undefined ? 1 : +m[3];
+  }
+  if (a < 1) {                                   // over the card it is drawn on
+    ctx.fillStyle = T.content;
+    const c = String(ctx.fillStyle).match(/[\d.]+/g) || [255, 255, 255];
+    const cr = +c[0], cg = +c[1], cb = +c[2];
+    r = r * a + cr * (1 - a); g = g * a + cg * (1 - a); b = b * a + cb * (1 - a);
+  }
+  out = (0.2126 * r + 0.7152 * g + 0.0722 * b) > 150 ? T.ink : T["accent-ink"];
+  if (inkCache.size > 64) inkCache.clear();
+  inkCache.set(fill, out);
+  return out;
+}
 /* A PRD whose every acceptance box is closed while a worker still holds it is
    finished and waiting to be taken. It gets its own hue on the chart — the
-   same green the column uses, so the bar and the row are one fact. */
+   same green focus uses, so the bar and the row are one fact. */
 const colOf = t => t.collect && !HOT[t.state] ? T.ok : T[stTok(t.state)];
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  readTokens(); draw(); drawMini(); if (view !== "timeline") repaintView();
+  readTokens(); inkCache.clear(); draw(); drawMini(); if (view !== "timeline") repaintView();
 });
 
 const a = DATA.anchor.split("-").map(Number);
@@ -157,15 +215,17 @@ const GROUPS = {
             const i = t.rel.lastIndexOf("/");
             return i < 0 ? "(top level)" : t.rel.slice(0, i);
           }, sort:(p,q) => p.localeCompare(q)},
-  none:  {label:"nothing", key:() => "", sort:() => 0},
+  none:  {label:"urgency", key:() => "", sort:() => 0},
 };
 if ((DATA.boards || []).length)
   GROUPS.board = {label:"board", key:t => t.board || DATA.board,
                   sort:(p,q) => p.localeCompare(q)};
-// a board with any shape to it opens as its own shape — the tree holds both
-// nesting and, on a master, the member boards. A flat board is a flat list.
-let groupBy = (DATA.boards || []).length || ALL.some(a => a.parent)
-  ? "tree" : "none";
+/* Every board opens on urgency — one flat list, most pressing at the top.
+   The tree is the board's own shape and it is one click away, but it cannot
+   be the thing you open on: under it a container's aggregate track and the
+   landed work inside an early branch sit above the run that is happening
+   right now, and the top of the chart is the only part read at a glance. */
+let groupBy = "none";
 const collapsed = new Set();
 const expanded = new Set();          // tree — branches the user forced open
 let treeNodes = [], treeRoots = [];  // the last tree build
@@ -197,33 +257,37 @@ const anyFilter = () =>
 /* ── pressure ─────────────────────────────────────────────────────────
    The vertical axis is not the schedule. Read top to bottom by start, the one
    PRD asking you a question sits three hundred rows down, and a board you have
-   to hunt through is a board nobody glances at. So rows band by how much they
-   want a person NOW, and only inside a band by the plan arithmetic:
+   to hunt through is a board nobody glances at. So rows stack in THE PRESSURE
+   ORDER — the same five sections `plan.py scan` prints a round in, which is
+   the order the board is worked in. @references/parts/order.md holds it, and
+   both ends read it from there rather than each keeping their own:
 
-     0 to collect  every acceptance box closed, a worker still holding it. One
-                   commit, and a whole frontier can open — nothing is cheaper
-     1 asks        `question` or `blocked`. Nothing here moves until you answer
-     2 failed      a run that came back with nothing. Parked, and still yours
-     3 in flight   a worker holds it and its boxes are ticking — the moving
-                   live state the page exists to show
-     4 ready now   dispatchable this second. That order IS the dispatch order
-     5 the plan    everything else still to do, in schedule order
-     6 parked      deferred, and the board's own states — weighed, scheduled
-                   by nothing
-     7 landed      done, laid out to the left of now
+     0 to collect     every acceptance box closed, a worker still holding it.
+                      One commit, and a whole frontier can open
+     1 waiting on you `question`, `blocked`, `refine`, `failed` — the four
+                      that move only when a person moves them
+     2 in flight      a worker holds it and its boxes are ticking. Below the
+                      two above it because somebody is already on it
+     3 ready now      dispatchable this second. That order IS the dispatch order
+     4 gated          the rest of the plan, in schedule order
+     5 parked         `deferred` and the board's own states — weighed,
+                      scheduled by nothing
+     6 landed         `done`, laid out to the left of now
 
-   Progress is deliberately NOT a key. A bar filling as its checks land would
-   drag its own row up the page, and a row that moves while you read it is the
-   thing this ordering exists to fix — a band changes when a state or a claim
-   does, which is exactly when the page has something new to say. */
+   The cut is between 1 and 2: above it is what this round can act on, below it
+   is what is already somebody's. Progress is deliberately NOT a key — a bar
+   filling as its checks land would drag its own row up the page, and a row
+   that moves while you read it is the thing this ordering exists to fix. A row
+   changes band when a state or a claim does, which is when the board has
+   something new to say. */
+const ASKING = {question:1, blocked:1, refine:1, failed:1};
 const pressure = t =>
-  t.collect                                       ? 0 :
-  t.state === "question" || t.state === "blocked" ? 1 :
-  t.state === "failed"                            ? 2 :
-  t.held                                          ? 3 :
-  t.ready                                         ? 4 :
-  t.past                                          ? 7 :
-  t.parked                                        ? 6 : 5;
+  t.collect          ? 0 :
+  ASKING[t.state]    ? 1 :
+  t.held             ? 2 :
+  t.ready            ? 3 :
+  t.past             ? 6 :
+  t.parked           ? 5 : 4;
 
 /* ── the row list ─────────────────────────────────────────────────────────
    One flat array, rebuilt on grouping, filter and collapse — never on scroll
@@ -475,6 +539,7 @@ const F = {
   meta:  '11.5px -apple-system' + FONT,
   tick:  '600 10.5px -apple-system' + FONT,
   small: '530 10px -apple-system' + FONT,
+  tiny:  '500 9.5px -apple-system' + FONT,
   tag:   '590 10.5px -apple-system' + FONT,
 };
 
@@ -581,6 +646,19 @@ function drawBar(x0, w, y, h, c, o) {
   ctx.restore();
 }
 
+/* The frame takes whatever the page has left under it — measured, not a
+   constant subtracted from the viewport. A wrapped toolbar, a taller header or
+   a second line of stats moves the top of the chart, and a guessed number then
+   either leaves a band of dead page below the legend or pushes the legend off
+   the bottom. Measuring gets both right and needs no maintenance. */
+function fitFrame() {
+  const st = $("stage");
+  if (!st.offsetParent) return;                 // another view is on
+  const top = st.getBoundingClientRect().top;
+  const below = $("legend").offsetHeight + $("note").offsetHeight + 28;
+  st.style.height = Math.max(280, innerHeight - top - below) + "px";
+}
+
 function resize() {
   dpr = Math.min(3, window.devicePixelRatio || 1);
   const W = plot.clientWidth, H = plot.clientHeight;
@@ -593,7 +671,19 @@ function resize() {
 
 /* place = the geometry changed (zoom, mode, row count, column width): tell
    the scroller how big the world is, then draw it */
+/* the row height that puts the whole board on the screen. Runs wherever the
+   geometry can have moved — a rebuild, a resize, a mode switch — so "fits the
+   window" is a standing property of the page, not something a button restores
+   after the fact. */
+function fitRows() {
+  const h = plot.clientHeight - HEAD - PAD - 12;
+  if (h <= 0 || !rows.length) return;
+  const onScreen = h / rows.length;
+  ROW = Math.max(ROW_MIN, Math.min(ROW_MAX,
+    ROW_READ + (onScreen - ROW_READ) * (vscale / 100)));
+}
 function place() {
+  fitRows();
   spacer.style.width = Math.max(plot.clientWidth,
     LEFT + span() * ppu + 24) + "px";
   spacer.style.height = (HEAD + PAD + rows.length * ROW + 14) + "px";
@@ -631,6 +721,15 @@ function draw() {
                         Math.ceil((sy + H - HEAD - PAD) / ROW));
   const kin = selected
     ? new Set([selected, ...selected.deps, ...selected.feeds]) : null;
+  const barH = Math.max(3, ROW * 0.54);
+  /* When the rows are shorter than a legible line, the names cannot all sit in
+     one column — so they stagger across `lanes` sub-columns, each label still
+     on its OWN row's centre line, with a hairline drawn back to that row's
+     swatch. The link between a name and its bar is then drawn rather than
+     inferred, which is the only way a 6px row keeps a readable name. */
+  const lanes = LEFT && ROW < 11 ? 2 : 1;
+  const SWX = 13;                       // where the state strip ends
+  const laneW = (LEFT - SWX - 8) / lanes;
 
   /* 1 — the field: washes, then grid */
   ctx.save();
@@ -660,6 +759,10 @@ function draw() {
     if (r.kind === "group") ctx.fillStyle = T["content-2"];
     else if (sel) ctx.fillStyle = T.sel;
     else if (i === hover) ctx.fillStyle = T.hover;
+    // staggered: the band runs the full width and says which of the two name
+    // columns this row's name is in. Without it the two columns read as two
+    // unrelated lists, and a name no longer names a bar
+    else if (lanes > 1 && (i & 1)) ctx.fillStyle = T.sunk;
     else continue;
     ctx.fillRect(0, Math.max(HEAD, y), W, ROW - Math.max(0, HEAD - y));
   }
@@ -672,14 +775,15 @@ function draw() {
     if (!r || y + ROW < HEAD) continue;
     if (r.kind === "group") {
       const x0 = x(r.lo), w = Math.max(5, (r.hi - r.lo) * ppu);
-      drawBar(x0, w, y + 9, 8, T["st-done"], {flat:true});
+      const gh = Math.max(3, ROW * 0.31);
+      drawBar(x0, w, y + (ROW - gh) / 2, gh, T["st-done"], {flat:true});
       continue;
     }
     const t = r.t, dim = kin ? !kin.has(t) : false;
     // a branch the reader has shut still says how far its children reach
     if (r.kids && !r.open && r.hi > r.lo)
-      drawBar(x(r.lo), Math.max(5, (r.hi - r.lo) * ppu), y + 19, 4,
-              T["st-done"], {flat:true});
+      drawBar(x(r.lo), Math.max(5, (r.hi - r.lo) * ppu), y + ROW - 7,
+              Math.max(2, ROW * 0.15), T["st-done"], {flat:true});
     const s = M.u0(t), e = M.u1(t);
     const x0 = x(s), w = Math.max(5, (e - s) * ppu);
     // float: how far this bar may slide before it becomes critical. Drawn
@@ -689,13 +793,14 @@ function draw() {
       ctx.save();
       ctx.globalAlpha = dim ? 0.2 : (t === selected || i === hover ? 0.95 : 0.4);
       ctx.fillStyle = T.float;
-      rr(x(e), y + 12, Math.max(2, slack * ppu), 2, 1); ctx.fill();
+      rr(x(e), y + ROW / 2 - 1, Math.max(2, slack * ppu), 2, 1); ctx.fill();
       ctx.restore();
     }
-    drawBar(x0, w, y + 6, 14, colOf(t),
+    drawBar(x0, w, y + (ROW - barH) / 2, barH, colOf(t),
             {ring:stRing(t.state), crit:t.critical, dim:dim,
              part:t.held && t.boxes && t.boxes[1] ? t.part : undefined});
   }
+  if (!LEFT) labels(first, last, rowY, kin);
   if (selected) arrows(rowY);
   ctx.restore();
 
@@ -746,7 +851,8 @@ function draw() {
   ctx.restore();
   line(LEFT, HEAD, W, HEAD, T.sep);
 
-  /* 6 — the frozen column, and the shadow that says it is frozen */
+  /* 6 — the names. On the bars by default; in the frozen column on request */
+  if (!LEFT) return finishDraw(W, H, sx, sy);
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, LEFT, H); ctx.clip();
   ctx.fillStyle = T.content; ctx.fillRect(0, 0, LEFT, H);
@@ -775,6 +881,30 @@ function draw() {
       ROW - Math.max(0, HEAD - y)); }
     else if (i === hover) { ctx.fillStyle = T.hover;
       ctx.fillRect(0, Math.max(HEAD, y), LEFT, ROW - Math.max(0, HEAD - y)); }
+    else if (lanes > 1 && (i & 1)) { ctx.fillStyle = T.sunk;
+      ctx.fillRect(0, Math.max(HEAD, y), LEFT, ROW - Math.max(0, HEAD - y)); }
+    if (lanes > 1) {
+      const lane = i % lanes, x0 = 6 + lane * laneW, lx = x0 + 11;
+      const sw = Math.max(3, Math.min(7, ROW - 1));
+      // the mark travels WITH the name — a shared strip of dots at the far
+      // left would be a third column to correlate, and correlating columns
+      // is the thing this layout has to avoid
+      rr(x0, mid - sw / 2, sw, sw, sw / 3);
+      ctx.fillStyle = colOf(t); ctx.fill();
+      const nm = fit((t.collect ? "✓ " : t.critical ? "★ " : "") + t.name,
+                     laneW - 24, F.tiny);
+      text(nm, lx, mid, T.ink, F.tiny);
+      // and a leader from the end of the name out to the lane's edge, so the
+      // eye is carried to the bar rather than having to hold a y
+      ctx.font = F.tiny;
+      const nw = ctx.measureText(nm).width;
+      ctx.save();
+      ctx.setLineDash([1, 2]);
+      line(lx + nw + 3, mid, x0 + laneW - 4, mid, T.ink4);
+      ctx.restore();
+      ctx.restore();
+      continue;
+    }
     let cx = indentOf(r);
     // a PRD that is itself a branch carries the caret before its swatch
     if (r.kids) { text(r.open ? "▾" : "▸", cx - 1, mid, T.ink3, F.small);
@@ -802,14 +932,21 @@ function draw() {
          sel ? T.ink : T.ink, F.cell);
     text(meta, LEFT - 12, mid, T.ink3, F.meta, true);
     ctx.restore();
-    if (y + ROW > HEAD)
+    if (y + ROW > HEAD && ROW >= 12)
       line(indentOf(r), y + ROW, LEFT, y + ROW, T["sep-2"]);
   }
   ctx.fillStyle = T.content; ctx.fillRect(0, 0, LEFT, HEAD);
   text("TASK", 12, HEAD / 2, T.ink3, F.small);
   ctx.restore();
-  line(LEFT, 0, LEFT, H, T.sep);
-  if (sx > 0) {
+  return finishDraw(W, H, sx, sy);
+}
+
+/* the edge of the frozen column, the two shadows that say the field is
+   scrolled, and what a screen reader is told. Shared, because the name-column
+   draw and the on-bar draw both end here. */
+function finishDraw(W, H, sx, sy) {
+  if (LEFT) line(LEFT, 0, LEFT, H, T.sep);
+  if (sx > 0 && LEFT) {
     const g = ctx.createLinearGradient(LEFT, 0, LEFT + 12, 0);
     g.addColorStop(0, T.lo); g.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = g; ctx.fillRect(LEFT, HEAD, 12, H - HEAD);
@@ -822,6 +959,74 @@ function draw() {
   cv.setAttribute("aria-label", rows.length + " rows — " +
     tasks.length + " scheduled PRDs, " + fmtW(CPM.length) +
     " of work to the vision. The list view is the same data as a table.");
+}
+
+/* ── the names, on the work ───────────────────────────────────────────────
+   With no column to carry them, a name rides its own bar: inside the pill when
+   the pill is tall and wide enough to hold it, otherwise floating just off the
+   pill's end — and off its start instead when the end is against the right
+   edge. Nothing is correlated across an empty field, because the name and the
+   thing it names are the same object.
+
+   Two labels can want the same patch of canvas, and at six pixels a row most
+   of them do. Rows are already in the pressure order, so placement is greedy
+   from the top: what is to collect, what is waiting on you, what is in flight
+   and what is ready claim their names first, and it is the settled tail that
+   loses one when two collide. A row that loses its name still has its bar, its
+   hover and its click — a name is the cheapest thing on the row to drop, and
+   the only one that can be dropped without dropping the work. */
+function labels(first, last, rowY, kin) {
+  const W = plot.clientWidth, H = plot.clientHeight;
+  const font = ROW >= 15 ? F.cell : F.tiny;
+  const lh = (ROW >= 15 ? 12 : 9.5) + 3;      // the room one label needs
+  const put = [];                            // what is already on the canvas
+  const clear = (x0, x1, y) => {
+    for (const p of put)
+      if (y - p.y < lh && p.y - y < lh && x0 < p.x1 && p.x0 < x1) return false;
+    return true;
+  };
+  for (let i = first; i <= last; i++) {
+    const r = rows[i];
+    if (!r || r.kind !== "task") continue;
+    const y = rowY(i), mid = y + ROW / 2;
+    if (mid < HEAD + lh / 2 || mid > H - 2) continue;
+    const t = r.t;
+    // the same two facts the column printed, in the same order: what it is,
+    // then what is left of it — boxes while a worker holds it, weight otherwise
+    const nm = (t.collect ? "✓ " : t.critical ? "★ " : "") + t.name;
+    const meta = t.held && t.boxes && t.boxes[1]
+      ? "  " + t.boxes[0] + "/" + t.boxes[1] : "  " + fmtW(t.est);
+    ctx.font = font;
+    const wn = ctx.measureText(nm).width, wm = ctx.measureText(meta).width;
+    const w = wn + wm;
+    const b0 = x(M.u0(t)), b1 = Math.max(b0 + 5, x(M.u1(t)));
+    const dim = kin ? !kin.has(t) : false;
+    const barH = Math.max(3, ROW * 0.54);
+    let lx = 0, inside = false;
+    const fill = colOf(t);
+    if (barH >= 11 && b1 - b0 >= w + 16 && b0 > LEFT - 40) {
+      lx = b0 + 8; inside = true;                       // it fits in the pill
+    } else if (b1 + 6 + w < W - 6 && clear(b1 + 6, b1 + 6 + w, mid)) {
+      lx = b1 + 6;                                      // just off the end
+    } else if (b0 - 6 - w > LEFT + 2 && clear(b0 - 6 - w, b0 - 6, mid)) {
+      lx = b0 - 6 - w;                                  // or off the start
+    } else continue;                                    // this row goes bare
+    put.push({x0:lx, x1:lx + w, y:mid});
+    ctx.save();
+    if (dim) ctx.globalAlpha = 0.45;
+    if (!inside) {
+      // a float sits over the field and sometimes over another bar — a wash
+      // behind it costs nothing on white and is what makes it legible on ink
+      ctx.globalAlpha *= 0.92;
+      ctx.fillStyle = T.content;
+      rr(lx - 3, mid - lh / 2 + 1, w + 6, lh - 2, 2); ctx.fill();
+      ctx.globalAlpha = dim ? 0.45 : 1;
+    }
+    const ink = inside ? inkOn(fill) : T.ink;
+    text(nm, lx, mid, ink, font);
+    text(meta, lx + wn, mid, inside ? ink : T.ink3, font);
+    ctx.restore();
+  }
 }
 
 /* how far in a row sits, and how wide the part of it that toggles is */
@@ -932,7 +1137,8 @@ function at(ev) {
   const i = Math.floor((py + scroll.scrollTop - HEAD - PAD) / ROW);
   const row = py < HEAD ? null : (rows[i] || null);
   return {px:px, py:py, i:row ? i : -1, row:row,
-          zone:py < HEAD ? "head" : px < LEFT - 3 ? "cell"
+          zone:py < HEAD ? "head" : !LEFT ? "plot"
+               : px < LEFT - 3 ? "cell"
                : px <= LEFT + 3 ? "grip" : "plot"};
 }
 
@@ -1107,9 +1313,57 @@ function glide(target, keepPx) {
   };
   zoomAnim = requestAnimationFrame(step);
 }
+// both axes, because a plan that fits across and runs off the bottom is not
+// fitted. The vertical half is `place`'s standing rule; this only has to put
+// the horizontal one back and go to the start of the track.
+/* both are preferences, not views — they outlive the reload */
+try {
+  onBars = localStorage.getItem("pearde.names") !== "col";
+  const raw = localStorage.getItem("pearde.vscale");
+  if (raw !== null && raw !== "" && +raw >= 0 && +raw <= 100) vscale = +raw;
+} catch (e) {}
+LEFT = onBars ? 0 : COLW();
+$("vscale").value = vscale;
+$("vscale").oninput = () => {
+  vscale = +$("vscale").value;
+  try { localStorage.setItem("pearde.vscale", vscale); } catch (e) {}
+  place();
+};
+$("namestog").onclick = () => setNames(!onBars);
+$("namestog").classList.toggle("on", !onBars);
+/* The name column is canvas, so CSS cannot slide it — this does, on the same
+   curve and duration as focus, so the two toggles feel like one control. */
+let colAnim = 0;
+function setNames(next) {
+  onBars = next;
+  try { localStorage.setItem("pearde.names", onBars ? "bar" : "col"); }
+  catch (e) {}
+  $("namestog").classList.toggle("on", !onBars);
+  const from = LEFT, to = onBars ? 0 : COLW();
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  cancelAnimationFrame(colAnim);
+  if (reduce || from === to) {
+    LEFT = to; tw.clear(); retree(); place();
+    return;
+  }
+  const t0 = performance.now(), dur = 280;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur);
+    // the page's own easing curve, as a cubic — out-expo enough to read as one
+    // movement rather than a slide that stops
+    LEFT = from + (to - from) * (1 - Math.pow(1 - k, 3));
+    place();
+    if (k < 1) colAnim = requestAnimationFrame(step);
+    else { LEFT = to; tw.clear(); retree(); place(); }
+  };
+  colAnim = requestAnimationFrame(step);
+}
+
 function fitAll() {
   glide((plot.clientWidth - LEFT - 16) / span(), 0);
   scroll.scrollLeft = 0;
+  scroll.scrollTop = 0;
+  place();
 }
 
 function zoomButtons() {
@@ -1137,7 +1391,7 @@ function setMode(next) {
   place();
 }
 
-/* ═══ the column ═══════════════════════════════════════════════════════════
+/* ═══ focus ════════════════════════════════════════════════════════════════
    What to do next, beside the plan rather than above it — a column has the
    one axis this list wants, and it neither pushes the gantt down nor truncates
    the frontier behind a "+N more".
@@ -1151,7 +1405,7 @@ function setMode(next) {
      to land     a lane branch main has never seen, whose PRD the board calls
                  finished. In flight underneath it: lanes still being worked
 
-   Nothing is truncated here; the column scrolls.                            */
+   Nothing is truncated here; focus scrolls.                                 */
 /* ── the frontier column, as an element ───────────────────────────────────
    What to do next: finished work to collect, the dispatch frontier, and the
    lanes main has not seen. A custom element rather than a string of HTML, so
@@ -1314,7 +1568,8 @@ $("onlyready").onclick = () => { readyOnly = !readyOnly; syncToggles(); build();
 $("landtog").onclick = () => {
   landOpen = !landOpen;
   try { localStorage.setItem("pearde.land", landOpen ? "1" : "0"); } catch (e) {}
-  syncToggles(); drawSide(); resize(); place();   // the plot just changed width
+  syncToggles(); drawSide();   // the plot's width is now animating; the
+                               // ResizeObserver draws every frame of it
 };
 /* ── the board switcher ───────────────────────────────────────────────────
    Every board the daemon watches, under the title of the one you are on. The
@@ -1388,8 +1643,20 @@ $("onlycollect").onclick = () => {
 let rt = 0;
 addEventListener("resize", () => {
   clearTimeout(rt);
-  rt = setTimeout(() => { resize(); retree(); place(); movePill(); }, 60);
+  rt = setTimeout(() => { fitFrame(); resize(); retree(); place(); movePill(); },
+                  60);
 });
+/* focus slides rather than appears, so the plot's width changes over a couple
+   of hundred milliseconds rather than in one step. A transition fires no
+   per-frame callback — the observer is what keeps the canvas the same size as
+   the box it is drawn in for every frame of the slide. It watches the plot
+   only, and nothing in here changes layout, so it cannot feed itself. */
+let roQ = false;
+new ResizeObserver(() => {
+  if (roQ) return;
+  roQ = true;
+  requestAnimationFrame(() => { roQ = false; resize(); place(); });
+}).observe(plot);
 
 /* the canvas is focusable, and the selection moves by key — a chart nobody
    can reach with a keyboard is a picture, not a control */
@@ -1435,6 +1702,7 @@ addEventListener("keydown", e => {
   else if (e.key === "c") $("onlycrit").click();
   else if (e.key === "r") $("onlyready").click();
   else if (e.key === "l") $("landtog").click();
+  else if (e.key === "t") $("namestog").click();
   else if (e.key === "x") $("onlycollect").click();
   else if (e.key === "+" || e.key === "=") glide(ppu * 1.4);
   else if (e.key === "-") glide(ppu / 1.4);
@@ -1555,7 +1823,8 @@ function drawLegend() {
     "<span><b></b>now · vision</span>" +
     '<span class="keys">drag to pan · ctrl+wheel zoom · ' +
     "<kbd>/</kbd> filter · <kbd>v</kbd> axis · <kbd>c</kbd> critical · " +
-    "<kbd>r</kbd> ready · <kbd>x</kbd> collect · <kbd>f</kbd> fit · " +
+    "<kbd>r</kbd> ready · <kbd>x</kbd> collect · <kbd>t</kbd> names · " +
+    "<kbd>f</kbd> fit · " +
     "<kbd>↑↓</kbd> select</span>";
 }
 
@@ -2773,13 +3042,14 @@ function readHash() {
 addEventListener("hashchange", () => { if (!hashLock) readHash(); });
 
 /* ── boot ──────────────────────────────────────────────────────────────── */
-resize();
 if (!SERVED) $("pick").classList.add("solo");
 syncToggles();
-setMode("vision");
-drawHeader();
 drawLegend();
 drawSide();
+fitFrame();          // the legend has to exist before the frame can measure it
+resize();
+setMode("vision");
+drawHeader();
 readHash();
 // the clock ticks for two reasons: the calendar's now-line, and how long a
 // worker has been holding a PRD. Both are read off Date.now(), so both go

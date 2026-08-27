@@ -21,6 +21,35 @@ The analyst scores `complexity` and `blast-radius` at spec time, from the specs
 it just wrote — how many units, how much is unknown, how much of the tree they
 touch. The orchestrator writes them on the SPECCED transition.
 
+### The pressure order
+
+The three axes above decide what runs next among the PRDs that *can* run. The
+pressure order is the wider question — of everything on the board, what does
+this round touch first — and it is one ranking, written here once and read from
+here by both ends:
+
+| # | band | is |
+|---|------|----|
+| 0 | **to collect** | every acceptance box closed, a worker still holding it. One commit, and a whole frontier can open — no dispatch is cheaper |
+| 1 | **waiting on you** | `question`, `blocked`, `refine`, `failed` — the four that move only when a person moves them |
+| 2 | **in flight** | a worker holds it and its boxes are ticking |
+| 3 | **ready now** | dispatchable this second. Inside the band, biggest door first — that ordering IS the dispatch order |
+| 4 | **gated** | the rest of the plan, in schedule order |
+| 5 | **parked** | `deferred` and the board's own states — weighed, scheduled by nothing |
+| 6 | **landed** | `done`, laid out to the left of now |
+
+**The cut is between 1 and 2.** Above it is what this round can act on;
+below it is what somebody is already on. That is the whole rule — every band
+boundary follows from it.
+
+`plan.py scan` prints its five sections in this order, so a round reads the
+board already sorted, and the timeline stacks its rows by it, so the top of the
+chart and the top of the scan are the same claim. Inside a band the three axes
+above break the tie — earliest start, then critical, then the weight it
+unblocks. Progress is not a key anywhere: a bar filling as its checks land
+would drag its own row up the page, and a row that moves while you read it is
+what the banding is for. A PRD changes band when a state or a claim changes.
+
 ### No axis is a clock
 
 `actual:` is a record the plan never schedules by. `est:` is a fallback: a

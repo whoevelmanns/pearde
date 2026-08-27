@@ -390,23 +390,32 @@ __CSS__</style>
     <button id="zo" title="zoom out (−)">−</button>
     <button id="zi" title="zoom in (+)">+</button>
   </span>
+  <label class="lab" for="vscale">rows</label>
+  <input type="range" id="vscale" min="0" max="100" step="1" value="100"
+    title="row height — left: every row at its readable size, scroll for the
+rest. right: the whole board on the screen">
+  <button id="namestog" title="task names: on the bars, or in a column of their own (t)">names</button>
   <button id="ce" title="collapse every group or branch">collapse all</button>
   <input type="search" id="q" placeholder="filter  /" autocomplete="off">
   <button id="onlycrit" title="only the tasks that set the finish">critical</button>
   <button id="onlyready" title="only what is dispatchable now">ready</button>
   <button id="onlycollect" title="only finished work waiting to be closed">collect</button>
-  <button id="landtog" title="the column: what to collect, dispatch and land (L)">column</button>
+  <button id="landtog" title="focus: what to collect, what to dispatch, what to land (L)">focus</button>
 </div>
 <section data-view="timeline" class="on">
-<canvas id="mini" aria-hidden="true"></canvas>
-<div id="frame">
-  <div id="plot">
-    <canvas id="cv" role="img"></canvas>
-    <div id="scroll" tabindex="0" aria-label="the plan — arrow keys move the
-      selection, return opens it, the list view is the same data as a table">
-      <div id="spacer"></div>
+<div id="stage">
+  <div id="chart">
+    <canvas id="mini" aria-hidden="true"></canvas>
+    <div id="frame">
+      <div id="plot">
+        <canvas id="cv" role="img"></canvas>
+        <div id="scroll" tabindex="0" aria-label="the plan — arrow keys move the
+          selection, return opens it, the list view is the same data as a table">
+          <div id="spacer"></div>
+        </div>
+        <div id="empty"></div>
+      </div>
     </div>
-    <div id="empty"></div>
   </div>
   <pearde-frontier id="land" aria-label="waiting to land in main"></pearde-frontier>
 </div>

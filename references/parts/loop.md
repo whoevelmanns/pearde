@@ -31,10 +31,16 @@ round file rewritten says so. A refusal names the call that answers instead.
 - **One call: `python3 @resources/board/plan.py scan`.** It reads
   `prds/settings.md`, every `prd.md`, every member board and every spec's
   acceptance boxes, and prints the board on one page: the counts, every term
-  of the progress line, what is finished and waiting to be closed, what a
-  worker holds, what is asking, what is dispatchable now in dispatch order,
-  and what gates the rest. Each PRD appears in exactly one section, and the
-  five sections are steps 6, 5, 2, 4 and the queue.
+  of the progress line, what is finished and waiting to be closed, what is
+  asking, what a worker holds, what is dispatchable now in dispatch order,
+  and what gates the rest. Each PRD appears in exactly one section.
+- **The five sections come out already in the order to work them** — the
+  pressure order, @references/parts/order.md: collect, waiting on you, in
+  flight, ready, gated, which is steps 6, 2, 5 and the queue. The cut is after
+  `waiting on you`: above it is this round's to act on, below it is already
+  somebody's. The timeline stacks its rows by the same ranking, so the top of
+  the chart and the top of the scan are one claim, and the route forward is
+  read rather than re-derived.
 - **Open a file only for what the scan does not print, and only when you are
   about to act on it** — a `## Questions` you are asking, a `## Failure` you
   are retrying, the contract you are briefing a worker with. Never open a
