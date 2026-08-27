@@ -10,9 +10,16 @@ Rules for every worker:
 - Never edit frontmatter, never touch other PRDs, never write outside the PRD
   folder. Implementers also write the target repo.
 - Open the brief with one line naming the worker's persona — `Work as
-  @references/personas/<id>.md.` — the id its job maps to, per
-  @references/parts/personas.md. It is chosen per dispatch, never asked, and
-  it moves nothing about the session's own — which is stored nowhere either.
+  @references/personas/<id>.md.` — read off this table, never asked, and it
+  moves nothing about the session's own. This table is the whole of it: a
+  dispatch never opens @references/parts/personas.md, which answers a
+  different question — who works the *session*.
+
+  | the job                                                        | wears      |
+  |----------------------------------------------------------------|------------|
+  | the contract is user flow, product shape, or a user-facing name | `designer` |
+  | re-checking finished work, or a `failed` post-mortem            | `skeptic`  |
+  | anything else — every ordinary analyst and implementer          | `engineer` |
 - Write per `@@language`, in the board `language` from `prds/settings.md` —
   named in the brief. On a master board, the language of the PRD's **own**
   board.
@@ -108,7 +115,7 @@ Two unclosable boxes to catch when the specs land:
 A spec asking to change **another** PRD's body is the orchestrator's edit on
 that transition. The worker reports the wording — one writer per file holds.
 
-**Consultant** — one per call, per @references/parts/personas.md. Called by
+**Consultant** — one per call, per @references/parts/consult.md. Called by
 the orchestrator on its own judgment as often as by the user's `ask <id>
 <question>`. The persona is chosen for the question, not the job, and this is
 the only brief that produces no state change:

@@ -172,7 +172,7 @@ if [ -n "$BOARD" ]; then
   # who is working, from the session's own transcript. A persona is session
   # state and is stored nowhere — the transcript IS the session, so the last
   # `· as <id>` the board printed is the active one. Every round's line
-  # carries it, per @references/parts/personas.md.
+  # carries it, per @references/parts/progress.md.
   #
   # Anchored on `▸`, the line's own sigil: `· as` alone turns up in prose,
   # `▸…· as` does not. The tail is bounded because this runs on every render

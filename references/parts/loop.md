@@ -4,16 +4,52 @@ The seven steps, in order. Run until the board is drained, or everything left
 is blocked on the user. `once` = one round. `status` = step 1 plus the progress
 report, changing nothing.
 
+**Every step is a fixed set of tool calls, not an analysis.** The loop's work
+is choosing the next call and making it; a step that turns into a page of
+reasoning has left the loop. Three rules keep it in:
+
+- **Read the board with one call, and read it through the tool.**
+  `@resources/board/plan.py scan` is step 1 — the whole board on one page,
+  including the box counts. Walking the tree by hand or opening a `prd.md` for
+  its state is the same information at a hundred times the tokens.
+- **Write down what the tool cannot know.** `prds/.round.md`, rewritten at
+  every transition — @references/parts/round.md. Context does not survive a
+  compaction; that file does, and re-deriving a round costs more than the
+  round.
+- **An established fact is cited, never re-established.** A count verified at
+  12:19 is in the round file with the time on it. Re-running the check buys
+  nothing and costs the check. The same holds for a document's claim: check it
+  once, write the correction, move on — reconciling it again is not diligence.
+
+Where @references/parts/guard.md is wired, these three are not advice: a
+hand-walked board, a board-reading command repeated over an unchanged board,
+and a third read of an unchanged file are refused, and a PRD moved without the
+round file rewritten says so. A refusal names the call that answers instead.
+
 **1. Scan**
 
-- Read `prds/settings.md`. Missing means first run: `bash
+- **One call: `python3 @resources/board/plan.py scan`.** It reads
+  `prds/settings.md`, every `prd.md`, every member board and every spec's
+  acceptance boxes, and prints the board on one page: the counts, every term
+  of the progress line, what is finished and waiting to be closed, what a
+  worker holds, what is asking, what is dispatchable now in dispatch order,
+  and what gates the rest. Each PRD appears in exactly one section, and the
+  five sections are steps 6, 5, 2, 4 and the queue.
+- **Open a file only for what the scan does not print, and only when you are
+  about to act on it** — a `## Questions` you are asking, a `## Failure` you
+  are retrying, the contract you are briefing a worker with. Never open a
+  `prd.md` to learn its state and never open a spec to count its boxes: the
+  scan already read both, and re-reading them is what a compaction then
+  charges you for twice.
+- Read `prds/.round.md` — what this session already decided, verified and
+  asked. Missing means the round has not started yet. @references/parts/round.md.
+- Missing `prds/settings.md` means first run: `bash
   @resources/doctor.sh --fix`, print every line it printed, create
   `settings.md` per @references/settings.md, asking the user for the board
   language.
-- `find prds -type f -name prd.md`, parse every frontmatter.
-- `members:` means a **master board**: scan every member the same way, address
-  its PRDs `@<member>/<rel>`. No `name:` on it: ask the user and write it
-  before the round goes on.
+- `master of <n>` on the scan's first line means a **master board** — every
+  member is already scanned and its PRDs addressed `@<member>/<prd>`. No
+  `name:` on it: ask the user and write it before the round goes on.
 - No board: create `prds/`, report it empty, stop.
 - **Nothing to read for the persona.** It is session state, not a setting:
   the session is `engineer` until it is switched, and the first round with a
@@ -22,11 +58,11 @@ report, changing nothing.
 - Once per session, sweep a dead session's leftovers — `analyzing` with no
   live worker → `open`, `claimed` with no live worker → `failed`. Partial code
   may exist, and a human look is cheaper than a blind retry.
-- Read the worker's **output** before sweeping. `analyzing` with spec files on
-  disk is an analyst that finished: the transition is `specced` with the
-  specs' `complexity` summed, not `open`. `claimed` with every acceptance box
-  `[x]` is an implementer that finished: collect it per step 6, and only then
-  is anything left over a leftover.
+- Read the worker's **output** before sweeping, off the scan rather than off
+  the disk. A PRD in the scan's **collect** section is an implementer that
+  finished — collect it per step 6, and only then is anything left over a
+  leftover. `analyzing` with spec files on disk is an analyst that finished:
+  the transition is `specced` with the specs' `complexity` summed, not `open`.
 
 A worker its infrastructure killed — API error, lost network, full disk — is
 not a failed attempt:
@@ -89,21 +125,32 @@ dispatch an implementer.
 
 On each finished worker: validate the result (specs on disk / verify output
 present), write the transition, commit per @references/parts/commits.md, clear
-`claim:`, print the progress line, post the report with `POST /report` per
-@references/parts/view.md, return to step 2.
+`claim:`, print the progress line, rewrite `prds/.round.md`, post the report
+with `POST /report` per @references/parts/view.md, return to step 2.
+
+**A collect is a checklist, not an analysis.** Those are six mechanical
+actions on a result you already have — issue them as one batch, in one turn.
+The worker's report is the evidence; the scan's `boxes c/t` is the count. If
+something in the result genuinely needs deciding — a red check that may be
+yours, a defect outside the worker's scope — it gets one short paragraph and a
+decision, and the decision goes in the round file. It never becomes a
+re-derivation of the round.
 
 **Collect on the transition, never at the end of the round.** A PRD whose work
 is done and whose state still says `claimed` blocks every PRD that `needs:` it
 and every PRD its footprint clashes with — the board holds a finished thing and
 schedules around it. One worker's result is one collect.
 
-A PRD is **finished** when every acceptance box in its specs is `[x]`. That is
-not a state — it is a condition read off the specs on disk, and what step 1
-sweeps for on a session that starts with work already done.
+A PRD is **finished** when every acceptance box in its specs is `[x]` and
+`prd.md` carries no open box of its own. That is not a state — it is a
+condition read off the disk, which is why the scan reads it for you: a PRD in
+its **collect** section is finished, and `boxes c/t` on any other line is how
+far a live one has got. Counting boxes by opening the specs yourself is the
+same number for the price of the whole file.
 
 **Before `done` on work this session implemented, call the skeptic** — one
 question, on your own judgment, no permission needed:
-@references/parts/personas.md. You are checking your own work, which is the
+@references/parts/consult.md. You are checking your own work, which is the
 one check you cannot run from inside your own frame. What it finds is advice;
 the transition is still yours, and the gates below do not move.
 
@@ -132,6 +179,11 @@ Nothing in flight and nothing dispatchable: report per-state counts, every
 `question` / `refine` / `failed` PRD by name with what it needs, and the final
 progress line.
 
+- Rewrite `prds/report.md` per `@@report` — a round that moved anything owes
+  the reader the new state, in their words rather than the board's.
+- Rewrite `prds/.round.md` — what the next session would otherwise re-derive:
+  what was decided, what was verified and when, what is out to the user.
+  @references/parts/round.md.
 - Everything left waiting on the user, and the live service up? Park
   `@resources/board/serve.py wait` in the background before stopping, per
   @references/parts/view.md — an answer written in the view then wakes the

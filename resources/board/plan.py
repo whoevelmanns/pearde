@@ -16,6 +16,7 @@ from the cwd. The plan persists in prds/.plan.json. The view reads it.
 
 Python 3 stdlib only.
 """
+import collections
 import datetime
 import hashlib
 import html
@@ -353,6 +354,12 @@ def hours(v):
         return 0.0
     n, unit = float(m.group(1)), m.group(2)
     return n / 60 if unit == "m" else n * 8 if unit == "d" else n
+
+
+# The round's own memory — @references/parts/round.md. Fifteen lines the
+# orchestrator rewrites at every transition, so a compacted session recovers
+# by reading one file instead of re-deriving the round from the tree.
+ROUND_FILE = ".round.md"
 
 
 # The states the loop moves work through. A board state outside LIVE_STATES is
@@ -1195,6 +1202,157 @@ def reconcile(board):
     return True
 
 
+def question_counts(prd):
+    """(questions, answers) in one PRD's body — the numbers step 2 asks for.
+
+    A question is a `**Qn**` line under `## Questions`; an answer is the same
+    line under `## Answers`. Counting them here is what stops a round opening
+    every `question` PRD to find out whether it is still asking."""
+    out = {}
+    for sec in re.split(r"(?m)^##\s+", prd.get("body") or "")[1:]:
+        head, _, rest = sec.partition("\n")
+        head = head.strip().lower()
+        if head.startswith(("questions", "answers")):
+            out[head[:1]] = len(re.findall(r"(?m)^\s*(?:\*\*Q|[-*]\s)", rest))
+    return out.get("q", 0), out.get("a", 0)
+
+
+def weight_of(prd, avg):
+    """One PRD's weight, done or live — `complexity`, else the specs' sum,
+    else `est`, else the board average. `compute_plan` weighs only live work;
+    the progress line's percentage needs the closed PRDs too."""
+    e, _ = spec_data(prd)
+    return (float(prd["fm"].get("complexity", 0) or 0) or e
+            or hours(prd["fm"].get("est", "")) or avg)
+
+
+def progress_terms(board, prds=None, settings=None):
+    """Every term of the progress line, computed once.
+
+    @references/parts/progress.md defines them; deriving them by hand off a
+    board scan is a page of arithmetic a round pays for at every state change,
+    and pays again after every compaction."""
+    prds = scan(board) if prds is None else prds
+    settings = board_settings(board) if settings is None else settings
+    live = {r: p for r, p in prds.items() if p["state"] in LIVE_STATES}
+    scored = [w for w in (float(p["fm"].get("complexity", 0) or 0)
+                          for p in prds.values()) if w > 0]
+    avg = (sum(scored) / len(scored) if scored
+           else float(settings.get("weight-default", 50) or 50))
+
+    def origin(p):
+        return "derived" if str(p["fm"].get("origin", "")).strip() == \
+            "derived" else "requested"
+
+    req = {r: p for r, p in prds.items()
+           if origin(p) == "requested" and (p["state"] in LIVE_STATES
+                                            or p["state"] == "done")}
+    der = {r: p for r, p in prds.items()
+           if origin(p) == "derived" and (p["state"] in LIVE_STATES
+                                          or p["state"] == "done")}
+    wt = {r: weight_of(p, avg) for r, p in req.items()}
+    done_w = sum(w for r, w in wt.items() if req[r]["state"] == "done")
+    all_w = sum(wt.values())
+    counts = collections.Counter(p["state"] for p in prds.values())
+    parked = [r for r, p in prds.items()
+              if p["state"] not in LIVE_STATES and p["state"] != "done"]
+    return {
+        "prds": prds, "live": live, "avg": avg, "counts": counts,
+        "parked": parked,
+        "asked": (sum(1 for p in req.values() if p["state"] == "done"),
+                  len(req)),
+        "pct": round(100 * done_w / all_w) if all_w else 0,
+        "derived": (sum(1 for p in der.values() if p["state"] == "done"),
+                    len(der)),
+        "open": (counts.get("open", 0), len(prds)),
+        "openpct": (round(100 * counts.get("open", 0) / len(prds))
+                    if prds else 0),
+    }
+
+
+def cmd_scan(board):
+    """The whole board as one page a round can hold — step 1, in one call.
+
+    Everything the loop reads at the top of a round: the counts, the progress
+    terms, what is finished and waiting to be closed, what is dispatchable
+    now, what gates the rest, who holds what, and how many questions are
+    standing. It replaces a tree walk plus a `prd.md` read per PRD plus a spec
+    read per box count, which is the same information at a hundred times the
+    tokens — and re-derives none of it after a compaction."""
+    t = progress_terms(board)
+    prds, avg = t["prds"], t["avg"]
+    r = compute_plan(board, None, warn=False)
+    order = r["order"] if r else []
+    boxes = r["boxes"] if r else {}
+    needs = r["needs"] if r else {}
+    after = r["after"] if r else {}
+    est = r["est"] if r else {}
+    mem = [n for n, _ in members(board)]
+    print(f"board: {board} · {len(prds)} PRDs"
+          + (f" · master of {len(mem)}: " + ", ".join(mem) if mem else "")
+          + (f" · workers={r['workers']}" if r else ""))
+    if t["counts"]:
+        print("counts: " + " · ".join(f"{s} {n}" for s, n in sorted(
+            t["counts"].items(), key=lambda kv: -kv[1])))
+    ad, an = t["asked"]
+    dd, dn = t["derived"]
+    o, n = t["open"]
+    print(f"progress: asked {ad}/{an} · {t['pct']}%"
+          + (f" · derived {dd}/{dn}" if dn else "")
+          + f" · open {o}/{n} · {t['openpct']}%")
+    if t["parked"]:
+        print("parked: " + ", ".join(sorted(t["parked"])))
+
+    def line(x):
+        p = prds[x]
+        c, tt = boxes.get(x, (0, 0))
+        cl = claim_of(p["fm"])
+        q, a = question_counts(p)
+        bits = [f"{p['state']:9}", x, f"p{p['fm'].get('priority', 0)}",
+                f"w{est.get(x, 0):.0f}"]
+        if tt:
+            bits.append(f"boxes {c}/{tt}")
+        if needs.get(x):
+            bits.append("needs " + ",".join(os.path.basename(d)
+                                            for d in needs[x]))
+        if after.get(x):
+            bits.append("after " + ",".join(os.path.basename(d)
+                                            for d in after[x]))
+        if cl:
+            bits.append(f"claim {cl['who']}"
+                        + (f" since {cl['since']}" if cl["since"] else ""))
+        if q:
+            bits.append(f"questions {q}/{a} answered")
+        return "  " + " · ".join(bits)
+
+    # One PRD, one section, in the order the loop acts on them: close what is
+    # finished, leave what is running, answer what is asking, dispatch what is
+    # free, and read the rest as a queue. A PRD listed twice is a round that
+    # has to work out which line meant it.
+    collect = list(r["collect"]) if r else []
+    rest = [x for x in order if x not in collect]
+    flight = [x for x in rest if prds[x]["state"] in ("analyzing", "claimed")]
+    yours = [x for x in rest if prds[x]["state"] in ("question", "refine",
+                                                     "failed")]
+    free = [x for x in rest if x not in flight and x not in yours]
+    ready = [x for x in free if not needs.get(x) and not after.get(x)]
+    gated = [x for x in free if needs.get(x) or after.get(x)]
+    for title, group in (
+            (f"collect — {len(collect)} finished, waiting to be closed",
+             collect),
+            (f"in flight — {len(flight)} held by a worker", flight),
+            (f"waiting on you — {len(yours)}", yours),
+            (f"ready — {len(ready)} dispatchable now, in order", ready),
+            (f"gated — {len(gated)}, as their gates clear", gated)):
+        if not group:
+            continue
+        print("\n" + title)
+        for x in group:
+            print(line(x))
+    rf = os.path.join(board, ROUND_FILE)
+    print(f"\nround: {rf}" + ("" if os.path.isfile(rf) else "  (not written)"))
+
+
 def cmd_plan(board, workers):
     r = compute_plan(board, workers)
     if not r:
@@ -1321,8 +1479,10 @@ def main():
         cmd_calibrate(board)
     elif cmd == "status":
         cmd_status(board)
+    elif cmd == "scan":
+        cmd_scan(board)
     else:
-        die(f"unknown command '{cmd}' — plan | reconcile | gantt"
+        die(f"unknown command '{cmd}' — scan | plan | reconcile | gantt"
             " | calibrate | members | status")
 
 

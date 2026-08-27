@@ -9,6 +9,12 @@
 
 Board paths (`prds/…`) are neither. They address a board, not this skill.
 
+**A scope is what a feature is made of, not a reading list.** Read the one
+file that answers the question in front of you — the first anchor in a row is
+that file, and the rest are what it sends you to. A round that opens a whole
+scope pays for the manual again after every compaction, and pays for it in the
+window it needs for the work.
+
 **Where a file goes.** Markdown that someone reads lives under `references/`.
 Anything executed — a script, a tool, its config and its data — lives under
 `resources/`, whole. A tool's own README ships inside the tool.
@@ -33,34 +39,39 @@ explains the rest.
 
 | keyword | is | read |
 |---|---|---|
-| `@@loop` | the round, start to finish | @skills/pearde.md · @references/parts/loop.md · @references/parts/roles.md · @references/parts/order.md · @references/parts/states.md · @references/parts/commits.md · @references/parts/progress.md |
-| `@@board` | what the scan walks and what it parses | @references/parts/board.md · @references/parts/contract.md · @references/parts/states.md · @references/templates/prd.md · @references/settings.md |
+| `@@loop` | the round, start to finish | @references/parts/loop.md · @references/parts/round.md · @references/parts/states.md · @references/parts/commits.md · @references/parts/progress.md · @references/parts/order.md · @references/parts/roles.md |
+| `@@board` | what the scan walks and what it parses | @references/parts/board.md · @references/parts/round.md · @resources/board/plan.py · @references/parts/contract.md · @references/parts/states.md · @references/templates/prd.md · @references/settings.md |
 | `@@states` | the nine states and what moves a PRD between them | @references/parts/states.md · @references/parts/contract.md · @references/parts/commits.md |
 | `@@order` | what runs next, and why no axis is a clock | @references/parts/order.md · @references/parts/derived.md · @resources/board/plan.py |
-| `@@workers` | dispatching an analyst or an implementer | @references/parts/workers.md · @references/parts/roles.md · @references/parts/solo.md · @references/parts/personas.md · @references/language.md |
+| `@@workers` | dispatching an analyst or an implementer | @references/parts/workers.md · @references/parts/roles.md · @references/parts/solo.md · @references/language.md |
 | `@@specs` | one implementable unit, written and read | @references/templates/spec.md · @references/parts/workers.md · @references/parts/contract.md |
-| `@@personas` | who is working, how one is chosen, consulted or made | @references/parts/personas.md · @references/personas/INDEX.md · @references/personas/engineer.md · @references/personas/designer.md · @references/personas/mentor.md · @references/personas/skeptic.md · @references/parts/roles.md · @references/parts/workers.md · @references/parts/progress.md |
+| `@@personas` | who works the **session**, and how one is chosen or made — the roster is @references/personas/INDEX.md, and a persona file is read only when it is worn | @references/parts/personas.md · @references/personas/INDEX.md · @references/parts/progress.md |
+| `@@consult` | putting one problem to one persona, mid-round | @references/parts/consult.md · @references/parts/workers.md · @references/personas/INDEX.md |
 | `@@derived` | work the board found, and its tripwire | @references/parts/derived.md · @references/parts/order.md · @references/templates/prd.md |
 | `@@commits` | one PRD, one commit, on the transition that lands it | @references/parts/commits.md · @references/parts/states.md |
 | `@@memos` | recording a decision and checking it | @skills/pearde-memo.md · @references/memo.md · @references/parts/memos.md · @references/templates/memo.md · @resources/memos.py |
+| `@@report` | the board written for a person, one rolling state | @skills/pearde-report.md · @references/report.md · @references/templates/report.md · @references/parts/handles.md · @references/parts/loop.md |
 | `@@drill` | asking until the request is a contract | @skills/pearde-drill.md · @references/drill.md · @references/templates/prd.md · @references/parts/handles.md |
 | `@@handles` | every command the board answers to | @references/parts/handles.md · @references/parts/loop.md · @references/drill.md |
 | `@@view` | the live view — service, plan, render, writers | @skills/pearde-view.md · @references/parts/view.md · @resources/board/serve.py · @resources/board/plan.py · @resources/board/render.py · @resources/board/view.css · @resources/board/view.js · @resources/board/lit-core.min.js · @resources/board/viewtest.js · @resources/board/edit.py |
-| `@@progress` | the line printed on every state change | @references/parts/progress.md · @resources/statusline.sh · @references/parts/states.md |
-| `@@statusline` | the numbers rendered continuously in the terminal | @resources/statusline.sh · @references/parts/progress.md · @references/parts/personas.md · @references/install.md |
-| `@@install` | putting every skill where this agent finds it | @references/install.md · @SKILL.md · @resources/install.sh · @references/system.md · @references/parts/doctor.md · @resources/doctor.sh |
-| `@@skills` | the entry points, what each is a door to, and how one is named | @SKILL.md · @skills/pearde.md · @skills/pearde-drill.md · @skills/pearde-memo.md · @skills/pearde-view.md · @skills/pearde-master.md · @skills/pearde-doctor.md · @skills/pearde-persona.md · @skills/pearde-persona-ask.md · @skills/pearde-persona-create.md · @skills/pearde-scout.md · @references/install.md |
-| `@@doctor` | telling a broken install from an absent one | @skills/pearde-doctor.md · @references/parts/doctor.md · @resources/doctor.sh · @resources/index.py · @references/install.md |
+| `@@round` | what one session holds, and what survives a compaction | @references/parts/round.md · @references/parts/loop.md · @references/parts/guard.md · @resources/board/plan.py |
+| `@@guard` | the loop's rules, enforced rather than written | @references/parts/guard.md · @resources/guard.py · @references/parts/loop.md · @references/install.md |
+| `@@progress` | the line printed on every state change | @references/parts/progress.md · @references/parts/states.md |
+| `@@statusline` | the numbers rendered continuously in the terminal | @references/parts/statusline.md · @resources/statusline.sh · @references/install.md |
+| `@@install` | putting every skill where this agent finds it | @references/install.md · @SKILL.md · @resources/install.sh · @resources/guard.py · @references/system.md · @references/parts/doctor.md · @resources/doctor.sh |
+| `@@skills` | the entry points, what each is a door to, and how one is named | @SKILL.md · @skills/pearde.md · @skills/pearde-drill.md · @skills/pearde-memo.md · @skills/pearde-view.md · @skills/pearde-report.md · @skills/pearde-master.md · @skills/pearde-doctor.md · @skills/pearde-persona.md · @skills/pearde-persona-ask.md · @skills/pearde-persona-create.md · @skills/pearde-scout.md · @references/install.md |
+| `@@doctor` | telling a broken install from an absent one | @skills/pearde-doctor.md · @references/parts/doctor.md · @resources/doctor.sh · @resources/guard.py · @resources/index.py · @references/install.md |
 | `@@master` | one plan across several repos | @skills/pearde-master.md · @references/parts/master.md · @references/settings.md · @references/parts/board.md |
 | `@@settings` | every board-wide knob | @references/settings.md · @references/parts/contract.md |
 | `@@language` | how everything on the board is written | @references/language.md · @references/templates/prd.md · @references/templates/spec.md · @references/templates/memo.md |
-| `@@templates` | the three files a handle writes from | @references/templates/prd.md · @references/templates/spec.md · @references/templates/memo.md |
+| `@@templates` | the four files a handle writes from | @references/templates/prd.md · @references/templates/spec.md · @references/templates/memo.md · @references/templates/report.md |
 | `@@index` | addressing itself — the syntaxes, the scopes, the check | @index.md · @resources/index.py · @README.md · @references/language.md |
-| `@@scout` | the star-discovery tool, whole | @skills/pearde-scout.md · @resources/scout/README.md · @resources/scout/scout.sh · @resources/scout/buckets.txt · @resources/scout/reading-list.md |
+| `@@scout` | the discovery tool, whole — stars, routes, findings | @skills/pearde-scout.md · @resources/scout/README.md · @resources/scout/scout.sh · @resources/scout/buckets.txt · @resources/scout/route.sh · @resources/scout/routes.md · @resources/scout/findings.md · @resources/scout/reading-list.md |
 
 ## Files
 
-Every tracked file, one row.
+Every tracked file, one row — for @resources/index.py and for adding a file.
+Nothing here answers a question about the work; [Keywords](#keywords) does.
 
 ### Entry points
 
@@ -80,6 +91,7 @@ Every tracked file, one row.
 | @references/install.md | what the system is, and how to install it for any agent |
 | @references/settings.md | board knobs |
 | @references/memo.md | how a decision is recorded |
+| @references/report.md | the board written for a person |
 | @references/drill.md | how to ask |
 | @references/system.md | drop-in instructions block for `AGENTS.md` |
 
@@ -89,6 +101,8 @@ Every tracked file, one row.
 |---|---|
 | @references/parts/loop.md | the seven steps, in order |
 | @references/parts/board.md | the layout the scan walks |
+| @references/parts/round.md | `prds/.round.md` — what the session holds, across a compaction |
+| @references/parts/guard.md | the loop's rules as a hook that refuses the waste |
 | @references/parts/contract.md | the frontmatter keys, and their defaults |
 | @references/parts/states.md | the nine states, and what a tenth means |
 | @references/parts/order.md | the three axes that pick what runs next |
@@ -96,10 +110,12 @@ Every tracked file, one row.
 | @references/parts/roles.md | orchestrator, analyst, implementer, consultant |
 | @references/parts/workers.md | the exact brief handed to each |
 | @references/parts/solo.md | the same loop without parallel workers |
-| @references/parts/personas.md | how a persona is picked, switched and consulted |
+| @references/parts/personas.md | who works the session, and how one is picked |
+| @references/parts/consult.md | putting one problem to one persona, mid-round |
 | @references/parts/commits.md | one PRD, one commit |
 | @references/parts/memos.md | what was decided, and what it beat |
-| @references/parts/progress.md | the state-change line and the status line |
+| @references/parts/progress.md | the line printed on every state change |
+| @references/parts/statusline.md | the same numbers, continuously, for a person |
 | @references/parts/handles.md | every command the board answers to |
 | @references/parts/view.md | the live view at `127.0.0.1:8443` |
 | @references/parts/doctor.md | broken install vs absent one |
@@ -122,6 +138,7 @@ Every tracked file, one row.
 | @references/templates/prd.md | one PRD |
 | @references/templates/spec.md | one implementable unit |
 | @references/templates/memo.md | one decision record |
+| @references/templates/report.md | the one rolling state, for a person |
 
 ### `resources/` — run
 
@@ -129,6 +146,7 @@ Every tracked file, one row.
 |---|---|
 | @resources/install.sh | build one skill folder of links per file in `skills/` |
 | @resources/doctor.sh | install check + repair |
+| @resources/guard.py | the PreToolUse/PostToolUse hook that enforces the loop |
 | @resources/statusline.sh | continuous progress numbers |
 | @resources/memos.py | read + check memos — the only reader of that format |
 | @resources/index.py | read + check this index — the only reader of that format |
@@ -164,12 +182,13 @@ group `persona`, the verb `ask`, spelled the way every agent can read it.
 | @skills/pearde-drill.md | asking until the request is a contract | `@@drill` |
 | @skills/pearde-memo.md | recording a decision, and checking the record | `@@memos` |
 | @skills/pearde-view.md | the timeline, the order, and editing through it | `@@view` |
+| @skills/pearde-report.md | the board written for a person, one rolling state | `@@report` |
 | @skills/pearde-master.md | one plan across several repositories | `@@master` |
 | @skills/pearde-doctor.md | a broken install against an absent one | `@@doctor` |
 | @skills/pearde-persona.md | who is working, and switching for the round | `@@personas` |
-| @skills/pearde-persona-ask.md | one problem, one colleague, nothing written | `@@personas` |
+| @skills/pearde-persona-ask.md | one problem, one colleague, nothing written | `@@consult` |
 | @skills/pearde-persona-create.md | composing one for a field the roster misses | `@@personas` |
-| @skills/pearde-scout.md | star-ranked discovery, and the quality gates | `@@scout` |
+| @skills/pearde-scout.md | ranked discovery, the route index, and the quality gates | `@@scout` |
 
 #### `resources/scout/` — a self-contained tool
 
@@ -180,6 +199,9 @@ Nothing outside it links in past `@@scout`. Its docs ship with it.
 | @resources/scout/README.md | the scout manual — what @skills/pearde-scout.md is a door to |
 | @resources/scout/scout.sh | sweep / delta / trending |
 | @resources/scout/toolscout.sh | one-off dependency ranker |
+| @resources/scout/route.sh | call one ranking page by id — reader of the route index |
+| @resources/scout/routes.md | index one — every page a ranking comes from |
+| @resources/scout/findings.md | index two — what won, on which axis, when |
 | @resources/scout/buckets.txt | the taxonomy — the knob |
 | @resources/scout/reading-list.md | the curated, mechanism-mapped list |
 | @resources/scout/snapshots/2026-08-25.tsv | one day's star counts |

@@ -11,7 +11,7 @@ Who does what. The role is the job. The persona is who holds it.
 
 Workers do the work. The orchestrator moves the states. A consultant does
 neither: it is called, it answers, and the exchange stays open until the
-question is settled — @references/parts/personas.md.
+question is settled — @references/parts/consult.md.
 
 The role is what the session does. The persona is who does it —
 @references/personas/INDEX.md.

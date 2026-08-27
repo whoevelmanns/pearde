@@ -131,6 +131,41 @@ else
   note "wire it where your setup runs a command for one — @references/install.md"
 fi
 
+# ── guard: the loop's rules, wired as a hook ─────────────────────────────────
+# A rule written in a reference file is advice, and the round that cost
+# 318,584 tokens ignored three of them. The guard is the same rules as a
+# PreToolUse hook — @references/parts/guard.md. Where hooks are configured IS
+# knowable here, unlike a status line: the settings file sits in the repo the
+# board lives in, so this checks that file and `--fix` writes the block.
+GSET=""
+d="$START"
+while [ "$d" != "/" ]; do
+  [ -d "$d/prds" ] && { GSET="$d/.claude/settings.json"; break; }
+  d="$(dirname "$d")"
+done
+if [ -z "$GSET" ]; then
+  :
+elif ! python3 -c 'import sys' 2>/dev/null; then
+  row guard broken "python3 not on PATH — the guard cannot run"
+  fix "install python3, or drop the hooks block from $GSET"
+else
+  probe=$(echo '{"tool_name":"Bash","tool_input":{"command":"find prds -name prd.md"},"cwd":"'"$(dirname "$GSET")"'"}' \
+          | python3 "$DIR/guard.py" pre 2>/dev/null)
+  if ! printf '%s' "$probe" | grep -q '"deny"'; then
+    row guard broken "$DIR/guard.py does not refuse a hand-walked board"
+    fix "run it directly and read the error: echo '{}' | python3 $DIR/guard.py pre"
+  elif [ -f "$GSET" ] && grep -q 'guard.py' "$GSET" 2>/dev/null; then
+    tk=$(grep -o 'MAX_THINKING_TOKENS"[[:space:]]*:[[:space:]]*"[0-9]*' "$GSET" \
+         2>/dev/null | grep -o '[0-9]*$' | head -1)
+    [ -n "$tk" ] && tk="MAX_THINKING_TOKENS=$tk"
+    row guard ok "wired in $GSET${tk:+ · $tk}"
+    [ -z "$tk" ] && note "no MAX_THINKING_TOKENS — the other half of the fix, @references/parts/guard.md"
+  else
+    row guard off "not wired in $GSET"
+    fix "add the hooks block from @references/parts/guard.md, then /hooks or restart"
+  fi
+fi
+
 # ── board: on the contract path, with settings ────────────────────────────────
 BOARD=""; d="$START"
 while [ -n "$d" ] && [ "$d" != "/" ]; do

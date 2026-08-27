@@ -26,8 +26,10 @@ Every id has a file at `@references/personas/<id>.md`.
 and no board carries a persona of its own — and asks on the first round with a
 job that matches another row.
 
-Choosing one is @references/parts/personas.md — the signals, the precedence,
-when to ask, and how one is consulted without being worn.
+Choosing one for the session is @references/parts/personas.md — the signals,
+the precedence, when to ask. Calling one without wearing it is
+@references/parts/consult.md; a dispatched worker's is a table in
+@references/parts/workers.md.
 
 ## `persona create <topic>`
 

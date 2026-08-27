@@ -37,34 +37,14 @@ Print on EVERY state change:
   and the states have not caught up, so `ready` is under-reporting by
   whatever those PRDs unblock. Close them before reading the rest of the
   line — step 6 of @references/parts/loop.md.
-- **`as <persona>` is stored nowhere else.** A persona is session state and is
-  written to no file, so this line is the only place it is recorded — which is
-  why it is never omitted, not even when it has not changed, and why a
-  `persona <id>` switch prints its own line in the same `▸ … · as <id>` form
-  even though no state moved. @resources/statusline.sh reads the last one out
-  of the session transcript; a round that leaves it off leaves the terminal
-  showing the persona before it.
 
-@resources/statusline.sh renders the same numbers continuously, plus what the
-working tree owes and a link to the board:
+**`as <persona>` is stored nowhere else.** It is session state written to no
+file, so this line is the only place it is recorded — never omitted, not even
+when it has not changed, and a `persona <id>` switch prints its own line in
+this form though no state moved. @resources/statusline.sh reads the last one
+out of the session transcript; a round that leaves it off leaves the terminal
+showing the persona before it.
 
-```
-<dir> <branch> *<dirty> ↑<ahead> ↓<behind> · <model>
-▸pearde <ad>/<an> <ap>% · +<dn>d · open <o> <q>% · <persona> · ▸board
-```
-
-- Two rows — sharing one pushes the board off a narrow terminal. No board in
-  scope, no second row.
-- `<ad>/<an> <ap>%` is requested work only. `+<dn>d` is the derived count,
-  suppressed at zero — its job is to stop a derived tree growing unseen.
-- `*<dirty>` is uncommitted entries. `↑`/`↓` is commits against upstream. No
-  upstream reads `no-upstream`, not `↑0`.
-- `<persona>` is who is working, read from the session's own transcript — the
-  last `· as <id>` a round printed, matched with the `▸` in front of it so
-  prose cannot supply one. Nothing on disk holds a persona, and the status
-  line runs in its own process, so the printed line is the only channel there
-  is. Before the first round it is absent rather than `engineer`: an unstated
-  persona is `engineer` anyway, and rendering a default nobody chose reads as
-  an answer. It is the id, not the name, because the id is what you type back.
-- `▸board` is an OSC-8 hyperlink to the live view. `PRD_STATUS_LINK=off`
-  prints the label bare. Optional.
+The same numbers rendered continuously in the terminal are
+@references/parts/statusline.md — a different reader, and nothing the loop
+needs.

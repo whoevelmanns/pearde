@@ -12,7 +12,7 @@ is yours and no tool touches it.
 | `complexity`| analyst, at spec time          | **weight** — the progress line, `plan`'s ordering. 1-100 |
 | `blast-radius` | analyst, at spec time       | **what breaks if it is wrong** — `high` \| `mid` \| `low`. Breaks ties, and decides what a round leads with |
 | `est`       | analyst, optional              | the weight of a PRD with no `complexity`. See @references/parts/order.md |
-| `actual`    | orchestrator, optional         | a record. Nothing reads it                        |
+| `actual`    | orchestrator, optional         | a record. The plan never schedules by it; `plan.py calibrate` fits real hours from it |
 | `claim`     | orchestrator                   | the sweep, elapsed on `done`                      |
 | `repo`      | user                           | the worker brief. Optional                        |
 | `needs`     | user                           | a hard gate in `plan`'s order. PRD dir names. Optional |

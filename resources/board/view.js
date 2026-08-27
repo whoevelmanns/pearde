@@ -68,10 +68,19 @@ const nowDay = () => (Date.now() - anchor.getTime()) / MS;
 const dayDate = d => new Date(a[0], a[1] - 1, a[2] + Math.floor(d));
 const fmtD = d => dayDate(d).toLocaleDateString(undefined,
   {month:"short", day:"numeric"});
-const fmtW = w => w >= 40 ? Math.round(w) + "w"
-  : (Math.round(w * 10) / 10 + "w").replace(".0w", "w");
-const fmtHr = h => h >= 40 ? Math.round(h) + "h"   // est/actual records
+const fmtHr = h => h >= 40 ? Math.round(h) + "h"
   : (Math.round(h * 10) / 10 + "h").replace(".0h", "h");
+/* Every weight on the page prints as tuned real hours: weight × the
+   machine-wide fit `plan.py calibrate` wrote × the hand-set TUNE margin.
+   Display only — every schedule upstream ran in weight, so the knob can
+   mislabel an axis but never re-order the work. Before the first fit K()
+   is 0 and everything falls back to raw weight units. */
+let CAL = DATA.calib;
+const TUNE = DATA.tune || 1.618;
+const K = () => CAL && CAL.kw > 0 ? CAL.kw * TUNE : 0;
+const fmtW = w => K() ? fmtHr(w * K())
+  : w >= 40 ? Math.round(w) + "w"
+  : (Math.round(w * 10) / 10 + "w").replace(".0w", "w");
 const esc = s => String(s).replace(/[&<>"']/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -92,6 +101,7 @@ function heldFor(t) {
 let tasks = [], byRel = new Map(), ALL = [], allByRel = new Map(), HIST = [];
 function hydrate() {
   CPM = DATA.cpm;
+  CAL = DATA.calib;
   tasks = DATA.tasks;
   byRel = new Map(tasks.map(t => [t.rel, t]));
   for (const t of tasks) {
@@ -564,8 +574,12 @@ function schedule() {
 
 function niceStep(pxPerUnit, unit) {
   const want = 90 / pxPerUnit;                       // ~90px between labels
-  const steps = unit === "w" ? [.5,1,2,4,8,12,24,48,96,168,336]
-                             : [1,2,7,14,28,56,112];
+  // calibrated, the axis labels are hours — pick steps that land on round
+  // hours, expressed back in the weight units the geometry runs in
+  const steps = unit === "w"
+    ? (K() ? [.1,.25,.5,1,2,4,8,16,24,48,96,168].map(s => s / K())
+           : [.5,1,2,4,8,12,24,48,96,168,336])
+    : [1,2,7,14,28,56,112];
   return steps.find(s => s >= want) || steps[steps.length - 1];
 }
 
@@ -1445,7 +1459,9 @@ function drawHeader() {
   bits.push(lnk('<span class="crit"><b>' + fmtW(CPM.length) +
                 "</b> to the vision</span>",
                 {view:"timeline", crit:1, mode:"vision"},
-                "the chain that sets the finish — nothing else moves it"));
+                "the chain that sets the finish — nothing else moves it" +
+                (K() ? " · fitted over " + CAL.n + " done PRDs on " +
+                 CAL.boards.length + " board(s), × " + TUNE + " tune" : "")));
   bits.push(lnk("Σ" + fmtW(CPM.total) + " of work", {view:"analytics"},
                 "how the work is distributed"));
   bits.push(lnk("peak <b>" + CPM.peak + "</b> agents",
@@ -2484,7 +2500,14 @@ function drawAnalytics() {
     '<p class="sub">' + (calib.length
       ? calib.length + " done PRDs carry an <code>actual:</code> · median " +
         med.toFixed(2) + "× the estimate"
-      : "no done PRD carries an <code>actual:</code> yet") + "</p>" +
+      : "no done PRD carries an <code>actual:</code> yet") +
+    (CAL ? "<br>hours shown everywhere = weight × k " + CAL.kw +
+      " (fitted over " + CAL.n + " done PRDs across " + CAL.boards.length +
+      " board(s)) × " + TUNE + " tune · refit with <code>plan.py " +
+      "calibrate</code>"
+     : "<br>no machine-wide fit yet — weights show raw until <code>plan.py " +
+      "calibrate</code> has fitted real hours from every registered board") +
+    "</p>" +
     (calib.length >= 3 ? scatter(calib) :
       '<div class="empty">calibration needs a few finished PRDs with ' +
       "<code>actual:</code> written on them</div>") + "</div>" +

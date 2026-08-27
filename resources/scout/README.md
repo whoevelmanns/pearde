@@ -1,12 +1,14 @@
-# scout — sweep GitHub for what is worth studying, ranking, or wiring in
+# scout — find what is worth studying, ranking, or wiring in
 
-Three layers, each answering a different question:
+Four layers, each answering a different question:
 
 1. **discover** — what is out there, ranked (`scout.sh sweep|delta|trending`,
    `toolscout.sh`)
-2. **curate** — what is worth *reading*, mapped to what it teaches a specific
+2. **ask** — one job, answered off many ranking pages and written down
+   (`route.sh` + `routes.md` → `findings.md`)
+3. **curate** — what is worth *reading*, mapped to what it teaches a specific
    tree (`reading-list.md`)
-3. **wire** — the passive quality gates that keep the trees honest
+4. **wire** — the passive quality gates that keep the trees honest
    (`quality.yml` + the configs, sccache)
 
 Stars are the discovery layer, never the verdict. The whole point of the
@@ -20,6 +22,9 @@ is a worse dependency than a 3k-star active one.
 |---|---|
 | `scout.sh` | sweep/delta/trending — the daily measurement loop |
 | `toolscout.sh` | one-off dependency ranker: stars + what stars hide |
+| `route.sh` | call one ranking page by id — reader of `routes.md`, holds no list |
+| `routes.md` | **index one** — every page a ranking comes from, one shell block each |
+| `findings.md` | **index two** — what won, on which axis, when |
 | `buckets.txt` | the taxonomy — `name<TAB>query` per line; **the knob** |
 | `snapshots/` | the accumulated star counts, one TSV per day |
 | `reading-list.md` | the curated, mechanism-mapped list |
@@ -52,6 +57,36 @@ fails loudly, not silently.
 One-off ranker for a specific choice: `topic:tui language:rust stars:>1000`.
 Stars ranked, plus `STATE` — days since push, ARCHIVED, issue load, license —
 so the dead-3-years 10k-star repo reads as what it is.
+
+### `route.sh list | <id> [query] | check`
+Forty-three ranking pages beyond GitHub, one shell block each in `routes.md`,
+addressed by id: `hn`, `brew`, `arch`, `popcon`, `crates`, `scorecard`, `osv`,
+`cht`, `marginalia`, `wayback`, `crawl`, `mcp`, `openalex`. `route.sh check`
+runs every one against its own example and prints `ok` or `DEAD` — the file
+cannot claim a route works without the claim being runnable.
+
+Adding a route is editing `routes.md`; `route.sh` parses it and holds no list.
+
+## The research loop — one job, two indices
+
+`routes.md` is where numbers come from. `findings.md` is what the numbers
+decided. The loop between them:
+
+1. **Phrase the job as a choice.** "Recursive search over a source tree", not
+   "is ripgrep good". If nothing can be rejected, there is nothing to measure.
+2. **Pick routes by axis, at least two.** Attention (`hn`, `lobsters`),
+   installs (`brew`, `arch`, `popcon`, `crates`, `npm`), stars (`gh`,
+   `codeberg`), hygiene (`scorecard`, `osv`, `depsdev`). Axes that disagree are
+   the finding — a tool with distro breadth and no installs is abandoned, and
+   only two axes together say so.
+3. **Run them.** `route.sh <id> <query>`, every candidate through every axis.
+4. **Write the row.** Pick, what it beat, the numbers with their routes, the
+   date, and what would overturn it. A pick on one axis is marked `weak`.
+5. **Anything unanswered goes to `## Open`** in `findings.md` — a queue, so the
+   next sweep knows what was already asked.
+
+Six months is the expiry. A finding older than that is re-measured or deleted;
+there is no third option.
 
 ## The reading list discipline
 
@@ -86,7 +121,15 @@ tree's actual advisories.
 
 ## Maintenance
 
-- Edit `buckets.txt`, not the scripts. Add a bucket as `name<TAB>query`.
+- Edit `buckets.txt` and `routes.md`, not the scripts. A bucket is
+  `name<TAB>query`; a route is a `### id` heading, four bullets and one `sh`
+  block.
+- `SCOUT_MAILTO=you@example.com` puts every polite-pool route in the fast tier.
+  Without it ecosyste.ms answers `402 Payment Required` and the registries
+  throttle.
+- `route.sh check` before writing a finding. A route that dies twice moves to
+  the dead-ends table in `routes.md` with its observed status, and every
+  finding that stood on it goes with it.
 - `pushed:` filters in queries compose with `stars:>`; keep a stars floor or
   the tail is noise.
 - The `delta` output rewards hype by construction — a repo gaining 10k

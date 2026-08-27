@@ -3,8 +3,8 @@ name: pearde-persona-ask
 description: Put one problem to one persona and talk to it until the question is settled — a named colleague with a field, a bias and a way of reading, pointed at this session's context, answering in their own voice and writing nothing. Use for "/pearde-persona-ask", "ask <id> <question>", "what would the skeptic say", "get a second opinion on this", "review this as a designer", "poke holes in this", "am I missing something here", "who should I ask about this", "sanity check this decision". Needs no board — it is a conversation, not a state change. Sibling skills: pearde-persona switches who is working, pearde-persona-create builds one for a field the roster does not cover.
 ---
 
-Read @references/parts/personas.md — the section is **Calling one**. The
-roster is @references/personas/INDEX.md, the scope is `@@personas`.
+Read @references/parts/consult.md. The roster is
+@references/personas/INDEX.md, the scope is `@@consult`.
 
 - **One problem, one persona.** A call is aimed at a decision you are about
   to defend, not at a whole round. A call you cannot say the purpose of in

@@ -18,7 +18,7 @@ registered board is listed at `/`. `PEARDE_PORT` moves the port.
 | **board**     | what is where — kanban by state; drag a card to write `state:`    |
 | **asks**      | what is waiting on *you* — every `question` and `blocked` PRD. A round in `@references/drill.md`'s format renders as picks: the fork, its three prepared answers as buttons (recommended pre-selected), and an own-answer box per question |
 | **list**      | all of it — sortable, filterable, one row per PRD                 |
-| **analytics** | how this is going — where the work and weight sit, the est/actual records, weight left over time |
+| **analytics** | how this is going — where the work and weight sit, the est/actual records, the machine-wide hours-per-weight fit, weight left over time |
 | **memos**     | what the board decided — `prds/memos/`, rendered                  |
 
 **Every number is a door.** A count, a swatch, a bar, a column head — if it
@@ -33,7 +33,10 @@ is not. The axis is weight along the **critical path**, and it is the **whole
 track** — done work laid out by the same dependency arithmetic to the LEFT of
 zero ending at now, the plan to the right, the right edge the vision reached.
 Where you are is a place on the track, and the header says what percent of it
-is behind you. Parked PRDs — `failed`, `deferred`, the user's own states — sit
+is behind you. Once `calibrate` has fitted the machine's hours-per-weight
+(see @references/parts/order.md), every weight on the page prints as tuned
+real hours — header, tiles, vision pill, axis, drawer; before the first fit
+they print as raw weight units. Parked PRDs — `failed`, `deferred`, the user's own states — sit
 at zero: visible, weighed, and scheduled by nothing.
 
 - **★ critical** marks the chain that sets the finish. Weight cut there moves

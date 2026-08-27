@@ -137,6 +137,13 @@ is none, so it is safe to wire globally.
 - Wire `bash @resources/statusline.sh` wherever your setup runs a command for
   its status line. If it has no such hook, the same numbers on demand are
   `bash @resources/statusline.sh <<< '{}'`.
+- Wire `python3 @resources/guard.py` as a `PreToolUse` hook on `Bash|Read` and
+  a `PostToolUse` hook on `Edit|Write`, in the settings file of the repo the
+  board lives in, and set `MAX_THINKING_TOKENS` beside it.
+  @references/parts/guard.md is the block and the reasoning. Optional, and the
+  loop runs without it — it is the loop's own rules made unignorable, which is
+  worth having exactly where a round is long enough to forget them. `doctor`
+  reports it as `ok`, `off` or `broken`.
 - **Compose, never overwrite.** An existing status line keeps working: export
   `$PRD_STATUS_JSON` once, call both, join the output. Only the board segment
   is this repo's — drop the dir/branch/model part if the other line shows it.

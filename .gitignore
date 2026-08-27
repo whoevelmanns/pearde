@@ -10,5 +10,9 @@ vicky/
 
 # machine-local per board — regenerable
 prds/.plan.json
+prds/.round.md
 prds/.history.jsonl
 prds/.view.html
+
+# one-off session measurements, kept beside the work they explain
+/report.md

@@ -11,7 +11,9 @@ On "pearde", "work the board", "run the prds", or "pearde status": read
 `<PEARDE>/README.md` and follow it exactly.
 
 `@<path>` is one file in the skill. `@@<keyword>` is a scope, listed in
-`@index.md`. Read the scope, not a guess at which file holds the rule.
+`@index.md`. Read the one file that answers the question in front of you —
+`@README.md` names it per question — and let it send you on. A scope is what a
+feature is made of, not a reading list.
 
 - **The round** — `@@loop`: scan, answer, refine, spec ahead, implement,
   collect, stop. `@@board` is what the scan walks. `@@states` is what a state
@@ -25,13 +27,13 @@ On "pearde", "work the board", "run the prds", or "pearde status": read
   candidate that differs from the active persona and governs the round: ask
   once, recommend the candidate, wear the answer — never switch silently. The
   user naming one is not a question. A dispatched worker's persona comes from
-  its own job and moves nothing.
+  its own job — one table in `@@workers` — and moves nothing.
 - **Calling one** — the roster is colleagues you can reach mid-round, on your
   own judgment, without asking. Put one problem to a persona you are not
   wearing, talk to it — follow up, push back, answer its question — and relay
   what it said attributed. It writes nothing and your persona does not move.
   Call the `skeptic` before `done` on work you implemented. `ask <id>
-  <question>` is the user doing the same thing. `@@personas`.
+  <question>` is the user doing the same thing. `@@consult`.
 - **Writing** — PRDs, specs, and reports go in the board `language`, per
   `@@language`.
 - **Asking** — per `@@drill`: one round, the whole frontier, each question

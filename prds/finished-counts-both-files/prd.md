@@ -157,9 +157,28 @@ closed.
 
 ## Acceptance
 
-- [ ] `resources/board/plan.py`'s working-tree change is committed, and
+- [x] `resources/board/plan.py`'s working-tree change is committed, and
       `git show HEAD:resources/board/plan.py | grep -c 'body_has_open_box'`
       returns non-zero with the output quoted
+
+      **Closed by the orchestrator, 2026-08-27, sha `6cd1edf`** — not by an
+      implementer, because it cannot be: `@references/parts/workers.md` names
+      "a box asking for a commit message" as one of exactly two unclosable
+      boxes to catch when specs land, and committing is the orchestrator's
+      act. The box is otherwise right to exist, so it is closed rather than
+      struck.
+
+      ```
+      $ git -C pearde show HEAD:resources/board/plan.py | grep -c 'body_has_open_box'
+      2
+      ```
+
+      **Partially staged, on the user's call.** `plan.py` was dirty before the
+      round: 31 of its 155 added lines are this contract's, ~124 are another
+      session's in-flight work. Only these hunks were committed; the rest stay
+      in the working tree. The staged file was run in its real location before
+      the commit and answered `collect` correctly, so the committed state is
+      not one that was never executed.
 - [ ] `references/parts/loop.md:100` reads the replacement sentence above,
       naming both files and `- [~]` as a closure
 - [ ] `references/parts/loop.md` states that `frac`/`closed`/`total` stay the
