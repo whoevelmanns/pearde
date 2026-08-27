@@ -84,9 +84,10 @@ else
 fi
 
 # ── index: does the map still match the tree? ─────────────────────────────────
-# index.md is what `@<path>` and `@@<keyword>` resolve against. A map that has
-# drifted answers confidently and wrongly, and nothing else in this repo
-# notices — every other check reads a path someone already typed correctly.
+# index.md is what `@<path>` and `@@<keyword>` resolve against, and
+# references/files.md is the manifest behind it. A map that has drifted answers
+# confidently and wrongly, and nothing else in this repo notices — every other
+# check reads a path someone already typed correctly.
 if ! command -v python3 >/dev/null 2>&1; then
   row index broken "index.md present, no python3 to read it"
   fix "install python3 — index.py is the only reader of the format"
@@ -102,7 +103,7 @@ else
     echo "$IPROBLEMS" | while IFS= read -r l; do
       [ -n "$l" ] && printf '  %-11s %-7s %s\n' "" "" "$l"
     done
-    fix "edit index.md — a row per file, and every @@ keyword defined there"
+    fix "a row per file in references/files.md, every @@ keyword in index.md"
   fi
 fi
 
@@ -297,6 +298,34 @@ if [ -n "$BOARD" ]; then
         [ -n "$l" ] && printf '  %-11s %-7s %s\n' "" "" "$l"
       done
       fix "edit them to match @references/memo.md — the keys are a closed set"
+    fi
+  fi
+fi
+
+# ── questions: what the board says it is waiting on you for ──────────────────
+# A round that is not asked is indistinguishable from a board with nothing to
+# ask. Both are silent. This row reads the shape of `## Questions` and
+# `## Answers` in every prd.md: a heading with nothing under it, a question
+# with no recommended answer, an answer to a question nobody wrote down, a
+# PRD parked on the user that never says what it is asking, and a `needs:`
+# holding prose — which `plan` resolves to nothing and reports nowhere.
+# @resources/questions.py is the only reader of that format.
+if [ -n "$BOARD" ] && [ "$N" -gt 0 ] 2>/dev/null; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    row questions broken "PRDs present, no python3 to read the rounds"
+    fix "install python3 — questions.py is the only reader of that format"
+  else
+    QSTAT=$(python3 "$DIR/questions.py" list "$BOARD" 2>/dev/null | wc -l | tr -d ' ')
+    QBAD=$(python3 "$DIR/questions.py" check "$BOARD" 2>&1)
+    if [ -z "$QBAD" ]; then
+      row questions ok "$QSTAT PRD$([ "$QSTAT" = 1 ] || echo s) carry a round · every one asks and answers"
+    else
+      NQ=$(echo "$QBAD" | wc -l | tr -d ' ')
+      row questions broken "$NQ round$([ "$NQ" = 1 ] || echo s) the user cannot act on"
+      echo "$QBAD" | while IFS= read -r l; do
+        [ -n "$l" ] && printf '  %-11s %-7s %s\n' "" "" "$l"
+      done
+      fix "write the fork and its recommended answers, or delete the heading — @references/drill.md"
     fi
   fi
 fi

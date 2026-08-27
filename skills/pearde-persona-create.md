@@ -18,10 +18,10 @@ Read @references/personas/INDEX.md — the section is **`persona create
   composite. No reader may be misled that a real person said this, and no
   real person is quoted.
 - **The id is the profession in one lowercase word**, never the name.
-- **Register it in all four places** or it is not live: the file, the Roster
-  row in @references/personas/INDEX.md, the signals table in
-  @references/parts/personas.md, and `@@personas` in @index.md. Then say it is
-  selectable.
+- **Register it everywhere or it is not live**: the file, the Roster row in
+  @references/personas/INDEX.md, the signals table in
+  @references/parts/personas.md, `@@personas` in @index.md, and its row in
+  @references/files.md. Then say it is selectable.
 - **An id that already exists is a merge, not a new persona.** Fold the new
   research into that file's **Built from** and say what changed.
 

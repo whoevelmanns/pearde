@@ -50,8 +50,9 @@ A persona is built from research, never invented. The steps, in order:
 5. **Write** `@references/personas/<id>.md` in the file format below. The id is
    the profession in one lowercase word, never the name.
 6. **Register.** Add the row to **Roster** here, add its signals to the table
-   in @references/parts/personas.md, add the file to `@@personas` in @index.md,
-   and tell the user it is live. It is selectable from that moment.
+   in @references/parts/personas.md, add the file to `@@personas` in @index.md
+   and its row to @references/files.md, and tell the user it is live. It is
+   selectable from that moment.
 
 An id that duplicates an existing one is a merge, not a new persona: fold the
 new research into the existing file's **Built from** and say what changed.

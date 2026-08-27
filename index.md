@@ -28,9 +28,12 @@ Installing turns each file into a folder of links elsewhere. Nothing in this
 repo moves. @references/install.md is the whole of it, and it names no agent
 — which directory to build in is the reader's to work out.
 
-**When a file moves or is added**: update its row in [Files](#files), then
-every [Keywords](#keywords) row whose scope it changed. Nothing else points at
-it.
+**Every tracked file has a row in @references/files.md** — the manifest, split
+off so this map stays the size of the question it answers. When a file moves or
+is added, write its row there, then every [Keywords](#keywords) row whose scope
+it changed. Nothing else points at it.
+
+@resources/index.py reads both and is the only reader of either format.
 
 ## Keywords
 
@@ -51,7 +54,7 @@ explains the rest.
 | `@@commits` | one PRD, one commit, on the transition that lands it | @references/parts/commits.md · @references/parts/states.md |
 | `@@memos` | recording a decision and checking it | @skills/pearde-memo.md · @references/memo.md · @references/parts/memos.md · @references/templates/memo.md · @resources/memos.py |
 | `@@report` | the board written for a person, one rolling state | @skills/pearde-report.md · @references/report.md · @references/templates/report.md · @references/parts/handles.md · @references/parts/loop.md |
-| `@@drill` | asking until the request is a contract | @skills/pearde-drill.md · @references/drill.md · @references/templates/prd.md · @references/parts/handles.md |
+| `@@drill` | asking until the request is a contract | @skills/pearde-drill.md · @references/drill.md · @references/templates/prd.md · @resources/questions.py · @references/parts/handles.md |
 | `@@handles` | every command the board answers to | @references/parts/handles.md · @references/parts/loop.md · @references/drill.md |
 | `@@view` | the live view — service, plan, render, writers | @skills/pearde-view.md · @references/parts/view.md · @resources/board/serve.py · @resources/board/plan.py · @resources/board/render.py · @resources/board/view.css · @resources/board/view.js · @resources/board/lit-core.min.js · @resources/board/viewtest.js · @resources/board/edit.py |
 | `@@round` | what one session holds, and what survives a compaction | @references/parts/round.md · @references/parts/loop.md · @references/parts/guard.md · @resources/board/plan.py |
@@ -65,148 +68,11 @@ explains the rest.
 | `@@settings` | every board-wide knob | @references/settings.md · @references/parts/contract.md |
 | `@@language` | how everything on the board is written | @references/language.md · @references/templates/prd.md · @references/templates/spec.md · @references/templates/memo.md |
 | `@@templates` | the four files a handle writes from | @references/templates/prd.md · @references/templates/spec.md · @references/templates/memo.md · @references/templates/report.md |
-| `@@index` | addressing itself — the syntaxes, the scopes, the check | @index.md · @resources/index.py · @README.md · @references/language.md |
+| `@@index` | addressing itself — the syntaxes, the scopes, the manifest, the check | @index.md · @references/files.md · @resources/index.py · @references/language.md |
 | `@@scout` | the discovery tool, whole — stars, routes, findings | @skills/pearde-scout.md · @resources/scout/README.md · @resources/scout/scout.sh · @resources/scout/buckets.txt · @resources/scout/route.sh · @resources/scout/routes.md · @resources/scout/findings.md · @resources/scout/reading-list.md |
 
 ## Files
 
-Every tracked file, one row — for @resources/index.py and for adding a file.
-Nothing here answers a question about the work; [Keywords](#keywords) does.
-
-### Entry points
-
-| anchor | is |
-|---|---|
-| @SKILL.md | the installer — invocable before the skills are, retired once they exist |
-| @README.md | the manual — board, states, loop, briefs, view |
-| @index.md | this index — the `@` and `@@` syntaxes, the scopes, the files |
-| @TODO.md | the open loop |
-| @.gitignore | what git leaves alone |
-
-### `references/` — read
-
-| anchor | is |
-|---|---|
-| @references/language.md | how every document is written |
-| @references/install.md | what the system is, and how to install it for any agent |
-| @references/settings.md | board knobs |
-| @references/memo.md | how a decision is recorded |
-| @references/report.md | the board written for a person |
-| @references/drill.md | how to ask |
-| @references/system.md | drop-in instructions block for `AGENTS.md` |
-
-#### `references/parts/` — the workflow, one part per step
-
-| anchor | is |
-|---|---|
-| @references/parts/loop.md | the seven steps, in order |
-| @references/parts/board.md | the layout the scan walks |
-| @references/parts/round.md | `prds/.round.md` — what the session holds, across a compaction |
-| @references/parts/guard.md | the loop's rules as a hook that refuses the waste |
-| @references/parts/contract.md | the frontmatter keys, and their defaults |
-| @references/parts/states.md | the nine states, and what a tenth means |
-| @references/parts/order.md | the three axes that pick what runs next |
-| @references/parts/derived.md | work the board found, and its tripwire |
-| @references/parts/roles.md | orchestrator, analyst, implementer, consultant |
-| @references/parts/workers.md | the exact brief handed to each |
-| @references/parts/solo.md | the same loop without parallel workers |
-| @references/parts/personas.md | who works the session, and how one is picked |
-| @references/parts/consult.md | putting one problem to one persona, mid-round |
-| @references/parts/commits.md | one PRD, one commit |
-| @references/parts/memos.md | what was decided, and what it beat |
-| @references/parts/progress.md | the line printed on every state change |
-| @references/parts/statusline.md | the same numbers, continuously, for a person |
-| @references/parts/handles.md | every command the board answers to |
-| @references/parts/view.md | the live view at `127.0.0.1:8443` |
-| @references/parts/doctor.md | broken install vs absent one |
-| @references/parts/master.md | one plan across several repos |
-
-#### `references/personas/` — who works
-
-| anchor | is |
-|---|---|
-| @references/personas/INDEX.md | the roster, and how `persona create` builds a new one |
-| @references/personas/engineer.md | Mara Vogt — the default, engineering generalist |
-| @references/personas/designer.md | Ines Calder — product/design engineer |
-| @references/personas/mentor.md | Tomas Berg — teaching engineer |
-| @references/personas/skeptic.md | Nadia Ross — adversarial reviewer |
-
-#### `references/templates/` — what a handle writes from
-
-| anchor | is |
-|---|---|
-| @references/templates/prd.md | one PRD |
-| @references/templates/spec.md | one implementable unit |
-| @references/templates/memo.md | one decision record |
-| @references/templates/report.md | the one rolling state, for a person |
-
-### `resources/` — run
-
-| anchor | is |
-|---|---|
-| @resources/install.sh | build one skill folder of links per file in `skills/` |
-| @resources/doctor.sh | install check + repair |
-| @resources/guard.py | the PreToolUse/PostToolUse hook that enforces the loop |
-| @resources/statusline.sh | continuous progress numbers |
-| @resources/memos.py | read + check memos — the only reader of that format |
-| @resources/index.py | read + check this index — the only reader of that format |
-| @resources/board/serve.py | the live service |
-| @resources/board/plan.py | read + order the board |
-| @resources/board/render.py | the page — markup, and the arithmetic behind it |
-| @resources/board/view.css | the page's stylesheet, inlined at render |
-| @resources/board/view.js | the page's script, inlined at render |
-| @resources/board/viewtest.js | the view's gate — a rendered page in a real browser |
-| @resources/board/lit-core.min.js | Lit 3, vendored — the page's component base |
-| @resources/board/edit.py | the writers — one line at a time |
-
-### `skills/` — one file per skill
-
-Frontmatter, and a body that points into `references/`. @references/install.md
-turns each into a folder of links wherever this agent looks.
-
-One per feature. The cut follows the scopes above: a scope a person or an
-agent **invokes** gets a skill. A scope the loop **reads mid-task** stays a
-reference, reached through `@@`.
-
-**The file name is the command.** A skill's `name:` must equal its file name,
-and an install builds the folder from it, so `skills/pearde-view.md` is
-`/pearde-view` everywhere. The prefix is the namespace and `-` is the only
-separator a skill name may hold — kebab-case is the whole of the allowed
-character set, and a `:` belongs to plugin loaders, which are one agent's
-feature and not portable. `pearde-persona-ask` is the namespace `pearde`, the
-group `persona`, the verb `ask`, spelled the way every agent can read it.
-
-| anchor | is | scope |
-|---|---|---|
-| @skills/pearde.md | the round, and every handle that moves a PRD | `@@loop` |
-| @skills/pearde-drill.md | asking until the request is a contract | `@@drill` |
-| @skills/pearde-memo.md | recording a decision, and checking the record | `@@memos` |
-| @skills/pearde-view.md | the timeline, the order, and editing through it | `@@view` |
-| @skills/pearde-report.md | the board written for a person, one rolling state | `@@report` |
-| @skills/pearde-master.md | one plan across several repositories | `@@master` |
-| @skills/pearde-doctor.md | a broken install against an absent one | `@@doctor` |
-| @skills/pearde-persona.md | who is working, and switching for the round | `@@personas` |
-| @skills/pearde-persona-ask.md | one problem, one colleague, nothing written | `@@consult` |
-| @skills/pearde-persona-create.md | composing one for a field the roster misses | `@@personas` |
-| @skills/pearde-scout.md | ranked discovery, the route index, and the quality gates | `@@scout` |
-
-#### `resources/scout/` — a self-contained tool
-
-Nothing outside it links in past `@@scout`. Its docs ship with it.
-
-| anchor | is |
-|---|---|
-| @resources/scout/README.md | the scout manual — what @skills/pearde-scout.md is a door to |
-| @resources/scout/scout.sh | sweep / delta / trending |
-| @resources/scout/toolscout.sh | one-off dependency ranker |
-| @resources/scout/route.sh | call one ranking page by id — reader of the route index |
-| @resources/scout/routes.md | index one — every page a ranking comes from |
-| @resources/scout/findings.md | index two — what won, on which axis, when |
-| @resources/scout/buckets.txt | the taxonomy — the knob |
-| @resources/scout/reading-list.md | the curated, mechanism-mapped list |
-| @resources/scout/snapshots/2026-08-25.tsv | one day's star counts |
-| @resources/scout/templates/_typos.toml | typos gate config |
-| @resources/scout/templates/deny.toml | cargo-deny gate config |
-| @resources/scout/templates/dependabot.yml | dependency updates |
-| @resources/scout/templates/quality.yml | the quality gate workflow |
-| @resources/scout/templates/scout.yml | the sweep in CI |
+@references/files.md — every tracked file, one row. It is read when a file is
+added or moved, and by @resources/index.py; never to answer a question about
+the work.

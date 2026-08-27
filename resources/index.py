@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Read and check index.md — the only reader of that format.
+"""Read and check the map — the only reader of either format.
 
-    index.py files                 every anchor in the Files tables, one per line
+    index.py files                 every anchor in the manifest, one per line
     index.py keywords              every keyword, one per line
     index.py scope <keyword>       the anchors that keyword resolves to
     index.py check                 problems, one per line. Silent and 0 when clean
 
-index.md is the map: `@<path>` is one file, `@@<keyword>` is a scope. A
-drifted map is worse than none — it answers confidently and wrongly. `check`
+Two files, because they answer two questions and only one of them is asked
+mid-round. index.md holds the scopes — `@<path>` is one file, `@@<keyword>` is
+a scope. references/files.md holds the manifest, one row per tracked file, read
+when a file is added and never to work the board.
+
+A drifted map is worse than none — it answers confidently and wrongly. `check`
 catches all five ways it drifts, and `doctor` runs it:
 
-    a file on disk with no row            the map is incomplete
-    a row naming no file                  the map points at nothing
+    a file on disk with no row            the manifest is incomplete
+    a row naming no file                  the manifest points at nothing
     a scope naming no file                a keyword resolves to a dead path
     a keyword used and never defined      a document names a scope that does
                                           not exist
@@ -24,7 +28,8 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-INDEX = os.path.join(ROOT, "index.md")
+INDEX = os.path.join(ROOT, "index.md")            # the scopes
+FILES = os.path.join(ROOT, "references", "files.md")  # the manifest
 
 # The fallback set, for a tree with no git. git itself is the authority.
 SKIP_DIRS = {".git", ".claude", "__pycache__", "node_modules", "state"}
@@ -40,14 +45,21 @@ KEYWORD_USE = re.compile(r"@@([a-z][a-z0-9-]*)")
 ANCHOR_USE = re.compile(r"(?<!@)@([A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:md|py|sh|txt|toml|yml))")
 
 
+def text(path):
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read()
+    except OSError:
+        return ""
+
+
 def index_text():
-    with open(INDEX, encoding="utf-8") as fh:
-        return fh.read()
+    return text(INDEX)
 
 
 def files():
-    """Every anchor with a row in the Files tables."""
-    return [a for a in ROW.findall(index_text()) if not a.startswith("@")]
+    """Every anchor with a row in the manifest."""
+    return [a for a in ROW.findall(text(FILES)) if not a.startswith("@")]
 
 
 def keywords():
@@ -93,13 +105,17 @@ def tracked():
 
 def check():
     problems = []
+    if not os.path.isfile(FILES):
+        return [f"{os.path.relpath(FILES, ROOT)} is missing — it is the "
+                "manifest, one row per tracked file"]
     rows, scopes = files(), keywords()
     listed, disk = set(rows), set(tracked())
+    manifest = os.path.relpath(FILES, ROOT)
 
     for path in sorted(disk - listed):
-        problems.append(f"{path} is on disk with no row in index.md")
+        problems.append(f"{path} is on disk with no row in {manifest}")
     for path in sorted(listed - disk):
-        problems.append(f"index.md lists @{path} — not on disk")
+        problems.append(f"{manifest} lists @{path} — not on disk")
     for name in sorted(scopes):
         for anchor in scopes[name]:
             if not os.path.exists(os.path.join(ROOT, anchor)):

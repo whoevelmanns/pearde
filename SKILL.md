@@ -54,3 +54,4 @@ the answer to the question; it is what had to happen first.
 - `references/` — read. The workflow, the personas, the templates, the rules.
 - `resources/` — run. The board service, scout, the status line, doctor.
 - @index.md is the map: `@<path>` is one file, `@@<keyword>` is a scope.
+  @references/files.md is the manifest behind it, one row per file.

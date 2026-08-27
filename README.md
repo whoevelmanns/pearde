@@ -79,5 +79,6 @@ every compaction:
 ## Addressing
 
 `@<path>` is one file. `@@<keyword>` is one scope. @index.md defines both
-syntaxes, names the files behind every keyword, and lists every file in the
-repo.
+syntaxes and names the files behind every keyword. @references/files.md is the
+manifest — every tracked file, one row — read when a file is added, never to
+work the board.

@@ -17,12 +17,13 @@ never reads `off` — the map is either right or wrong.
 | part         | `off`                                  | `broken`                                                        |
 |--------------|----------------------------------------|------------------------------------------------------------------|
 | `skills`     | —                                      | a skill file with no `name:`, no `description:`, or a `name:` that disagrees with its file name |
-| `index`      | —                                      | @index.md and the tree disagree, or an `@@` keyword is undefined  |
+| `index`      | —                                      | @references/files.md and the tree disagree, or an `@@` keyword is undefined in @index.md |
 | `statusline` | —                                      | @resources/statusline.sh renders nothing for this board                       |
 | `board`      | no board                               | off the contract path, or no `language`                          |
 | `members`    | not a master board — no `members:`     | an entry that is not a board on disk, or an empty list           |
 | `origin`     | no PRDs to read                        | a `derived` PRD with no `from:`, or the @references/parts/derived.md tripwire live |
 | `memos`      | no `memos/`                            | a memo fails the check in `@references/memo.md`                   |
+| `questions`  | no PRDs to read                        | a round the user cannot act on — the four shapes are below        |
 | `view`       | the service is not running             | it runs and this board is not registered                         |
 | `plan`       | no plan on record yet                  | —                                                                |
 
@@ -42,9 +43,24 @@ never reads `off` — the map is either right or wrong.
   Doctor runs the script against this board and says which it is.
 - `--fix` repairs one thing: a view service down or not watching this board.
   It never writes a settings file — a status line lives in the user's own.
-- `index` runs `@resources/index.py check`: a file on disk with no row, a row
-  naming no file, a scope naming no file, an `@@` keyword nobody defined. It
-  is not `--fix`-able — which row a new file belongs in is a judgement.
+- `questions` runs `@resources/questions.py check`, the only reader of the
+  round's format. It reports four shapes, and every one of them is silent from
+  the outside — a board with a broken round and a board with nothing to ask
+  look identical: a `## Questions` or `## Answers` heading with nothing under
+  it; a question that asks nothing, or that carries no recommended answer; an
+  `## Answers` section with no `## Questions` above it, which is an answer to
+  a question nobody wrote down; and a PRD parked on the user — `state:
+  question`, or any parked state or `mode:` naming a human — that never says
+  what it is asking. It reads `needs:` in the same pass, because a `needs:`
+  holding prose instead of PRD names resolves to nothing in `plan` and is
+  reported nowhere else. An answered round is history and is left alone. Not
+  `--fix`-able: what a question should have asked is the one thing only its
+  author knows.
+- `index` runs `@resources/index.py check` over both halves of the map — the
+  scopes in @index.md, the manifest in @references/files.md: a file on disk
+  with no row, a row naming no file, a scope naming no file, an `@@` keyword
+  nobody defined. It is not `--fix`-able — which row a new file belongs in is
+  a judgement.
 - After repairing, doctor re-checks once — the report and exit code describe
   the state the repairs left behind.
 
