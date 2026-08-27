@@ -194,11 +194,42 @@ function matches(t) {
 const anyFilter = () =>
   filter || critOnly || readyOnly || collectOnly || stateSel.size;
 
+/* ── pressure ─────────────────────────────────────────────────────────
+   The vertical axis is not the schedule. Read top to bottom by start, the one
+   PRD asking you a question sits three hundred rows down, and a board you have
+   to hunt through is a board nobody glances at. So rows band by how much they
+   want a person NOW, and only inside a band by the plan arithmetic:
+
+     0 to collect  every acceptance box closed, a worker still holding it. One
+                   commit, and a whole frontier can open — nothing is cheaper
+     1 asks        `question` or `blocked`. Nothing here moves until you answer
+     2 failed      a run that came back with nothing. Parked, and still yours
+     3 in flight   a worker holds it and its boxes are ticking — the moving
+                   live state the page exists to show
+     4 ready now   dispatchable this second. That order IS the dispatch order
+     5 the plan    everything else still to do, in schedule order
+     6 parked      deferred, and the board's own states — weighed, scheduled
+                   by nothing
+     7 landed      done, laid out to the left of now
+
+   Progress is deliberately NOT a key. A bar filling as its checks land would
+   drag its own row up the page, and a row that moves while you read it is the
+   thing this ordering exists to fix — a band changes when a state or a claim
+   does, which is exactly when the page has something new to say. */
+const pressure = t =>
+  t.collect                                       ? 0 :
+  t.state === "question" || t.state === "blocked" ? 1 :
+  t.state === "failed"                            ? 2 :
+  t.held                                          ? 3 :
+  t.ready                                         ? 4 :
+  t.past                                          ? 7 :
+  t.parked                                        ? 6 : 5;
+
 /* ── the row list ─────────────────────────────────────────────────────────
    One flat array, rebuilt on grouping, filter and collapse — never on scroll
    and never on zoom. A row that moves under the pointer as you scroll is what
-   makes a big chart unreadable, so the order is stable: group, then earliest
-   start, then how much the task unblocks. */
+   makes a big chart unreadable, so the order is stable: group, then pressure,
+   then earliest start, then how much the task unblocks. */
 let rows = [];
 function build() {
   if (groupBy === "tree") return buildTree();
@@ -213,8 +244,9 @@ function build() {
   }
   for (const k of [...buckets.keys()].sort(g.sort)) {
     const items = buckets.get(k).sort((p, q) =>
-      M.u0(p) - M.u0(q) || (q.critical - p.critical) ||
-      q.unblocks - p.unblocks || q.est - p.est || p.rel.localeCompare(q.rel));
+      pressure(p) - pressure(q) || M.u0(p) - M.u0(q) ||
+      (q.critical - p.critical) || q.unblocks - p.unblocks ||
+      q.est - p.est || p.rel.localeCompare(q.rel));
     if (k !== "") {
       rows.push({kind:"group", key:k, n:items.length,
         sum:items.reduce((s, t) => s + t.est, 0),
@@ -290,19 +322,22 @@ function buildTree() {
   treeNodes = [...nodes.values()];
   treeRoots = treeNodes.filter(n => !n.up);
 
+  // a branch is as pressing as the most pressing thing inside it — a closed
+  // parent holding one `question` rises to the top carrying it, which is the
+  // only way a folded tree can be glanced at at all
   const agg = n => {
-    let lo = Infinity, hi = -Infinity, sum = 0, cnt = 0, ncrit = 0;
+    let lo = Infinity, hi = -Infinity, sum = 0, cnt = 0, ncrit = 0, pr = 8;
     if (n.t) {
       lo = M.u0(n.t); hi = M.u1(n.t); sum = n.t.est; cnt = 1;
-      ncrit = n.t.critical ? 1 : 0;
+      ncrit = n.t.critical ? 1 : 0; pr = pressure(n.t);
     }
     for (const k of n.kids) {
       agg(k);
       lo = Math.min(lo, k.lo); hi = Math.max(hi, k.hi);
-      sum += k.sum; cnt += k.n; ncrit += k.ncrit;
+      sum += k.sum; cnt += k.n; ncrit += k.ncrit; pr = Math.min(pr, k.pr);
     }
     if (!isFinite(lo)) { lo = 0; hi = 0; }
-    n.lo = lo; n.hi = hi; n.sum = sum; n.n = cnt; n.ncrit = ncrit;
+    n.lo = lo; n.hi = hi; n.sum = sum; n.n = cnt; n.ncrit = ncrit; n.pr = pr;
     n.kids.sort(cmpNode);
   };
   treeRoots.forEach(agg);
@@ -326,7 +361,7 @@ function buildTree() {
   finish(closed);
 }
 function cmpNode(p, q) {
-  return p.lo - q.lo || (q.ncrit > 0) - (p.ncrit > 0) ||
+  return p.pr - q.pr || p.lo - q.lo || (q.ncrit > 0) - (p.ncrit > 0) ||
          q.sum - p.sum || p.rel.localeCompare(q.rel);
 }
 

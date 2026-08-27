@@ -60,6 +60,30 @@ at zero: visible, weighed, and scheduled by nothing.
 - **dates** (or `v`) draws the same bars on the worker-limited calendar, at
   `gantt-day` weight per day.
 
+**The y axis is pressure, not the schedule.** Read top to bottom by start
+date, the one PRD asking you a question sits three hundred rows down, and a
+board you have to hunt through is a board nobody glances at. Rows band by how
+much they want a person *now*, and only inside a band by the plan arithmetic —
+earliest start, then critical, then the size of the door it opens:
+
+| band | is |
+|------|----|
+| **to collect** | every box closed, a worker still holding it. One commit, and a whole frontier can open |
+| **asks** | `question` and `blocked` — nothing here moves until you answer |
+| **failed** | a run that came back with nothing. Parked, and still yours |
+| **in flight** | a worker holds it and its boxes are ticking — the moving state the page exists to show |
+| **ready now** | dispatchable this second, biggest door first |
+| **the plan** | everything else still to do, in schedule order |
+| **parked** | `deferred` and the board's own states — weighed, scheduled by nothing |
+| **landed** | `done`, laid out to the left of now |
+
+Progress is deliberately not part of that order. A bar filling as its checks
+land would drag its own row up the page, and a row that moves while you read it
+is what the banding is for — a row changes band when a state or a claim does,
+which is when the board has something new to say. The bands apply inside every
+grouping, and in **tree** a branch is as pressing as the most pressing thing
+inside it — a folded parent holding one `question` rises carrying it.
+
 **The plan moves while the work does.** The live service reconciles every
 board it watches — not only masters — so a bar re-sizes and everything
 downstream of it slides within about a second of the file that moved.
