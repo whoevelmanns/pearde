@@ -390,10 +390,6 @@ __CSS__</style>
     <button id="zo" title="zoom out (−)">−</button>
     <button id="zi" title="zoom in (+)">+</button>
   </span>
-  <label class="lab" for="vscale">rows</label>
-  <input type="range" id="vscale" min="0" max="100" step="1" value="100"
-    title="row height — left: every row at its readable size, scroll for the
-rest. right: the whole board on the screen">
   <button id="namestog" title="task names: on the bars, or in a column of their own (t)">names</button>
   <button id="ce" title="collapse every group or branch">collapse all</button>
   <input type="search" id="q" placeholder="filter  /" autocomplete="off">
@@ -407,6 +403,25 @@ rest. right: the whole board on the screen">
   <div id="chart">
     <canvas id="mini" aria-hidden="true"></canvas>
     <div id="frame">
+      <div id="vrail" title="row height — drag it, wheel it, or click an end">
+        <button class="cap" id="vrTall" tabindex="-1" aria-hidden="true"
+          ><svg width="8" height="9" viewBox="0 0 8 9" aria-hidden="true"><rect y="0"
+          width="8" height="3.5" rx="1"/><rect y="5.5" width="8" height="3.5"
+          rx="1"/></svg></button>
+        <div id="vrtrack">
+          <div id="vrfill"></div>
+          <div id="vrthumb" role="slider" tabindex="0" aria-orientation="vertical"
+            aria-label="row height" aria-valuemin="0" aria-valuemax="100"
+            aria-valuenow="0"></div>
+        </div>
+        <button class="cap" id="vrShort" tabindex="-1" aria-hidden="true"
+          ><svg width="8" height="9" viewBox="0 0 8 9" aria-hidden="true"><rect y="0"
+          width="8" height="1.25" rx=".6"/><rect y="2.6" width="8"
+          height="1.25" rx=".6"/><rect y="5.2" width="8" height="1.25"
+          rx=".6"/><rect y="7.8" width="8" height="1.25"
+          rx=".6"/></svg></button>
+        <div id="vrread" aria-hidden="true"></div>
+      </div>
       <div id="plot">
         <canvas id="cv" role="img"></canvas>
         <div id="scroll" tabindex="0" aria-label="the plan — arrow keys move the

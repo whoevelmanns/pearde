@@ -307,21 +307,67 @@ label.lab{color:var(--ink2);font-size:12px}
 
 .bar-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;
   padding:0 2px 10px}
-/* the row-height slider: readable at one end, whole-board at the other. Sized
-   and inked by hand — a native range takes the platform accent, which is the
-   one hue this page does not spend. */
-#vscale{-webkit-appearance:none;appearance:none;width:96px;height:18px;
-  background:transparent;cursor:ew-resize;margin:0}
-#vscale::-webkit-slider-runnable-track{height:3px;border-radius:2px;
-  background:var(--sep)}
-#vscale::-moz-range-track{height:3px;border-radius:2px;background:var(--sep)}
-#vscale::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
-  width:12px;height:12px;border-radius:50%;background:var(--content);
-  border:1.5px solid var(--ink2);margin-top:-4.5px;box-shadow:var(--shadow)}
-#vscale::-moz-range-thumb{width:12px;height:12px;border-radius:50%;
-  background:var(--content);border:1.5px solid var(--ink2);box-shadow:var(--shadow)}
-#vscale:focus-visible{outline:2px solid var(--accent);outline-offset:3px;
-  border-radius:3px}
+/* ── the row rail ─────────────────────────────────────────────────────────
+   Row height belongs to the plot, so the control sits on the plot's own left
+   edge and runs the axis it scales: up is a row at the size it is meant to be
+   read at, down is every row on the screen. Drag it, wheel it, click an end,
+   or arrow it — and while it moves it says, in pixels and rows, what it just
+   did, then gets out of the way. The two end caps ARE the axis label: two fat
+   rows at the top, four thin ones at the bottom, which is a legend nobody has
+   to read.                                                                  */
+#vrail{flex:0 0 24px;position:relative;z-index:6;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:7px 0 6px;background:var(--sunk);
+  border-right:.5px solid var(--sep-2);
+  cursor:ns-resize;touch-action:none;user-select:none;
+  transition:background var(--dur-fast) ease}
+#vrail.off{display:none}
+#vrail .cap{flex:0 0 auto;width:24px;height:14px;padding:0;border:0;
+  display:grid;place-items:center;background:none;color:var(--ink4);
+  cursor:pointer;transition:color var(--dur-fast) ease}
+#vrail .cap svg{fill:currentColor;display:block}
+#vrail .cap.on{color:var(--ink2)}
+/* the margin is the thumb's own radius: at either end it must clear the cap
+   it is pointing at, or the control reads as one smudged glyph */
+#vrtrack{position:relative;flex:1 1 auto;width:3px;min-height:32px;margin:7px 0;
+  border-radius:2px;background:var(--sep)}
+/* the fill is the level: how much height each row is being given */
+#vrfill{position:absolute;left:0;right:0;bottom:0;border-radius:2px;
+  background:var(--ink3);transition:top var(--dur-fast) var(--ease)}
+#vrthumb{position:absolute;left:50%;width:12px;height:12px;border-radius:50%;
+  transform:translate(-50%,-50%);background:var(--content);
+  border:1.5px solid var(--ink2);box-shadow:var(--shadow);cursor:ns-resize;
+  transition:top var(--dur-fast) var(--ease),
+             border-color var(--dur-fast) ease}
+/* the visual is 12px; the target is 28 — a rail this narrow is only usable
+   because the hit area is wider than the ink */
+#vrthumb::before{content:"";position:absolute;inset:-8px}
+/* three hairlines: the difference between a dot and a grip */
+#vrthumb::after{content:"";position:absolute;left:50%;top:50%;
+  width:6px;height:5px;transform:translate(-50%,-50%);
+  background:linear-gradient(var(--ink3) 1px,transparent 1px) 0 0/100% 2px}
+#vrthumb:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+/* the hand gets the thumb focused so the arrows work after a drag, but a ring
+   drawn for a mouse is a ring nobody asked for — the first key press brings
+   it back */
+#vrail.pf #vrthumb:focus-visible{outline:none}
+@media (hover:hover){
+  #vrail:hover{background:var(--fill)}
+  #vrail:hover #vrthumb{border-color:var(--ink)}
+  #vrail .cap:hover{color:var(--ink)}
+}
+#vrail.drag #vrthumb,#vrail.drag #vrfill{transition:none}
+#vrail.drag #vrthumb{border-color:var(--ink)}
+/* what the drag just did, beside the thumb, for as long as the hand is on it */
+#vrread{position:absolute;left:calc(100% + 7px);transform:translateY(-50%);
+  padding:2px 7px;border-radius:var(--r-xs);white-space:nowrap;
+  font-size:10.5px;letter-spacing:.02em;font-variant-numeric:tabular-nums;
+  color:var(--ink2);background:var(--glass);
+  -webkit-backdrop-filter:blur(14px) saturate(160%);
+  backdrop-filter:blur(14px) saturate(160%);
+  border:.5px solid var(--glass-brd);box-shadow:var(--shadow);
+  opacity:0;pointer-events:none;transition:opacity var(--dur-fast) ease}
+#vrread.on{opacity:1}
 
 section[data-view]{display:none}
 section[data-view].on{display:block;animation:rise var(--dur) var(--ease)}

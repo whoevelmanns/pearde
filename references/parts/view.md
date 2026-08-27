@@ -96,12 +96,17 @@ under it. At dense row heights that column staggers into two, each name still
 on its own row's centre line and its row banded behind it, because the band is
 what pairs a name to a bar.
 
-**Both axes fit the window.** `ppu` fits the weight across. Down, `rows` is a
-slider between the two honest answers: at one end every row is the height it is
-meant to be read at and the board scrolls; at the other the whole board is on
-the screen and the rows are as short as that takes. Neither end is right for
-every board, which is why it is a slider and not a rule. `fit` (or `f`) puts
-the horizontal half back after a zoom. Row height still has two clamps — a
+**Both axes fit the window.** `ppu` fits the weight across. Down, the **row
+rail** on the plot's own left edge is a slider between the two honest answers:
+at the top every row is the height it is meant to be read at and the board
+scrolls; at the bottom the whole board is on the screen and the rows are as
+short as that takes. Neither end is right for every board, which is why it is a
+rail and not a rule. It runs the axis it scales — up is the tall row, and the
+two end caps are the legend: two fat rows above, four thin ones below. Drag it
+anywhere, wheel over it, click an end, or arrow the thumb; hold shift for the
+fine grain. Hovering it, and every move of it, says the pitch in pixels and how
+many of the rows that puts on the screen. `fit` (or `f`) puts the horizontal
+half back after a zoom. Row height still has two clamps — a
 ceiling so four PRDs are not four fat stripes, and a floor below which a bar
 stops being a shape, past which the remainder scrolls.
 
@@ -157,6 +162,7 @@ person.
 | drag | pan |
 | ctrl/⌘+wheel | zoom at the pointer |
 | drag the column edge | widen the names, when `names` is on |
+| drag the left rail | row height — wheel it too, shift for fine |
 | `↑` `↓` | move the selection |
 | `⏎` | open it |
 | ⌘1–6 | switch view |

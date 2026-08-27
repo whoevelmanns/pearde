@@ -43,10 +43,11 @@ const HEAD = 44, PAD = 5, MS = 86400000;
    a board past it scrolls the remainder rather than drawing a smear. */
 const ROW_MIN = 5.5, ROW_MAX = 30, ROW_READ = 26;
 let ROW = ROW_READ;
-/* `rows` on the toolbar, 0 to 100: at 0 every row is at the size it is meant
-   to be read at and the board scrolls; at 100 the whole board is on the screen
-   and the rows are as short as that takes. Neither end is the right answer for
-   every board, which is why it is a slider and not a rule. */
+/* the rail down the plot's left edge, 0 to 100: at 0 every row is at the size
+   it is meant to be read at and the board scrolls; at 100 the whole board is
+   on the screen and the rows are as short as that takes. Neither end is the
+   right answer for every board, which is why it is a rail and not a rule.
+   The rail's own axis runs the other way — see `paintRail`. */
 let vscale = 100;
 /* ── where the names live ─────────────────────────────────────────────────
    A name column is a second list to correlate: you read a name on the left,
@@ -442,6 +443,7 @@ function finish(closed) {
     ? '<div>nothing matches</div>' + btn("clear the filter", {clear:1})
     : '<div>nothing scheduled — run <kbd>pearde plan</kbd></div>';
   place();
+  paintRail();
 }
 
 /* ── the router: every number is a door ───────────────────────────────────
@@ -1323,12 +1325,121 @@ try {
   if (raw !== null && raw !== "" && +raw >= 0 && +raw <= 100) vscale = +raw;
 } catch (e) {}
 LEFT = onBars ? 0 : COLW();
-$("vscale").value = vscale;
-$("vscale").oninput = () => {
-  vscale = +$("vscale").value;
+
+/* ── the row rail ─────────────────────────────────────────────────────────
+   Row height is a property of the plot, so the control lives on the plot's own
+   left edge, running the axis it scales — up is a row at the size it is meant
+   to be read at, down is every row on the screen — and it is dragged the way
+   the rows themselves would be. Drag anywhere on it, wheel over it, click an
+   end cap, or arrow the thumb; shift is the fine grain.
+
+   The rail's axis is not `vscale`'s: up is the TALL end and vscale counts the
+   other way, so every read and write of the control goes through this pair,
+   and nothing else in the file has to know which way the number runs.        */
+const rail = $("vrail"), vrTrack = $("vrtrack"), vrThumb = $("vrthumb"),
+      vrFill = $("vrfill"), vrRead = $("vrread");
+
+/* the one sentence the control can say: the pitch it just set, and whether
+   that pitch still puts the board on the screen. Pixels alone would not
+   answer the question anyone is actually asking the slider. */
+function railWords() {
+  const n = rows.length;
+  if (!n) return "no rows";
+  const fits = Math.floor((plot.clientHeight - HEAD - PAD) / ROW);
+  return Math.round(ROW) + "px · " +
+    (fits >= n ? "all " + n + " rows" : fits + " of " + n + " rows");
+}
+function paintRail() {
+  rail.classList.toggle("off", !rows.length);
+  vrThumb.style.top = vscale + "%";
+  vrFill.style.top = vscale + "%";
+  vrThumb.setAttribute("aria-valuenow", Math.round(100 - vscale));
+  vrThumb.setAttribute("aria-valuetext", railWords());
+  $("vrTall").classList.toggle("on", vscale <= 0);
+  $("vrShort").classList.toggle("on", vscale >= 100);
+}
+/* `hold` is the difference between a hand on the rail and a key press: the
+   hand takes the readout away itself when it leaves, a key never comes back */
+let readHide = 0;
+function flashRail(hold) {
+  vrRead.textContent = railWords();
+  vrRead.style.top =
+    (vrTrack.offsetTop + vrTrack.clientHeight * vscale / 100) + "px";
+  vrRead.classList.add("on");
+  clearTimeout(readHide);
+  if (!hold) readHide = setTimeout(() => vrRead.classList.remove("on"), 900);
+}
+/* one door for every gesture: clamp, persist, re-lay the plot — ROW is only
+   true after `place` — then repaint the control from what actually happened */
+function setRows(next, say) {
+  vscale = Math.max(0, Math.min(100, next));
   try { localStorage.setItem("pearde.vscale", vscale); } catch (e) {}
   place();
+  paintRail();
+  if (say) flashRail(say === "hold");
+}
+
+let dragV = 0, dragY = 0, dragFine = false;
+rail.addEventListener("pointerdown", ev => {
+  if (ev.button) return;
+  ev.preventDefault();
+  const cap = ev.target.closest(".cap");
+  if (cap) return setRows(cap.id === "vrTall" ? 0 : 100, "hold");
+  const r = vrTrack.getBoundingClientRect();
+  // grabbing the thumb keeps the grip where the hand put it; anywhere else on
+  // the rail is a jump to that pitch, which is the faster of the two moves
+  if (ev.target !== vrThumb)
+    setRows((ev.clientY - r.top) / r.height * 100, "hold");
+  rail.classList.add("pf");
+  vrThumb.focus({preventScroll:true});
+  dragV = vscale; dragY = ev.clientY; dragFine = ev.shiftKey;
+  rail.classList.add("drag");
+  rail.setPointerCapture(ev.pointerId);
+});
+rail.addEventListener("pointermove", ev => {
+  if (!rail.classList.contains("drag")) return;
+  // shift picked up or let go mid-drag rebases, or the thumb would jump back
+  if (ev.shiftKey !== dragFine) {
+    dragFine = ev.shiftKey; dragV = vscale; dragY = ev.clientY;
+  }
+  const r = vrTrack.getBoundingClientRect();
+  setRows(dragV + (ev.clientY - dragY) / r.height * 100 * (dragFine ? .25 : 1),
+          "hold");
+});
+const dragEnd = ev => {
+  if (!rail.classList.contains("drag")) return;
+  rail.classList.remove("drag");
+  try { rail.releasePointerCapture(ev.pointerId); } catch (e) {}
 };
+rail.addEventListener("pointerup", dragEnd);
+rail.addEventListener("pointercancel", dragEnd);
+rail.addEventListener("wheel", ev => {
+  ev.preventDefault();
+  setRows(vscale + Math.sign(ev.deltaY) * 3, "hold");
+}, {passive:false});
+rail.addEventListener("dblclick", ev => ev.preventDefault());
+/* the readout on hover as well as on drag: the control says what the rows are
+   at before you touch it, which is the whole reason a stranger reaches for it */
+rail.addEventListener("pointerenter", () => flashRail(1));
+rail.addEventListener("pointerleave", () => {
+  if (!rail.classList.contains("drag")) {
+    clearTimeout(readHide); vrRead.classList.remove("on");
+  }
+});
+/* up and right make the row taller, which is what a vertical slider owes the
+   keyboard; the plot's own ↑↓ selection must not also fire under the hand */
+const RAIL_KEYS = {ArrowUp:-2, ArrowRight:-2, ArrowDown:2, ArrowLeft:2,
+                   PageUp:-10, PageDown:10, Home:-100, End:100};
+vrThumb.addEventListener("keydown", ev => {
+  rail.classList.remove("pf");
+  if (!(ev.key in RAIL_KEYS)) return;
+  ev.preventDefault(); ev.stopPropagation();
+  setRows(vscale + RAIL_KEYS[ev.key], 1);
+});
+vrThumb.addEventListener("blur", () => {
+  rail.classList.remove("pf"); vrRead.classList.remove("on");
+});
+paintRail();
 $("namestog").onclick = () => setNames(!onBars);
 $("namestog").classList.toggle("on", !onBars);
 /* The name column is canvas, so CSS cannot slide it — this does, on the same
