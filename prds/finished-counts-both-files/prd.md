@@ -128,6 +128,58 @@ would swamp the one live signal the plan has.
 `references/parts/loop.md` says this too, so the next reader does not
 re-unify them.
 
+## Job 3 — `body_has_open_box` takes the gates' matcher, and `BOX_RE` does not
+
+Added 2026-08-28 by `@infra/gates-adopt-the-best-matcher` spec04. That node
+moved mitosys, model and realm onto `shared`'s wide matcher — any of
+`-`/`*`/`+`, any run of spaces, plus an ordered-marker arm — so as of today:
+
+| reader | matcher | population |
+|---|---|---|
+| all four trees' `done_boxes_are_ticked` | `-`/`*`/`+`/`1.`/`1)`, any spacing | `prd.md`, whole file |
+| `resources/board/plan.py:306` `body_has_open_box` | `l.lstrip().startswith("- [ ]")` | `prd.md`, whole file |
+| `resources/board/plan.py:240` `BOX_RE` | `^\s*[-*]\s+\[([ xX])\]` | `specs/*.md`, `## Acceptance` only |
+
+**The divergence widened rather than closed.** Before that node, the gates and
+`body_has_open_box` were the same literal string test. After it, a `* [ ]` box
+is red to every tree's gate and invisible to `collect` — the exact inversion of
+the reason `body_has_open_box` exists, which is that `collect` must not name a
+PRD a gate would reject.
+
+**`BOX_RE` is not the disagreement, and the master board's own PRD said it was.**
+`BOX_RE` reads a different set of files under a different heading rule to
+produce a progress fraction rather than a verdict. Its `[-*]` class was never
+the gates' class. Matching them would be matching two rules that answer two
+questions.
+
+**Why this matters more here than on any tree.** `infra/prds`, the master
+board, carries no Rust workspace and therefore no gate. `body_has_open_box` is
+the only box reader that ever looks at it. On the four member boards the narrow
+matcher has a gate behind it; on the master board it is alone.
+
+### Blast radius, enumerated rather than re-derived
+
+- **Code that imports or executes `plan.py` (6):** `resources/board/serve.py`
+  (`import plan as planlib`, and it calls `acceptance_of` directly at `:530`),
+  `resources/board/render.py`, `resources/guard.py`, `resources/doctor.sh`,
+  `resources/memos.py`, `resources/questions.py`.
+- **Function-level call sites (2):** `acceptance_of` at `plan.py:276` and
+  `serve.py:530`; `body_has_open_box` at `plan.py:344` only, inside `standing`.
+  `BOX_RE` is used only by `acceptance_of`, at `plan.py:254`.
+- **Boards it plans (6):** `infra/prds` (the master) and its four members
+  `mitosys/prds`, `model/prds`, `realm/prds`, `shared/prds`, plus `pearde/prds`,
+  which is its own board and not a member.
+
+`plan.py` is installed once, not vendored per tree, so a change to
+`body_has_open_box` changes the `collect` line on all six boards at once, and
+`serve.py`'s live view re-reads it without a restart.
+
+`- [~]` stays a closure under the wider matcher — a struck box's brackets are
+not empty — so `../prds/memos/struck-box-spelling.md`'s claim that the mitosys
+gate, the realm gate and `body_has_open_box` all read `- [~]` as a closure
+stays true afterwards. Say so in the report rather than leaving it to be
+re-checked.
+
 ## The verify
 
 `pearde/prds/settings.md` § Deliverable: `resources/index.py check`,
@@ -188,6 +240,26 @@ closed.
       prediction recorded
 - [ ] `realm/prds/done-means-done/realm-classify/prd.md` is byte-identical
       before and after, checked with `git -C realm status --porcelain`
+- [ ] `body_has_open_box` takes the same matcher the four trees' gates take —
+      any of `-`/`*`/`+`, any run of spaces, and the ordered arm — lifted out
+      of the comprehension so it can be read beside
+      `shared/conserved/tests/done_boxes_are_ticked.rs`
+- [ ] `BOX_RE` is left byte-unchanged, and its docstring says why: a different
+      population (`specs/*.md`, `## Acceptance` only), a different job (a
+      progress fraction, not a verdict), and a `[ xX]` capture that
+      deliberately neither closes nor counts `[~]`
+- [ ] `body_has_open_box`'s docstring no longer says mitosys's gate is scoped
+      *"under `## Acceptance`"* — all four gates have been whole-file since
+      2026-08-28, so the "widest of the two" reasoning no longer describes two
+      things
+- [ ] The break-it proof for this job is re-run by the implementer and quoted,
+      not inherited: a `* [ ]` box planted in a held PRD's `prd.md` suppresses
+      that PRD from `collect:` after the change, and does not before it; the
+      planted box is reverted and `git status --porcelain` on that board is
+      quoted clean afterwards
+- [ ] The report states that `- [~]` is still a closure under the wider
+      matcher, so `../prds/memos/struck-box-spelling.md`'s claim about the
+      three readers stays true
 - [ ] `resources/index.py check` is run and its output quoted
 - [ ] `resources/memos.py check` is run and its output quoted
 - [ ] `resources/doctor.sh` is run and its output quoted
