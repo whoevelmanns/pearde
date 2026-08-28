@@ -3,7 +3,7 @@ atomic: write-the-specs
 subject: turn what the build stands up into implementable units
 date: 2026-08-28
 updated: 2026-08-28
-runs: 13
+runs: 14
 ---
 
 # write-the-specs — units another worker can finish
@@ -26,7 +26,7 @@ runs: 13
    box, and none is ticked before an implementer runs it. Then
    `awk '/^```/{f=!f;next} f' prds/<prd>/specs/*.md` and read every command
    back: each must name a path from its own spec's `footprint:`.
-7. `pearde specced <prd> --check` — the gate that reads the set, writing nothing. It refuses a file naming line and reason, and a set over `split-above` or `specs-above`.
+7. `pearde specced <prd> --check --as <id>` — the gate that reads the set, writing nothing. It refuses without `--as <id>` or `PEARDE_AS` — the persona is on the line even in check mode — and refuses a file naming line and reason, and a set over `split-above` or `specs-above`.
 
 ## Done when
 

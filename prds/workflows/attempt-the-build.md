@@ -3,7 +3,7 @@ atomic: attempt-the-build
 subject: build the contract until it works or hits something undefined
 date: 2026-08-28
 updated: 2026-08-28
-runs: 13
+runs: 14
 ---
 
 # attempt-the-build — the attempt is the analysis
