@@ -43,7 +43,7 @@ explains the rest.
 | keyword | is | read |
 |---|---|---|
 | `@@loop` | the round, start to finish | @references/parts/loop.md · @references/parts/round.md · @references/parts/states.md · @references/parts/commits.md · @references/parts/progress.md · @references/parts/order.md · @references/parts/roles.md |
-| `@@board` | what the scan walks and what it parses | @references/parts/board.md · @references/parts/round.md · @resources/board/plan.py · @references/parts/contract.md · @references/parts/states.md · @references/templates/prd.md · @references/templates/vision.md · @references/settings.md |
+| `@@board` | what the scan walks and what it parses | @references/parts/board.md · @references/parts/round.md · @resources/board/plan.py · @references/parts/contract.md · @references/parts/states.md · @references/templates/prd.md · @references/templates/vision.md · @references/settings.md · @resources/board/init.py |
 | `@@states` | the nine states and what moves a PRD between them | @references/parts/states.md · @resources/board/transitions.py · @resources/board/specs.py · @references/parts/contract.md · @references/parts/commits.md |
 | `@@order` | what runs next, and why no axis is a clock | @references/parts/order.md · @references/parts/derived.md · @resources/board/plan.py · @references/templates/vision.md |
 | `@@workers` | dispatching an analyst or an implementer | @references/parts/workers.md · @references/parts/roles.md · @references/parts/solo.md · @references/language.md |
@@ -66,7 +66,7 @@ explains the rest.
 | `@@skills` | the entry points, what each is a door to, and how one is named | @SKILL.md · @skills/pearde.md · @skills/pearde-drill.md · @skills/pearde-memo.md · @skills/pearde-view.md · @skills/pearde-report.md · @skills/pearde-master.md · @skills/pearde-doctor.md · @skills/pearde-persona.md · @skills/pearde-persona-ask.md · @skills/pearde-persona-create.md · @skills/pearde-scout.md · @references/install.md |
 | `@@doctor` | telling a broken install from an absent one | @skills/pearde-doctor.md · @references/parts/doctor.md · @resources/doctor.sh · @resources/guard.py · @resources/index.py · @resources/questions.py · @references/install.md |
 | `@@master` | one plan across several repos | @skills/pearde-master.md · @references/parts/master.md · @references/settings.md · @references/parts/board.md |
-| `@@settings` | every board-wide knob | @references/settings.md · @references/parts/contract.md |
+| `@@settings` | every board-wide knob | @references/settings.md · @references/parts/contract.md · @resources/board/init.py |
 | `@@language` | how everything on the board is written | @references/language.md · @references/templates/prd.md · @references/templates/spec.md · @references/templates/memo.md |
 | `@@templates` | the five files a handle writes from | @references/templates/prd.md · @references/templates/spec.md · @references/templates/memo.md · @references/templates/report.md · @references/templates/vision.md |
 | `@@index` | addressing itself — the syntaxes, the scopes, the manifest, the check | @index.md · @references/files.md · @resources/index.py · @references/language.md |

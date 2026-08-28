@@ -1,9 +1,11 @@
 ---
-state: open
+state: done
 origin: requested
+actual: 0.5h
+commit: a91bf64
 priority: 62
-complexity: 0
-blast-radius:
+complexity: 18
+blast-radius: mid
 repo: pearde
 workflow: probe-then-spec
 needs:
@@ -79,3 +81,7 @@ the rest, and replaces `workers=N` and `pipeline=N` as the way any key is set.
 - `pearde init --language German` → `language: German`; `pearde settings
   workers=5` → `workers: 5`, every other line byte-identical.
 - `pearde init --example` → `scan` prints the example's five sections.
+
+## Report
+
+DONE 9/9 · commit 0f94dd7 · probe 89/89 · 47/47 73/73 39/39 · index silent

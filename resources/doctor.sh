@@ -7,9 +7,9 @@
 # One part per line: `ok`, `off` (installed nowhere, nothing to repair), or
 # `broken` (installed and not working — the failure that otherwise runs
 # straight past). A broken part carries its exact fix on the next line.
-# `skills`, `index`, `statusline` and `board` always report. `memos`,
-# `workflows`, `view` and `plan` need a board in scope, `origin` needs PRDs in
-# it, and `members` only exists on a master board.
+# `skills`, `index`, `statusline`, `board` and `briefs` always report.
+# `memos`, `workflows`, `view` and `plan` need a board in scope, `origin`
+# needs PRDs in it, and `members` only exists on a master board.
 #
 # No agent is named in this script and none is looked for. Where a skill goes
 # and where a status line is configured are things only the reader knows —
@@ -190,7 +190,8 @@ if [ -z "$BOARD" ]; then
     row board broken "no prds/ at the repo root · found $(echo "$OFF" | tr '\n' ' ')"
     fix "git mv $(echo "$OFF" | head -1) $START/prds — the board path is the contract"
   else
-    row board off "no board — the first run creates prds/"
+    row board off "no board — pearde init creates prds/"
+    fix "python3 $SKILL_ROOT/resources/pearde.py init [<dir>] — a board, asking nothing"
   fi
 else
   ROOT=$(git -C "$BOARD" rev-parse --show-toplevel 2>/dev/null)
@@ -202,15 +203,12 @@ else
     fix "git mv $BOARD $ROOT/prds"
   elif [ ! -f "$BOARD/settings.md" ]; then
     row board broken "$N PRDs · no settings.md"
-    fix "the first run writes it, per @references/settings.md — ask the board language"
+    fix "python3 $SKILL_ROOT/resources/pearde.py init $(dirname "$BOARD") — writes it, language English unless --language"
   else
+    # a missing `language:` reads at its default — English, the way every
+    # other key reads, @references/settings.md. Not broken: said, not asked.
     LANG=$(grep -E '^[[:space:]]*language:' "$BOARD/settings.md" | head -1 | sed 's/.*language:[[:space:]]*//')
-    if [ -z "$LANG" ]; then
-      row board broken "$BOARD · $N PRDs · settings.md has no language"
-      fix "write language: <language>, asked from the user, per @references/settings.md"
-    else
-      row board ok "$BOARD · $N PRDs · language $LANG"
-    fi
+    row board ok "$BOARD · $N PRDs · language ${LANG:-English (default)}"
   fi
 fi
 

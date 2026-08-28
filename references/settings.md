@@ -9,7 +9,7 @@ into every board.
 
 ```yaml
 ---
-language: <language>
+language: English
 workers: 3
 pipeline: 3
 weight-default: 50
@@ -30,7 +30,7 @@ members:
 
 | key           | default      | meaning                                                          |
 |---------------|--------------|-------------------------------------------------------------------|
-| `language`    | none — asked | the language every PRD, spec, and report is written in            |
+| `language`    | English      | the language every PRD, spec and report is written in. `pearde init` writes it by name and says so on its first line; `pearde settings language=<l>` changes it — `prds/memos/init-defaults-the-language.md` |
 | `workers`     | 3            | implementer slots, loop step 5                                    |
 | `pipeline`    | 3            | `specced` PRDs kept ahead, loop step 4                            |
 | `weight-default` | 50        | weight of an unscored PRD while no PRD on the board has `complexity` |
@@ -60,20 +60,16 @@ The orchestrator is the only writer, same as PRD state.
 
 | case                       | do                                                                    |
 |----------------------------|------------------------------------------------------------------------|
-| no `prds/settings.md`      | first run — see below                                                  |
+| no `prds/settings.md`      | first run — `pearde init`, see below                                   |
 | `members:` and no `name:`  | ask the user what the group is called, write `name:`, then run the round |
 | a board joins or leaves    | append or remove its `members:` entry. Nothing in the member changes   |
-| `workers=N` / `pipeline=N` | write the key, then run with it                                        |
-| any other setting stated   | write it, confirm in one line                                          |
+| `workers=N` / `pipeline=N` | `pearde settings workers=N`, then run with it                          |
+| any other setting stated   | `pearde settings <key>=<value>` — one key written, one line printed    |
 
-First run:
-
-1. `bash @resources/doctor.sh --fix` — repair a broken install before the board
-   is written.
-2. Copy the block above into `prds/settings.md`.
-3. Ask the user for `language` — stated by the user, never guessed. Write the
-   answer over `<language>`.
-4. Ask nothing else. The rest have defaults.
+First run: `pearde init` — @resources/board/init.py writes `prds/settings.md`
+with every knob above by name, `language: English` unless `--language <l>`,
+and says so on its first line. It asks nothing: the language is a default
+that is printed, not a guess, per `prds/memos/init-defaults-the-language.md`.
 
 Ask `name` the first time `members:` is read with no `name:`, in the same
 round — a group of projects is named for what it owns, not a join of directory

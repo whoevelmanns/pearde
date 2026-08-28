@@ -195,9 +195,12 @@ members:
 
 ## The first run
 
-The board creates `prds/settings.md` and asks the user for the board
-language, per @references/settings.md. Nothing about installing does that,
-and nothing about installing touches `prds/`.
+`pearde init` — one command, and a board exists: `prds/settings.md` with every
+knob named, `language: English` said on its first line, `prds/vision.md` from
+the template, the daemon watching it, `doctor` once, and the three lines to
+run next. It asks nothing; `pearde settings <key>=<value>` changes a knob, per
+@references/settings.md. Nothing about installing does that, and nothing
+about installing touches `prds/`.
 
 ## Uninstall
 
