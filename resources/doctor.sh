@@ -15,7 +15,8 @@
 # and where a status line is configured are things only the reader knows —
 # @references/install.md is the explanation, and it is written to be worked
 # out rather than executed. What doctor checks is everything that is true
-# regardless: the skill files are well-formed, the map matches the tree, the
+# regardless: the skill files are well-formed and every command name under
+# resources/board/ is claimed by one module, the map matches the tree, the
 # status line renders, and the board is on its contract.
 #
 # `--fix` repairs one thing and only one: a view service that is down or not
@@ -69,14 +70,20 @@ skills/$base.md says name: $nm — an install would build it as $nm/"
 skills/$base.md has no description: — nothing decides when it fires"
   fi
 done
+# One name, one module. pearde.py discovers resources/board/*.py and says
+# on stderr which names clash; a clash is a skill whose command answers
+# for the wrong file, so it is broken here rather than silently first-wins.
+CLASH=$(python3 "$SKILL_ROOT/resources/pearde.py" help 2>&1 >/dev/null | sed -n 's/^pearde: //p')
+[ -n "$CLASH" ] && SKBAD="$SKBAD
+$CLASH"
 if [ "$SKN" -eq 0 ]; then
   row skills broken "skills/ holds no .md file — there is nothing to install"
   fix "one file per skill, frontmatter name: matching the file name, and description:"
 elif [ -n "$SKBAD" ]; then
   NS=$(printf '%s' "$SKBAD" | grep -c . )
   row skills broken "$SKN skill$([ "$SKN" = 1 ] || echo s) · $NS problem$([ "$NS" = 1 ] || echo s)"
-  printf '%s' "$SKBAD" | while IFS= read -r l; do [ -n "$l" ] && note "$l"; done
-  fix "frontmatter is what makes a skill findable — @references/install.md"
+  printf '%s\n' "$SKBAD" | while IFS= read -r l; do [ -n "$l" ] && note "$l"; done
+  fix "frontmatter is what makes a skill findable — @references/install.md; one name per module under resources/board/ — python3 $SKILL_ROOT/resources/pearde.py help"
 else
   NAMES=$(for f in "$SKILL_ROOT"/skills/*.md; do basename "$f" .md; done | tr '\n' ' ')
   row skills ok "$SKN well-formed · $NAMES"
@@ -238,6 +245,30 @@ if [ -n "$BOARD" ] && grep -qE '^[[:space:]]*members:' "$BOARD/settings.md" 2>/d
     else
       row members ok "$NM member board(s) · ${NAMES}· $MPRDS member PRDs planned here"
       printf '  %-11s %-7s %s\n' "" "" "name inferred as '$BNAME' — the round asks the user and writes name: to settings.md"
+    fi
+  fi
+fi
+
+# ── vision: where the board says it is going, and whether the names hold ─────
+# `prds/vision.md` names the PRDs whose completion is the destination, and the
+# plan orders toward them. A terminal or an edge end that names no PRD is a
+# silent failure: the PRD it meant is off the axis, and the scan just says so
+# in a number. `plan.py vision --check` is the one reader.
+if [ -n "$BOARD" ]; then
+  if [ ! -f "$BOARD/vision.md" ]; then
+    row vision off "no vision.md — the board orders by dependency, weight and priority alone"
+    fix "write $BOARD/vision.md from @references/templates/vision.md — one sentence, then terminals:"
+  else
+    VOUT=$(python3 "$DIR/board/plan.py" vision --check "$BOARD" 2>&1); VRC=$?
+    if [ "$VRC" -eq 0 ]; then
+      row vision ok "$VOUT"
+    else
+      NV=$(printf '%s\n' "$VOUT" | grep -c . )
+      row vision broken "$NV name$([ "$NV" = 1 ] || echo s) in vision.md resolve$([ "$NV" = 1 ] && echo s) to no PRD"
+      printf '%s\n' "$VOUT" | while IFS= read -r l; do
+        [ -n "$l" ] && printf '  %-11s %-7s %s\n' "" "" "$l"
+      done
+      fix "name the PRD as needs: would — <prd>, @<member>/<prd>, or @<name>/<prd> for the board's own — or drop the line"
     fi
   fi
 fi

@@ -13,6 +13,10 @@
     plan.py example <dir>                 copy the example board to <dir> —
                                           an empty or new directory; never
                                           run in place
+    plan.py vision [board] [--json|--next|--check]
+                                          the axis prds/vision.md declares:
+                                          depth per PRD, the critical chain,
+                                          the off-axis set
 
 board = the prds/ directory, a directory holding one, or omitted to walk up
 from the cwd. The plan persists in prds/.plan.json. The view reads it.
@@ -489,32 +493,127 @@ def board_name(board):
     return re.sub(r"[^A-Za-z0-9_. -]", "-", raw) or infer_name(board)
 
 
-def plane_name(board):
-    """What the board calls itself in Plane, or "" — `.plane.env`'s
-    PLANE_PROJECT_NAME. Mirrors allboards.plane_name so the axis addresses
-    match the ones vision.py writes."""
-    try:
-        for line in open(os.path.join(board, ".plane.env"), encoding="utf-8"):
-            k, sep, v = line.strip().partition("=")
-            if sep and k.strip() == "PLANE_PROJECT_NAME":
-                return v.strip()
-    except OSError:
-        pass
-    return ""
+# ── the vision axis ───────────────────────────────────────────────────────────
+# `prds/vision.md` says where the board is going: `vision:` in one sentence,
+# `terminals:` naming the PRDs whose completion is that destination, `edges:`
+# for a dependency nobody wrote as `needs:`. @references/parts/order.md.
+VISION_FILE = "vision.md"
 
 
-def axis_depth(board):
-    """{addr: depth} from the vision axis — `.vision.json` when the board has
-    one, else {} (a member board has no axis of its own; the master's plan is
-    the one that dispatches it)."""
-    vj = os.path.join(board, ".vision.json")
-    if not os.path.isfile(vj):
-        return {}
-    try:
-        data = json.load(open(vj, encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return {n["addr"]: n["depth"] for n in data.get("prds", [])}
+def read_vision(board):
+    """`prds/vision.md` as data — {vision, terminals, edges, title, body} —
+    or None when the board has none. The one reader of the file."""
+    path = os.path.join(board, VISION_FILE)
+    if not os.path.isfile(path):
+        return None
+    fm, title, body = parse_prd(path)
+
+    def items(key):
+        v = fm.get(key, [])
+        v = v if isinstance(v, list) else [v]
+        return [str(x).strip() for x in v if str(x).strip()]
+
+    edges = []
+    for e in items("edges"):
+        a, sep, b = e.partition("->")
+        edges.append((a.strip(), b.strip()) if sep else (e, ""))
+    return {"vision": str(fm.get("vision", "")).strip(),
+            "terminals": items("terminals"), "edges": edges,
+            "title": title, "body": body}
+
+
+def resolve_addr(prds, tok, board, idx=None):
+    """The rel a vision address names, or None. `needs:` resolution — own
+    board first, `@<member>/<rel>` across boards — plus `@<this board's
+    name>/<rel>` for the board's own PRD, which a master's file writes so its
+    terminals read as one list."""
+    t = str(tok).strip().rstrip("/")
+    own = f"{MEMBER_SIGIL}{board_name(board)}/"
+    if t.startswith(own) and t[len(own):] in prds:
+        return t[len(own):]
+    return resolve_need(prds, {"board": None}, t, idx)
+
+
+def vision_axis(board, prds=None, vis=None):
+    """The axis as data, or None when the board declares no terminals.
+
+    `depth[rel]` is the longest serial chain from that PRD to a terminal over
+    `needs:` plus `edges:` — a parent is a terminal for its subtree, a done
+    PRD on the chain costs no hop — or None when no terminal is reachable:
+    off the axis, neither near the vision nor far from it. `reach[rel]` is
+    the undone work the PRD stands in front of. `dangling` lists every
+    terminal or edge end that names no PRD — what `doctor`'s `vision` row
+    reports."""
+    v = read_vision(board) if vis is None else vis
+    if not v or not v["terminals"]:
+        return None
+    prds = scan(board) if prds is None else prds
+    idx = needs_index(prds)
+    term, dangling = set(), []
+    for t in v["terminals"]:
+        r = resolve_addr(prds, t, board, idx)
+        if r:
+            term.add(r)
+        else:
+            dangling.append(f"terminal {t} names no PRD")
+    after = {r: set() for r in prds}       # after[x]: the rels that wait on x
+    for r, p in prds.items():
+        deps = p["fm"].get("needs", [])
+        for d in (deps if isinstance(deps, list) else [deps]):
+            t = resolve_need(prds, p, d, idx)
+            if t and t != r:
+                after[t].add(r)
+        for c in p["children"]:            # a parent lands after its children
+            after[c].add(r)
+    for a, b in v["edges"]:
+        ra, rb = (resolve_addr(prds, x, board, idx) for x in (a, b))
+        bad = [x for x, rx in ((a, ra), (b, rb)) if not rx]
+        if bad:
+            dangling.append(f"edge {a} -> {b}: {', '.join(bad)} names no PRD")
+        elif ra != rb:
+            after[ra].add(rb)
+    depth, reach = {}, {}
+
+    def walk(r):
+        if r in depth:
+            return depth[r]
+        depth[r] = 0 if r in term else None   # a cycle reads this partial value
+        best = depth[r]
+        for nxt in after[r]:
+            d = walk(nxt)
+            if d is None:
+                continue
+            step = d if prds[nxt]["state"] == "done" else d + 1
+            best = step if best is None else max(best, step)
+        depth[r] = 0 if r in term else best
+        return depth[r]
+
+    def down(r):
+        if r in reach:
+            return reach[r]
+        reach[r] = set()
+        acc = set()
+        for nxt in after[r]:
+            if prds[nxt]["state"] != "done":
+                acc.add(nxt)
+            acc |= down(nxt)
+        reach[r] = acc
+        return acc
+
+    for r in prds:
+        walk(r)
+        down(r)
+    return {"vision": v["vision"], "body": v["body"],
+            "terminals": v["terminals"], "term": term, "after": after,
+            "depth": depth, "reach": {r: len(s) for r, s in reach.items()},
+            "dangling": dangling}
+
+
+def axis_depth(board, prds=None):
+    """{rel: depth} from the vision axis — None for a PRD off it, {} on a
+    board that declares no terminals, which orders as it always has."""
+    ax = vision_axis(board, prds)
+    return ax["depth"] if ax else {}
 
 
 def scan_memos(board):
@@ -1155,21 +1254,18 @@ def compute_plan(board, workers=None, warn=True):
 
     # The vision axis orders the frontier: asap lanes first, then on-axis
     # deepest-first, then the old widest-door order. A PRD off the axis (or a
-    # board with no axis) keeps the old order. The axis is `.vision.json`,
-    # written by prds/vision.py; the asap lane is a PRD declaring `axis: asap`
+    # board with no axis) keeps the old order. The axis is `prds/vision.md`,
+    # read by `axis_depth`; the asap lane is a PRD declaring `axis: asap`
     # in its frontmatter — the "see it working" ask, scheduled by priority,
     # not hops.
-    axis = axis_depth(board)
-    master = plane_name(board) or project_name(board)
-    def addr_of(r):
-        return r if r.startswith(MEMBER_SIGIL) else f"{MEMBER_SIGIL}{master}/{r}"
+    axis = axis_depth(board, prds)
     def asap(r):
         return str(todo[r]["fm"].get("axis", "")).strip() == "asap"
     def axis_rank(r, unblocks=None):
         u = (unblocks or {}).get(r, 0)
         if asap(r):
             return (0, 0, -u, -prio(r), r)
-        d = axis.get(addr_of(r))
+        d = axis.get(r)
         if d is not None:
             return (1, -d, -u, -prio(r), r)
         return (2, 0, -u, -prio(r), r)
@@ -1480,9 +1576,21 @@ def cmd_scan(board):
     est = r["est"] if r else {}
     wf = workflow_marks(board, prds)
     mem = [n for n, _ in members(board)]
+    # The axis, when the board declares one: how much live work is on the way
+    # to the vision and how much is not. A board with no terminals prints
+    # neither this nor the marks below — its scan reads as it always has.
+    vis = read_vision(board)
+    ax = vision_axis(board, prds, vis) if vis else None
+    axis_note = ""
+    if ax:
+        on = sum(1 for x in t["live"] if ax["depth"].get(x) is not None)
+        axis_note = f" · axis: {on} on · {len(t['live']) - on} off"
     print(f"board: {board} · {len(prds)} PRDs"
           + (f" · master of {len(mem)}: " + ", ".join(mem) if mem else "")
-          + (f" · workers={r['workers']}" if r else ""))
+          + (f" · workers={r['workers']}" if r else "")
+          + axis_note)
+    if vis and vis["vision"]:
+        print(f"vision: {vis['vision']}")
     if t["counts"]:
         print("counts: " + " · ".join(f"{s} {n}" for s, n in sorted(
             t["counts"].items(), key=lambda kv: -kv[1])))
@@ -1504,6 +1612,8 @@ def cmd_scan(board):
                 f"w{est.get(x, 0):.0f}"]
         if wf.get(x):
             bits.append("wf " + wf[x])
+        if ax and ax["depth"].get(x) is None:
+            bits.append("off-axis")
         if tt:
             bits.append(f"boxes {c}/{tt}")
         if needs.get(x):
@@ -1552,6 +1662,13 @@ def cmd_scan(board):
     print(f"\nround: {rf}" + ("" if os.path.isfile(rf) else "  (not written)"))
 
 
+def plan_frontier(r):
+    """`plan`'s ready set — every PRD nothing gates, in dispatch order. The
+    same list `vision --next` prints alone."""
+    return [x for x in r["order"]
+            if not r["needs"][x] and not r["after"][x] and r["est"][x] > 0]
+
+
 def cmd_plan(board, workers):
     r = compute_plan(board, workers)
     if not r:
@@ -1583,8 +1700,7 @@ def cmd_plan(board, workers):
     # moment its own gates clear, so the plan is the dispatch order and what
     # gates each entry — not waves that would hold unrelated work hostage to
     # the slowest member of a round.
-    frontier = [x for x in r["order"]
-                if not needs[x] and not after[x] and est[x] > 0]
+    frontier = plan_frontier(r)
     if frontier:
         # `ready now` is the dispatch list, and step 5 of @references/parts/
         # loop.md skips a PRD whose `workflow:` names no workflow. The other
@@ -1666,6 +1782,144 @@ def cmd_status(board):
     print(f"view: {serve_url(board)}")
 
 
+def vision_json(board, prds, ax):
+    """What `.vision.json` held, as data: every live PRD with its depth and
+    reach, deepest first, and the off-axis set by address."""
+    name = board_name(board)
+    idx = needs_index(prds)
+    rows = []
+    for r, p in prds.items():
+        if p["state"] not in LIVE_STATES:
+            continue
+        deps = p["fm"].get("needs", [])
+        unmet = []
+        for d in (deps if isinstance(deps, list) else [deps]):
+            t = resolve_need(prds, p, d, idx)
+            if t is None or prds[t]["state"] != "done":
+                unmet.append(str(d).strip())
+        specs = os.path.join(p["dir"], "specs")
+        try:
+            prio = float(p["fm"].get("priority", 0) or 0)
+        except ValueError:
+            prio = 0.0
+        d = ax["depth"].get(r)
+        rows.append({
+            "addr": (r if r.startswith(MEMBER_SIGIL)
+                     else f"{MEMBER_SIGIL}{name}/{r}"),
+            "board": p["board"] or name, "rel": p["local"],
+            "state": p["state"], "depth": d, "reach": ax["reach"].get(r, 0),
+            "est": hours(p["fm"].get("est", "")) or None, "prio": prio,
+            "ready": (not p["children"] and not unmet
+                      and p["state"] in ("open", "specced", "failed")),
+            "on_axis": d is not None, "blocked_by": unmet,
+            "nspecs": len(os.listdir(specs)) if os.path.isdir(specs) else 0,
+        })
+    on = sorted((x for x in rows if x["on_axis"]),
+                key=lambda x: (-x["depth"], -x["reach"], -x["prio"], x["addr"]))
+    return {"vision": ax["vision"], "terminals": ax["terminals"],
+            "longest_chain": max((x["depth"] for x in on), default=0),
+            "prds": on,
+            "off_axis": [x["addr"] for x in rows if not x["on_axis"]]}
+
+
+def critical_chain(ax, prds, start):
+    """The serial chain from `start` to a terminal: at each hop, the
+    dependent that carries the depth — a done one costs no hop."""
+    chain, cur = [start], start
+    while cur not in ax["term"]:
+        nxt = None
+        for cand in sorted(ax["after"][cur]):
+            d = ax["depth"].get(cand)
+            hop = 0 if prds[cand]["state"] == "done" else 1
+            if d is not None and d + hop == ax["depth"][cur]:
+                nxt = cand
+                break
+        if nxt is None or nxt in chain:
+            break
+        chain.append(nxt)
+        cur = nxt
+    return chain
+
+
+def cmd_vision(board, flags):
+    """`pearde vision` — the axis for a person: depth per PRD, the critical
+    chain, the off-axis set. `--json` prints what `.vision.json` held.
+    `--next` prints `plan`'s ready set alone, in axis order. `--check` is the
+    `doctor` row: one line, exit 0, or the dangling names, exit 1."""
+    prds = scan(board)
+    vis = read_vision(board)
+    ax = vision_axis(board, prds, vis) if vis else None
+    live = [r for r, p in prds.items() if p["state"] in LIVE_STATES]
+    on = sorted((r for r in live if ax and ax["depth"].get(r) is not None),
+                key=lambda r: (-ax["depth"][r], -ax["reach"][r], r))
+    off = sorted(r for r in live if not ax or ax["depth"].get(r) is None)
+    chain = max((ax["depth"][r] for r in on), default=0) if ax else 0
+    if "--check" in flags:
+        if not vis:
+            print("no vision.md")
+        elif ax and ax["dangling"]:
+            for line in ax["dangling"]:
+                print(line)
+            return 1
+        elif not ax:
+            print("vision declared · no terminals — no axis")
+        else:
+            print(f"{len(ax['terminals'])} terminal"
+                  f"{'' if len(ax['terminals']) == 1 else 's'}"
+                  f" · {len(on)} on · {len(off)} off · longest chain {chain}")
+        return 0
+    if not ax:
+        if vis and vis["vision"]:
+            print(f"vision: {vis['vision']}")
+        print("no terminals declared — " + (
+            f"write prds/{VISION_FILE} first: the destination in one sentence,"
+            " and terminals: naming the PRDs whose completion is it"
+            if not vis else
+            "the board orders by dependency, weight and priority alone"))
+        return 1
+    if "--json" in flags:
+        json.dump(vision_json(board, prds, ax), sys.stdout, indent=1)
+        print()
+        return 0
+    if "--next" in flags:
+        r = compute_plan(board, None, warn=False)
+        nxt = plan_frontier(r) if r else []
+        print(f"next — {len(nxt)} dispatchable now, in axis order")
+        for x in nxt:
+            d = ax["depth"].get(x)
+            print(f"  · {x} [{prds[x]['state']}] "
+                  + (f"depth {d}" if d is not None else "off-axis")
+                  + f" · unblocks {ax['reach'].get(x, 0)}")
+        return 0
+    print(f"vision: {ax['vision']}")
+    print(f"axis: {len(on)} on · {len(off)} off · longest chain {chain}")
+    for line in ax["dangling"]:
+        print(f"dangling: {line}")
+    if on:
+        print("chain: " + " → ".join(critical_chain(ax, prds, on[0])))
+    for d in sorted({ax["depth"][r] for r in on}, reverse=True):
+        here = [r for r in on if ax["depth"][r] == d]
+        print(f"\ndepth {d} — {len(here)} PRD{'' if len(here) == 1 else 's'}"
+              + ("  ← the vision" if d == 0 else ""))
+        for r in here:
+            print(f"  {r} [{prds[r]['state']}]"
+                  f" p{prds[r]['fm'].get('priority', 0)}"
+                  f" · unblocks {ax['reach'][r]}")
+    if off:
+        print(f"\noff-axis — {len(off)} with no path to a terminal")
+        for r in off:
+            print(f"  {r} [{prds[r]['state']}]")
+    return 0
+
+
+def _vision_cli(argv):
+    """`pearde vision [board] [--json|--next|--check]` — argv is everything
+    after the command name, the return is the exit code."""
+    args = [a for a in argv if not a.startswith("--")]
+    return cmd_vision(find_board(args[0] if args else None),
+                      [a for a in argv if a.startswith("--")])
+
+
 # ── the example board ─────────────────────────────────────────────────────────
 # resources/board/example/ — one small board with a row in every band. Every
 # check in this repo runs against a COPY of it: a check that ticks a box in
@@ -1702,7 +1956,7 @@ def cmd_example(argv):
 
 
 # What the `pearde` dispatcher discovers: {name: callable(argv) -> exit code}.
-COMMANDS = {}
+COMMANDS = {"vision": _vision_cli}
 COMMANDS["example"] = cmd_example
 
 
@@ -1735,9 +1989,11 @@ def main():
         cmd_status(board)
     elif cmd == "scan":
         cmd_scan(board)
+    elif cmd == "vision":
+        sys.exit(cmd_vision(board, flags))
     else:
         die(f"unknown command '{cmd}' — scan | plan | reconcile | gantt"
-            " | calibrate | members | status | example")
+            " | calibrate | members | status | vision | example")
 
 
 if __name__ == "__main__":

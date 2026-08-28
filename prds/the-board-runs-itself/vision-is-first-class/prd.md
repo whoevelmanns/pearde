@@ -1,6 +1,7 @@
 ---
-state: specced
+state: blocked
 origin: requested
+commit: 31bed59
 priority: 60
 complexity: 50
 blast-radius: mid
@@ -107,3 +108,11 @@ edges:
   `axis: 2 on · 4 off` — six live PRDs, `big` and `big/second` on.
 - With no `terminals:`, `scan` output is byte-identical to before this PRD.
 - `doctor` reports `vision broken` on a terminal naming no PRD.
+
+## Blocked
+
+spec01 and spec02 are closed, 16/16. spec03 — retire `vision.py`, `allboards.py`
+and `.vision.json` on `/Users/feb/dev/infra/prds` and rewrite one sentence in
+its `settings.md` — waits on the session that owns that board (`infra-fe`),
+asked 2026-08-28. Its four boxes close when that session answers go, or does
+the deletion itself and names the sha.

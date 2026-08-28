@@ -32,6 +32,13 @@ members:
 cannot collide with the master's own PRDs. Every handle takes it: `run
 @model/nucleus`, `needs: @model/nucleus`.
 
+**The vision.** `prds/vision.md` at the master writes `terminals:` and
+`edges:` the way `needs:` is written — a member PRD is `@<member>/<rel>` —
+plus the one form `needs:` lacks: `@<name>/<rel>`, with the `name:` from the
+master's `settings.md`, is the master's own PRD, so its own terminals stand
+beside its members' in one list. The master reads only its own `vision.md`;
+a member's is that member's axis when it is worked alone.
+
 **The master is where you work.** One orchestrator, on the master. It scans
 every member, dispatches their workers, and writes each transition into that
 PRD's own `prd.md` at its real path — exactly one file per PRD, the member's.

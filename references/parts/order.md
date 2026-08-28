@@ -10,8 +10,15 @@ Three axes decide what runs next. None of them is a clock.
    On-axis PRDs dispatch deepest-first: the longest serial chain first,
    because every hour it waits is an hour added to the finish. `priority`
    breaks ties within a depth. A PRD off the axis dispatches after all
-   on-axis work, by priority. The axis is `prds/.vision.json`, written by
-   `prds/vision.py`.
+   on-axis work, by priority. The axis is `prds/vision.md`: `terminals:`
+   names the PRDs whose completion is the vision, and a PRD's depth is the
+   longest serial chain from it to one, over `needs:` plus `edges:` — a
+   `done` PRD on the chain costs no hop, and a parent lands after its
+   children, so a parent named as a terminal puts its subtree on the axis.
+   A live PRD from which no terminal is reachable is off-axis. `scan`'s
+   first line carries `axis: <on> on · <off> off`, a line off the axis
+   carries `· off-axis`, and `pearde vision` prints the whole axis — a
+   board with no `terminals:` prints none of this and orders as above.
 3. **Complexity and blast-radius** — `complexity` 1-100 is the weight the
    progress line and `plan` use. `blast-radius` breaks ties and decides what a
    round leads with: a `high` PRD that is wrong costs more than a `low` one

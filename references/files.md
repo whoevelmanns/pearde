@@ -81,6 +81,7 @@ whose scope it changed. Nothing else points at it.
 | @references/templates/atomic.md | one unit of work |
 | @references/templates/workflow.md | one ordered route over atomics |
 | @references/templates/report.md | the one rolling state, for a person |
+| @references/templates/vision.md | one board's destination — the vision, its terminals, its edges |
 
 ## `resources/` — run
 
