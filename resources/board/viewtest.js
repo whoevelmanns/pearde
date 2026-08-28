@@ -141,7 +141,7 @@ const file = served ? arg : path.resolve(arg);
     ["pearde.onHold callable", r.onHold, ""],
     ["hold hook still wired", r.hold, ""],
     ["the toolbar built", r.titlebar, ""],
-    ["six view buttons", r.views === 6, `got ${r.views}`],
+    ["seven view buttons", r.views === 7, `got ${r.views}`],
     ["the canvas is sized", r.canvasPainted, ""],
     ["the gantt drew", r.draws > 20, `${r.draws} draw ops`],
     ["the frontier column built", r.land, ""],
@@ -152,7 +152,7 @@ const file = served ? arg : path.resolve(arg);
     ["the inspector exists", r.drawer, ""],
   ];
 
-  for (const v of ["timeline", "board", "asks", "list", "analytics", "memos"]) {
+  for (const v of ["timeline", "board", "asks", "list", "analytics", "memos", "report"]) {
     const before = errors.length;
     await page.click(`#views button[data-v="${v}"]`).catch(e => errors.push(`${v}: ${e.message}`));
     await page.waitForTimeout(120);
@@ -210,7 +210,7 @@ const file = served ? arg : path.resolve(arg);
     // so a directory-derived key collides across boards
     const tag = (await page.evaluate(() => (window.pearde && window.pearde.data
       && window.pearde.data.board) || "board")).replace(/[^A-Za-z0-9_.-]/g, "-");
-    for (const v of ["timeline", "board", "asks", "list", "analytics", "memos"]) {
+    for (const v of ["timeline", "board", "asks", "list", "analytics", "memos", "report"]) {
       await page.click(`#views button[data-v="${v}"]`).catch(() => {});
       await page.waitForTimeout(150);
       const dom = await page.evaluate(n => {

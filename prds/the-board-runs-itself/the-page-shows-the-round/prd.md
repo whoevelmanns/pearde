@@ -1,9 +1,11 @@
 ---
-state: open
+state: done
 origin: requested
+actual: 1.5h
+commit: 07829bf
 priority: 56
-complexity: 0
-blast-radius:
+complexity: 30
+blast-radius: mid
 repo: pearde
 workflow: probe-then-spec
 needs:
@@ -13,6 +15,7 @@ footprint:
   - resources/board/render.py
   - resources/board/view.js
   - resources/board/view.css
+  - resources/board/viewtest.js
   - resources/board/plan.py
   - references/parts/view.md
   - references/settings.md
@@ -69,3 +72,7 @@ Every write the page makes goes through `transitions.py` after
   `held`.
 - `--check` against the snapshot before this PRD differs only in the strip,
   the panel, the report tab and the silent word.
+
+## Report
+
+DONE 24/25 + 1 struck · commit 0db29e9 · probe 50/50 · viewtest --example 36/36 · 47/47 73/73 39/39

@@ -147,14 +147,27 @@ const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 /* how long a worker has held this PRD, off the `claim:` stamp. Computed in
    the page rather than shipped in the payload: it changes every minute, and
    the board does not write a file every minute. */
-function heldFor(t) {
+function heldFor(t, rich) {
   const c = t.claim, ts = c && c.since ? Date.parse(
     /[Zz]|[+-]\d{2}:?\d{2}$/.test(c.since) ? c.since : c.since + "Z") : NaN;
   if (!c) return "";
   if (isNaN(ts)) return c.who ? " · " + esc(c.who) : "";
   const m = Math.max(0, (Date.now() - ts) / 60000);
   const ago = m < 90 ? Math.round(m) + "m" : (m / 60).toFixed(1) + "h";
-  return " · " + (c.who ? esc(c.who) + " " : "") + "holding " + ago;
+  return " · " + (c.who ? esc(c.who) + " " : "") + "holding " + ago + silentFor(t, rich);
+}
+/* the quiet worker. `silent` is minutes, computed in plan.py off the files —
+   the PRD's directory and its footprint in the repo — against `claim-ttl`,
+   and null below it. The page prints the number; it never decides it, so the
+   row and `scan` read the same word off the same rule. */
+const fmtAge = m => m < 90 ? Math.round(m) + "m" : (m / 60).toFixed(1) + "h";
+function silentFor(t, rich) {
+  if (t.silent == null) return "";
+  const word = "silent " + fmtAge(t.silent);
+  // `rich` for markup that is set as HTML; the inspector escapes its facts
+  return " · " + (rich ? '<span class="silent" title="nothing under this PRD ' +
+    'or its footprint has moved for ' + fmtAge(t.silent) +
+    ' — longer than claim-ttl">' + word + "</span>" : word);
 }
 
 let tasks = [], byRel = new Map(), ALL = [], allByRel = new Map(), HIST = [];
@@ -944,13 +957,14 @@ function draw() {
     // The weight is already what is left of it, so printing both would
     // count the same work twice
     const meta = t.held && t.boxes && t.boxes[1]
-      ? t.boxes[0] + "/" + t.boxes[1]
+      ? t.boxes[0] + "/" + t.boxes[1] + (t.silent != null ? " · silent" : "")
       : fmtW(t.est) + (t.unblocks ? " ▸" + fmtW(t.unblocks) : "");
     ctx.font = F.meta;
     const mw = ctx.measureText(meta).width;
     text(fit(t.name, LEFT - cx - mw - 20, F.cell), cx, mid,
          sel ? T.ink : T.ink, F.cell);
-    text(meta, LEFT - 12, mid, T.ink3, F.meta, true);
+    // silent is the one thing in this column that asks for a person
+    text(meta, LEFT - 12, mid, t.silent != null ? T.warn : T.ink3, F.meta, true);
     ctx.restore();
     if (y + ROW > HEAD && ROW >= 12)
       line(indentOf(r), y + ROW, LEFT, y + ROW, T["sep-2"]);
@@ -1015,7 +1029,8 @@ function labels(first, last, rowY, kin) {
     // then what is left of it — boxes while a worker holds it, weight otherwise
     const nm = (t.collect ? "✓ " : t.critical ? "★ " : "") + t.name;
     const meta = t.held && t.boxes && t.boxes[1]
-      ? "  " + t.boxes[0] + "/" + t.boxes[1] : "  " + fmtW(t.est);
+      ? "  " + t.boxes[0] + "/" + t.boxes[1] + (t.silent != null ? " · silent" : "")
+      : "  " + fmtW(t.est);
     ctx.font = font;
     const wn = ctx.measureText(nm).width, wm = ctx.measureText(meta).width;
     const w = wn + wm;
@@ -1273,7 +1288,7 @@ function showTip(e, t) {
         (t.ready ? ' · <span class="k">ready now</span>' : "") + "</div>") +
     (t.held && t.boxes && t.boxes[1] ?
       '<div class="r"><span class="k">boxes</span> ' + t.boxes[0] + "/" +
-        t.boxes[1] + " closed" + heldFor(t) + "</div>" : "") +
+        t.boxes[1] + " closed" + heldFor(t, true) + "</div>" : "") +
     (t.collect ?
       '<div class="r"><span class="k">✓ collect</span> every box closed — ' +
         "commit it and set done, and " + (t.downstream || "no") +
@@ -1806,7 +1821,7 @@ function move(delta) {
 
 addEventListener("keydown", e => {
   // ⌘1..⌘6 — the way a Mac app switches tabs
-  if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "6") {
+  if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "7") {
     const b = $("views").querySelectorAll("button")[+e.key - 1];
     if (b) { e.preventDefault(); b.click(); }
     return;
@@ -1934,6 +1949,7 @@ function drawHeader() {
   badge.textContent = asks.length;
   badge.classList.toggle("on", asks.length > 0);
   movePill();
+  drawNow(); drawRound();
 }
 
 function drawLegend() {
@@ -2516,6 +2532,7 @@ function repaintView() {
   else if (view === "asks") drawAsks();
   else if (view === "analytics") drawAnalytics();
   else if (view === "memos") drawMemos();
+  else if (view === "report") drawReport();
   else { resize(); retree(); place(); }
 }
 
@@ -2784,9 +2801,9 @@ function listRows() {
   return ALL.filter(r => {
     if (listState === "live" && !isLive(r)) return false;
     if (listState === "parked" && (STATE_ORDER.includes(r.state))) return false;
-    if (listState === "hot" && !(r.state === "question" ||
-        r.state === "blocked" || r.state === "failed")) return false;
-    if (listState && !["live","parked","hot"].includes(listState) &&
+    if (listState === "hot" && !WAITING.has(r.state)) return false;
+    if (listState === "held" && !(FLIGHT.has(r.state) && !r.collect)) return false;
+    if (listState && !["live","parked","hot","held"].includes(listState) &&
         r.state !== listState) return false;
     if (listBoard && (r.board || DATA.board) !== listBoard) return false;
     return !f || r.rel.toLowerCase().includes(f) ||
@@ -2905,6 +2922,142 @@ async function drawMemos() {
     } catch (e) { memosLoaded = []; }
   }
   el.memos = memosLoaded;
+}
+
+/* ── the now strip: three doors under the title ───────────────────────────
+   The top three bands of the pressure order (@references/parts/order.md),
+   each a count and each a click into that set: to collect, waiting on you,
+   in flight. A zero is dimmed, never absent — the strip is the same shape
+   on every board, so the eye learns where to land. Light DOM, styled from
+   view.css like every other element here. */
+const WAITING = new Set(["question", "blocked", "refine", "failed"]);
+const FLIGHT = new Set(["claimed", "analyzing"]);
+class PeardeNow extends LitElement {
+  static properties = { data: {} };
+  createRenderRoot() { return this; }
+  render() {
+    const d = this.data || DATA, all = d.all || [], ts = d.tasks || [];
+    const collect = ((d.cpm || {}).collect || []).length;
+    const waiting = all.filter(r => WAITING.has(r.state)).length;
+    const flight = ts.filter(t => t.held && !t.collect && FLIGHT.has(t.state)).length;
+    const silent = ts.filter(t => t.silent != null).length;
+    const door = (n, label, dest, title, cls) => html`<button
+      class="door ${cls || ""} ${n ? "" : "dim"}" data-go=${JSON.stringify(dest)}
+      title=${title}><b>${n}</b><span>${label}</span></button>`;
+    return html`
+      ${door(collect, "to collect", {view:"timeline", collect:1, mode:"vision"},
+        "finished work still open — commit it and set it done, and everything behind it moves", "got")}
+      ${door(waiting, "waiting on you", {view:"list", state:"hot"},
+        "question, blocked, refine, failed — the four that move only when a person moves them", "hot")}
+      ${door(flight, "in flight", {view:"list", state:"held"},
+        "a worker holds it and its boxes are ticking" +
+        (silent ? ` — ${silent} silent past claim-ttl` : ""), silent ? "quiet" : "")}`;
+  }
+}
+customElements.define("pearde-now", PeardeNow);
+function drawNow() {
+  if (replaced.has("now")) return;
+  const el = $("now"); if (el) el.data = DATA;
+}
+
+/* ── the round panel: the session's own memory, read-only ─────────────────
+   `prds/.round.md` (@references/parts/round.md) rendered where the work is:
+   `## Owed` first because it is the next action, `## Asked` because it is
+   what went to a person, the rest folded. Absent file, absent panel. Read
+   over GET /round on every swap — the daemon digests the file, so a rewrite
+   lands here within a second with no watcher of its own. */
+function sections(text) {
+  // [{head, lines}] — the title's own lines are the "" section
+  const out = [{head: "", lines: []}];
+  for (const raw of (text || "").split("\n")) {
+    const m = /^##\s+(.+?)\s*$/.exec(raw);
+    if (m) { out.push({head: m[1], lines: []}); continue; }
+    if (/^#\s/.test(raw)) { out[0].title = raw.replace(/^#\s+/, ""); continue; }
+    if (raw.trim()) out[out.length - 1].lines.push(raw.replace(/^\s*[-*]\s+/, ""));
+  }
+  return out;
+}
+const inline = s => {
+  const parts = esc(s).split(/(`[^`]+`)/);
+  return parts.map(p => p.startsWith("`") ? html`<code>${p.slice(1, -1)}</code>`
+    : p.split(/(\*\*[^*]+\*\*)/).map(q => q.startsWith("**")
+      ? html`<b>${q.slice(2, -2)}</b>` : q));
+};
+class PeardeRound extends LitElement {
+  static properties = { text: {}, served: { type: Boolean } };
+  createRenderRoot() { return this; }
+  render() {
+    if (!this.served || !this.text) return html``;
+    const secs = sections(this.text);
+    const by = h => secs.find(s => s.head.toLowerCase().startsWith(h));
+    const owed = by("owed"), asked = by("asked");
+    const rest = secs.filter(s => s.head && s !== owed && s !== asked);
+    const list = s => s && s.lines.length
+      ? html`<ul>${s.lines.map(l => html`<li>${inline(l)}</li>`)}</ul>` : "";
+    return html`<div class="rhd"><span class="k">round</span>
+        <span class="t">${secs[0].title ? secs[0].title.replace(/^Round\s+—\s+/, "") : ""}</span></div>
+      ${owed ? html`<div class="sec owed"><h5>owed</h5>${list(owed)}</div>` : ""}
+      ${asked ? html`<div class="sec"><h5>asked</h5>${list(asked)}</div>` : ""}
+      ${rest.length ? html`<details><summary>${rest.map(s => s.head.toLowerCase()).join(" · ")}</summary>
+        ${rest.map(s => html`<div class="sec"><h5>${s.head.toLowerCase()}</h5>${list(s)}</div>`)}</details>` : ""}`;
+  }
+}
+customElements.define("pearde-round", PeardeRound);
+async function drawRound() {
+  if (replaced.has("round")) return;
+  const el = $("round"); if (!el) return;
+  el.served = SERVED;
+  if (!SERVED) return;
+  try {
+    const r = await fetch(API + "/round?board=" + encodeURIComponent(BOARD_KEY));
+    el.text = (await r.json()).text || "";
+  } catch (e) { el.text = ""; }
+}
+
+/* ── the report view: the board for a person ──────────────────────────────
+   `prds/report.md` as the seventh view — prose, so it gets the few marks
+   prose needs and nothing a PRD body gets. Read on every draw; the file is
+   rewritten whole by `pearde report`, and a swap redraws the open view. */
+function md(text) {
+  const out = [];
+  let para = [], list = null;
+  const flush = () => {
+    if (para.length) { out.push(html`<p>${inline(para.join(" "))}</p>`); para = []; }
+    if (list) { out.push(html`<ul>${list.map(l => html`<li>${inline(l)}</li>`)}</ul>`); list = null; }
+  };
+  for (const raw of (text || "").split("\n")) {
+    const h = /^(#{1,3})\s+(.+?)\s*$/.exec(raw), li = /^\s*[-*]\s+(.+)$/.exec(raw);
+    if (h) { flush(); out.push(h[1].length === 1 ? html`<h2>${inline(h[2])}</h2>`
+                               : html`<h3>${inline(h[2])}</h3>`); }
+    else if (li) { if (para.length) flush(); (list = list || []).push(li[1]); }
+    else if (!raw.trim()) flush();
+    else { if (list) flush(); para.push(raw.trim()); }
+  }
+  flush();
+  return out;
+}
+class PeardeReport extends LitElement {
+  static properties = { text: {}, served: { type: Boolean } };
+  createRenderRoot() { return this; }
+  render() {
+    if (!this.served)
+      return html`<div class="blank">the report is read live — open this board
+        through the service to see it</div>`;
+    if (!this.text)
+      return html`<div class="blank">no report yet — <code>pearde report</code>
+        writes <code>prds/report.md</code>, the board in plain words</div>`;
+    return html`<article class="prose">${md(this.text)}</article>`;
+  }
+}
+customElements.define("pearde-report", PeardeReport);
+async function drawReport() {
+  const el = $("report"); if (!el) return;
+  el.served = SERVED;
+  if (!SERVED) return;
+  try {
+    const r = await fetch(API + "/report?board=" + encodeURIComponent(BOARD_KEY));
+    el.text = (await r.json()).text || "";
+  } catch (e) { el.text = ""; }
 }
 
 /* ── analytics ─────────────────────────────────────────────────────────────
@@ -3169,10 +3322,24 @@ function slot(name, tag) {
    a board cannot define its own `pearde-list` over ours — it registers a
    different element for the view instead, and the page hands that element the
    view rather than drawing its own. */
-const VIEWS_REPLACEABLE = ["board", "asks", "list", "analytics", "memos"];
+const VIEWS_REPLACEABLE = ["board", "asks", "list", "analytics", "memos",
+                           "report"];
+// not views, but the page's own elements above them — the now strip and the
+// round panel — a board may take over the same way. The host id is the name.
+const PARTS_REPLACEABLE = ["now", "round"];
 const replaced = new Set();
 
 function replace(view, tag) {
+  if (PARTS_REPLACEABLE.includes(view)) {
+    const host = $(view);
+    if (!host) return;
+    const el = document.createElement(tag);
+    el.id = view; el.data = DATA;
+    host.replaceWith(el);
+    replaced.add(view);          // drawNow / drawRound leave it alone
+    slotted.push(el);
+    return el;
+  }
   if (!VIEWS_REPLACEABLE.includes(view)) return;
   const section = document.querySelector(`section[data-view="${view}"]`);
   if (!section) return;

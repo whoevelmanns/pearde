@@ -714,6 +714,66 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
 .memo pre{white-space:pre-wrap;font:11.5px/1.55 ui-monospace,SFMono-Regular,
   monospace;color:var(--ink2);max-height:240px;overflow:auto}
 
+/* ── the now strip: three doors under the title ───────────────────────── */
+#now{display:flex;gap:6px;padding:8px 0 2px;flex-wrap:wrap}
+#now:empty{display:none}
+#now .door{display:flex;align-items:baseline;gap:7px;padding:5px 12px 5px 10px;
+  border:.5px solid var(--sep);border-radius:9px;background:var(--content);
+  color:var(--ink2);font-size:12px;cursor:pointer;box-shadow:var(--shadow);
+  transition:border-color var(--dur-fast) ease,transform var(--dur-fast) var(--ease)}
+#now .door b{font-size:17px;font-weight:640;color:var(--ink);letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;line-height:1}
+#now .door:hover{border-color:var(--ink4);transform:translateY(-1px)}
+/* the same hues the numbers bar spends: green is finished work waiting to be
+   taken, amber is a person wanted. In flight stays graphite — a worker on it
+   is the ordinary case — until one has gone quiet */
+#now .door.got b{color:var(--ok)}
+#now .door.hot b{color:var(--warn)}
+#now .door.quiet{border-color:var(--warn)}
+#now .door.quiet b{color:var(--warn)}
+/* zero is dimmed, never absent: the strip keeps its shape on every board */
+#now .door.dim{opacity:.42;box-shadow:none}
+#now .door.dim b{color:var(--ink3)}
+
+/* the quiet worker, wherever a holding time is printed */
+.silent{color:var(--warn);font-weight:590}
+
+/* ── the round panel: the session's memory, read-only ─────────────────── */
+#round{display:block;margin:0 0 10px;padding:10px 14px 8px;max-width:76ch;
+  background:var(--content-2);border:.5px solid var(--sep);border-radius:var(--r-lg);
+  font-size:12px;line-height:1.5;color:var(--ink2)}
+#round:empty{display:none}
+#round .rhd{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}
+#round .rhd .k{font:600 10.5px ui-monospace,SFMono-Regular,monospace;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+#round .rhd .t{font-weight:590;color:var(--ink)}
+#round h5{font-size:10.5px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink3);margin:6px 0 2px}
+#round ul{margin:0;padding-left:16px}
+#round li{margin:1px 0}
+/* owed is the next action, so it is the one line set in full ink */
+#round .owed li{color:var(--ink);font-weight:560}
+#round code{font:11px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
+  padding:0 3px;border-radius:3px}
+#round details{margin-top:6px}
+#round summary{cursor:pointer;color:var(--ink3);font-size:11px;
+  font:11px ui-monospace,SFMono-Regular,monospace;letter-spacing:.04em}
+#round details[open] summary{margin-bottom:4px}
+
+/* ── the report view: prose, read at reading width ────────────────────── */
+#report{display:block}
+#report .prose{max-width:72ch;padding:6px 2px 40px;font-size:13.5px;
+  line-height:1.6;color:var(--ink2)}
+#report .prose h2{font-size:19px;font-weight:640;letter-spacing:-.02em;
+  color:var(--ink);margin:4px 0 10px}
+#report .prose h3{font-size:13.5px;font-weight:620;color:var(--ink);
+  margin:20px 0 6px}
+#report .prose p{margin:0 0 10px}
+#report .prose ul{margin:0 0 10px;padding-left:18px}
+#report .prose code{font:12px ui-monospace,SFMono-Regular,monospace;
+  background:var(--fill);padding:0 3px;border-radius:3px}
+#report .prose b{color:var(--ink);font-weight:600}
+
 /* ── the inspector: a glass sheet, not a page ───────────────────────────── */
 #drawer{position:fixed;top:12px;right:12px;bottom:12px;
   width:min(540px,46vw);z-index:40;background:var(--glass);

@@ -35,6 +35,7 @@ members:
 | `pipeline`    | 3            | `specced` PRDs kept ahead, loop step 4                            |
 | `weight-default` | 50        | weight of an unscored PRD while no PRD on the board has `complexity` |
 | `gantt-day`   | 8h           | weight one calendar day represents in the view's `dates` mode. The timeline is decoration; nothing schedules on it |
+| `claim-ttl`   | `30m`        | how long a held PRD's files may stand still before its claim is **silent** — the newest mtime over the PRD directory and its footprint union in `repo`, the same union `collect` commits. `30m`, `2h`, `1d`; a bare number is minutes. `plan.py`'s `silent_of` is the one reader; `scan`, the page and `sweep` print and act on its word. @references/parts/view.md |
 | `memos`       | `memos/`     | where decision records live, relative to `prds/`. Point it at another system's memo dir to mirror it read-only — the strict gate then applies only to the board's own `memos/`, per @references/memo.md |
 | `workflows`   | `workflows/` | where the workflow library lives, relative to `prds/`. Unlike `memos:`, elsewhere is not a foreign system mirrored read-only — it is **the** library, shared by several boards and written by all of them, so it gets the whole check wherever it sits. @references/workflow.md |
 | `members`     | none         | the boards this one merges — `- <path>` or `- <name>: <path>`, relative to `prds/`. Present means **master board**: every member's PRDs join the scan as `@<member>/<rel>`, one plan spans them. @references/parts/master.md |

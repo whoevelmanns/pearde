@@ -369,15 +369,18 @@ __CSS__</style>
     ><button data-v="asks" role="tab">asks<span class="badge" id="askbadge"></span></button
     ><button data-v="list" role="tab">list</button
     ><button data-v="analytics" role="tab">analytics</button
-    ><button data-v="memos" role="tab">memos</button>
+    ><button data-v="memos" role="tab">memos</button
+    ><button data-v="report" role="tab">report</button>
   </nav>
   <div class="right">
     <button id="newprd" class="primary" title="write a PRD (N)">＋ PRD</button>
   </div>
 </header>
+<pearde-now id="now" aria-label="what the board wants now"></pearde-now>
 <div id="statsbar"><span id="stats"></span><span id="inview"></span></div>
 <div class="seam" id="seam-toolbar"></div>
 <div id="purpose"></div>
+<pearde-round id="round" aria-label="the round"></pearde-round>
 <div class="bar-controls" id="tcontrols">
   <span class="seg">
     <button id="mVision" data-m="vision">vision</button
@@ -449,6 +452,7 @@ __CSS__</style>
   <div id="tiles"></div><div id="charts"></div>
 </section>
 <section data-view="memos"><pearde-memos id="memos"></pearde-memos></section>
+<section data-view="report"><pearde-report id="report"></pearde-report></section>
 <div id="newbox"><div class="card2">
   <h3>a new PRD</h3>
   <input type="text" id="ntitle" placeholder="title — what exists when this is done">

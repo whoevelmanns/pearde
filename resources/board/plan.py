@@ -437,6 +437,101 @@ def hours(v):
     return n / 60 if unit == "m" else n * 8 if unit == "d" else n
 
 
+# ── silence ──────────────────────────────────────────────────────────────────
+# The board cannot see a worker. What it can see is files: an implementer
+# writes in the repo, an analyst's probe lives in the PRD folder, and either
+# moving is a live worker. A claim whose files have not moved for longer than
+# `claim-ttl` is silent. `silent_of` is the one rule — the scan line, the
+# page's row and `sweep` read it from here, so none of them can disagree about
+# which claim has gone quiet. Read off files, never off a process.
+CLAIM_TTL = "30m"
+SILENT_STATES = {"claimed", "analyzing"}   # the in-flight band, and only it
+
+
+def claim_ttl(settings):
+    """`claim-ttl` from settings.md, in minutes. `30m`, `2h`, `1d` read as
+    `hours()` reads them; a bare number is minutes. Default 30."""
+    v = str(settings.get("claim-ttl", CLAIM_TTL) or CLAIM_TTL).strip()
+    if v.isdigit():
+        return float(v)
+    h = hours(v)
+    return h * 60 if h > 0 else 30.0
+
+
+def prd_repo(prd):
+    """Where the PRD's code lives — `collect`'s rule: `repo:` that is a
+    directory, absolute or relative to the board's repo, else the board's own
+    repo. The footprint silence is read over is the one collect commits."""
+    root = (repo_root(prd["board_path"])
+            or os.path.dirname(os.path.abspath(prd["board_path"])))
+    raw = str(prd["fm"].get("repo", "") or "").strip()
+    if raw:
+        for cand in (raw, os.path.join(root, raw)):
+            if os.path.isdir(cand):
+                r = repo_root(cand)
+                if r:
+                    return r
+    return root
+
+
+def newest_mtime(paths):
+    """The newest mtime under any of `paths` — a file's own, a directory's
+    walked, dot-dirs and `__pycache__` skipped since nothing a worker does
+    lives there. A path that is not on disk counts nothing: a footprint names
+    what the work will touch, not what exists yet."""
+    newest = 0.0
+    for p in paths:
+        if os.path.isfile(p):
+            try:
+                newest = max(newest, os.stat(p).st_mtime)
+            except OSError:
+                pass
+        elif os.path.isdir(p):
+            for root, dirs, files in os.walk(p):
+                dirs[:] = [d for d in dirs
+                           if not d.startswith(".") and d != "__pycache__"]
+                for f in files:
+                    try:
+                        newest = max(newest,
+                                     os.stat(os.path.join(root, f)).st_mtime)
+                    except OSError:
+                        pass
+    return newest
+
+
+def silent_of(prd, settings, collect=None, now=None):
+    """Minutes since anything of this PRD's last moved, when that is longer
+    than `claim-ttl`; None otherwise. THE rule for a quiet worker.
+
+    "Anything of this PRD's" is its directory and every path of its footprint
+    union — the PRD's own plus its specs', the union `collect` commits — in
+    its repo. Only a held PRD in the in-flight band can be silent: a `blocked`
+    one is waiting on a person, and a PRD to collect is a worker that
+    finished, which is the opposite of one that went quiet. `collect` is
+    `standing()`'s verdict; pass it when you already hold it."""
+    if prd["state"] not in SILENT_STATES or not claim_of(prd["fm"]):
+        return None
+    if collect is None:
+        collect = standing(prd)[3]
+    if collect:
+        return None
+    repo = prd_repo(prd)
+    _, feet = spec_data(prd)
+    paths = [prd["dir"]] + [os.path.join(repo, f) for f in feet
+                            if not f.startswith(MEMBER_SIGIL)]
+    newest = newest_mtime(paths)
+    if not newest:
+        return None
+    age = ((time.time() if now is None else now) - newest) / 60
+    return age if age >= claim_ttl(settings) else None
+
+
+def fmt_age(minutes):
+    """`42m` under ninety minutes, `1.5h` past it — the page's own spelling
+    for a holding time, so the scan and the row read the same word."""
+    return f"{round(minutes)}m" if minutes < 90 else f"{minutes / 60:.1f}h"
+
+
 # The round's own memory — @references/parts/round.md. Fifteen lines the
 # orchestrator rewrites at every transition, so a compacted session recovers
 # by reading one file instead of re-deriving the round from the tree.
@@ -867,6 +962,9 @@ def gantt_payload(board, prds, mp, settings):
             held=st in HOLDING_STATES or st == "analyzing",
             collect=ready_to_collect,
             claim=claim_of(p["fm"]),
+            # the quiet worker, off the files — @references/parts/view.md.
+            # None below `claim-ttl`; minutes of silence past it
+            silent=silent_of(p, settings, collect=ready_to_collect),
         ))
     # Every PRD, not only the scheduled ones: the timeline draws what is left,
     # the analytics have to see what is done, parked and estimated too, and a
@@ -924,6 +1022,9 @@ def gantt_payload(board, prds, mp, settings):
         "calib": read_calibration(),
         "tune": TUNE,
         "workers": str(settings.get("workers", "3")),
+        # the one sentence `prds/vision.md` says the board is for — the page
+        # prints it under the numbers. Empty when the board declares none
+        "vision": {"purpose": (read_vision(board) or {}).get("vision", "")},
         "counts": {"done": done, "parked": parked, "containers": containers,
                    "collect": sum(1 for t in tasks if t["collect"]),
                    "held": sum(1 for t in tasks if t["held"])},
@@ -1575,6 +1676,7 @@ def cmd_scan(board):
     after = r["after"] if r else {}
     est = r["est"] if r else {}
     wf = workflow_marks(board, prds)
+    settings = board_settings(board)     # `claim-ttl`, for the silent word
     mem = [n for n, _ in members(board)]
     # The axis, when the board declares one: how much live work is on the way
     # to the vision and how much is not. A board with no terminals prints
@@ -1627,6 +1729,10 @@ def cmd_scan(board):
                         + (f" since {cl['since']}" if cl["since"] else ""))
         if q:
             bits.append(f"questions {q}/{a} answered")
+        # the same word the page prints on the row — one rule, `silent_of`
+        sil = silent_of(p, settings, collect=x in collect)
+        if sil is not None:
+            bits.append(f"silent {fmt_age(sil)}")
         return "  " + " · ".join(bits)
 
     # One PRD, one section, in THE PRESSURE ORDER — the single ranking this

@@ -52,6 +52,9 @@ HTTP API, all JSON, all 127.0.0.1-only:
   GET  /                           302 to a board — the title is the switcher,
                                    so there is no index page to keep
   GET  /prd?board=<name>&rel=<rel> one PRD in full: frontmatter, body, specs
+  GET  /round?board=<name>         `prds/.round.md`, the session's own memory —
+                                   {"text": null} when it is not written
+  GET  /report?board=<name>        `prds/report.md`, the board for a person
   GET  /memos?board=<name>         the board's decision records
   GET  /adapters                   configured launch targets: [{id, name}] —
                                    resources/board/adapters/*.json, see below
@@ -646,6 +649,21 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/adapters":
             return self.reply(200, [{"id": a["id"], "name": a["name"]}
                                     for a in load_adapters()])
+        if path in ("/round", "/report"):
+            # the session's own memory and the board's state for a person —
+            # `prds/.round.md` and `prds/report.md`, read from disk on each
+            # call like `/prd`. Neither is parsed here: the page renders the
+            # text, and an absent file is `null`, which draws nothing.
+            b = by_name(q.get("board"))
+            if not b:
+                return self.reply(404, {"error": "unknown board"})
+            fp = os.path.join(b.path, planlib.ROUND_FILE
+                              if path == "/round" else "report.md")
+            try:
+                text = open(fp, encoding="utf-8").read()
+            except OSError:
+                text = None
+            return self.reply(200, {"text": text, "path": fp})
         if path == "/wait":
             b = by_name(q.get("board"))
             if not b:

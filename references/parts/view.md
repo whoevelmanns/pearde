@@ -20,6 +20,23 @@ registered board is listed at `/`. `PEARDE_PORT` moves the port.
 | **list**      | all of it — sortable, filterable, one row per PRD                 |
 | **analytics** | how this is going — where the work and weight sit, the est/actual records, the machine-wide hours-per-weight fit, weight left over time |
 | **memos**     | what the board decided — `prds/memos/`, rendered                  |
+| **report**    | the board for a person — `prds/report.md`, rendered. ⌘7. No file, a line saying `pearde report` writes one |
+
+**The now strip is the first thing under the title**, on every view: three
+doors — `to collect N` · `waiting on you N` · `in flight N` — the top three
+bands of @references/parts/order.md, each a click into that set (the timeline
+filtered to collect, the list filtered to the `hot` band, the list filtered to
+the `held` band). Zero renders the door dimmed, never absent, so the strip is
+the same shape on every board and the eye learns where to land. When a worker
+in flight has gone silent the door says how many.
+
+**The round panel** under the numbers is `prds/.round.md`
+(@references/parts/round.md) rendered read-only: `## Owed` first because it is
+the next action, `## Asked` because it is what went to a person, the rest
+folded. It is read over `GET /round` on every swap — the daemon already
+digests every `.md` under the board, so a rewrite lands within a second with
+no watcher of its own. Absent file, absent panel. `## Owed` and `## Asked`
+match by prefix, so a heading with more words after them is the same section.
 
 **Every number is a door.** A count, a swatch, a bar, a column head — if it
 names a set of PRDs, clicking it goes there: `5 waiting on you` opens **asks**,
@@ -37,7 +54,9 @@ is behind you. Once `calibrate` has fitted the machine's hours-per-weight
 (see @references/parts/order.md), every weight on the page prints as tuned
 real hours — header, tiles, vision pill, axis, drawer; before the first fit
 they print as raw weight units. Parked PRDs — `failed`, `deferred`, the user's own states — sit
-at zero: visible, weighed, and scheduled by nothing.
+at zero: visible, weighed, and scheduled by nothing. Under the numbers the
+page prints the one sentence `prds/vision.md` declares — the payload's
+`vision.purpose`, empty on a board with no vision, and then no line.
 
 - **★ critical** marks the chain that sets the finish. Weight cut there moves
   the vision closer. Weight cut anywhere else moves nothing.
@@ -133,6 +152,7 @@ them:
 | a shrinking bar            | a held PRD weighs what is **left** of it, so the chain shortens as the run lands checks |
 | **✓** before a name        | every box closed — this one is yours to collect                      |
 | `implementer-1 holding 40m`| off `claim:`, in the tooltip and the pane. Counted in the page, so it ticks between board changes |
+| `silent 42m` beside it     | nothing under the PRD directory or its footprint union in `repo` has moved for longer than `claim-ttl` (`settings.md`, default 30m). Below the limit the row says only `holding`. In amber, in the column's meta and on the bar's label too: the one word in the column that asks for a person. `scan` prints the same word on the same line — one rule, `silent_of` in @resources/board/plan.py, read by both and the one `sweep` acts on. Read off files, never off a process: the board cannot see a worker, and a file that has not moved is the only honest signal. A PRD to collect is never silent — its worker finished |
 
 - The signal is evidence, never a guess: a box is `[x]` because a check ran.
 - A worker that ticks nothing shows no progress. That is correct — an
@@ -165,7 +185,7 @@ person.
 | drag the left rail | row height — wheel it too, shift for fine |
 | `↑` `↓` | move the selection |
 | `⏎` | open it |
-| ⌘1–6 | switch view |
+| ⌘1–7 | switch view |
 
 **Clicking anything opens the PRD**, and the pane writes back:
 
@@ -196,6 +216,8 @@ person.
   atomically, frontmatter and body never in the same write.
 - A worker's report lands via `POST /report` (`{"board","prd","text"}` →
   `## Report`).
+- `GET /round` and `GET /report` serve `prds/.round.md` and `prds/report.md`
+  as `{"text": <file or null>}`, read from disk on each call like `/prd`.
 
 Deep links: `#prd=<rel>` opens one PRD, `#view=asks` a view, `#state=blocked`
 a filtered list, `#crit=1` the critical chain, `#collect=1` the finished work
@@ -307,8 +329,11 @@ customElements.define("my-list", MyList);
 pearde.replace("list", "my-list");
 ```
 
-- `board`, `asks`, `list`, `analytics` and `memos` can be replaced. The
-  timeline cannot — it is a canvas the plan arithmetic draws.
+- `board`, `asks`, `list`, `analytics`, `memos` and `report` can be
+  replaced. The timeline cannot — it is a canvas the plan arithmetic draws.
+- `now` and `round` — the strip and the panel above the views — are replaced
+  the same way: `pearde.replace("now", "my-now")` puts the element in the
+  strip's place and hands it the payload on every swap.
 - The page stops drawing a view it has handed over.
 - A replaced view gets the payload as `data` on every swap, like a seam.
 - An unreplaceable name is ignored, never an error.
