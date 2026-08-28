@@ -1,9 +1,11 @@
 ---
-state: open
+state: done
 origin: requested
+actual: 0.7h
+commit: de59bd9
 priority: 55
-complexity: 0
-blast-radius:
+complexity: 9
+blast-radius: low
 repo: pearde
 workflow: probe-then-spec
 needs:
