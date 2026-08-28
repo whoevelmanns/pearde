@@ -1,9 +1,10 @@
 ---
-state: open
+state: done
 origin: requested
+actual: 0.42h
 priority: 50
-complexity: 0
-blast-radius:
+complexity: 24
+blast-radius: mid
 repo: pearde
 needs:
   - workflow-format

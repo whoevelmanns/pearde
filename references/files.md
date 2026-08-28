@@ -91,6 +91,7 @@ whose scope it changed. Nothing else points at it.
 | @resources/guard.py | the PreToolUse/PostToolUse hook that enforces the loop |
 | @resources/statusline.sh | continuous progress numbers |
 | @resources/memos.py | read + check memos — the only reader of that format |
+| @resources/workflows.py | read + check the workflow library, and brief one — the only reader of that format |
 | @resources/index.py | read + check the map — the only reader of that format |
 | @resources/questions.py | read + check a PRD's question round — the only reader of that format |
 | @resources/board/serve.py | the live service |

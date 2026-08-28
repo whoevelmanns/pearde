@@ -7,9 +7,9 @@
 # One part per line: `ok`, `off` (installed nowhere, nothing to repair), or
 # `broken` (installed and not working — the failure that otherwise runs
 # straight past). A broken part carries its exact fix on the next line.
-# `skills`, `index`, `statusline` and `board` always report. `memos`, `view`
-# and `plan` need a board in scope, `origin` needs PRDs in it, and `members`
-# only exists on a master board.
+# `skills`, `index`, `statusline` and `board` always report. `memos`,
+# `workflows`, `view` and `plan` need a board in scope, `origin` needs PRDs in
+# it, and `members` only exists on a master board.
 #
 # No agent is named in this script and none is looked for. Where a skill goes
 # and where a status line is configured are things only the reader knows —
@@ -298,6 +298,40 @@ if [ -n "$BOARD" ]; then
         [ -n "$l" ] && printf '  %-11s %-7s %s\n' "" "" "$l"
       done
       fix "edit them to match @references/memo.md — the keys are a closed set"
+    fi
+  fi
+fi
+
+# ── workflows: how a kind of job is done, and the library's shape ────────────
+# The library is not a PRD folder: no state, nothing dispatched, invisible to
+# scan. What can still be wrong is the format — a step naming an atomic nobody
+# wrote is a worker sent nowhere, and it is silent from the outside. Unlike
+# `memos:`, a `workflows:` pointing elsewhere is not a foreign system mirrored
+# read-only: it is this library, shared between boards, and it gets the whole
+# check wherever it lives.
+if [ -n "$BOARD" ]; then
+  WDIR=$(python3 -c "import sys;sys.path.insert(0,'$DIR');import workflows;d,e=workflows.workflows_dir('$BOARD');print(f'{d}\t{e}')" 2>/dev/null)
+  WEXT="${WDIR##*	}"; WDIR="${WDIR%%	*}"
+  if [ ! -d "${WDIR:-$BOARD/workflows}" ] && [ "$WEXT" != "True" ]; then
+    row workflows off "no workflows/ — a job gets one when it repeats"
+  elif ! command -v python3 >/dev/null 2>&1; then
+    row workflows broken "workflows/ present, no python3 to read it"
+    fix "install python3 — workflows.py is the only reader of the format"
+  else
+    WROWS=$(python3 "$DIR/workflows.py" list "$BOARD" 2>/dev/null)
+    WW=$(printf '%s\n' "$WROWS" | awk '$2=="workflow"' | grep -c . )
+    WA=$(printf '%s\n' "$WROWS" | awk '$2=="atomic"' | grep -c . )
+    WSRC=""; [ "$WEXT" = "True" ] && WSRC=" · shared library at $WDIR"
+    WPROB=$(python3 "$DIR/workflows.py" check "$BOARD" 2>&1)
+    if [ -z "$WPROB" ]; then
+      row workflows ok "$WW workflow$([ "$WW" = 1 ] || echo s) · $WA atomic$([ "$WA" = 1 ] || echo s) · the library checks out$WSRC"
+    else
+      NW=$(echo "$WPROB" | wc -l | tr -d ' ')
+      row workflows broken "$WW workflow$([ "$WW" = 1 ] || echo s) · $WA atomic$([ "$WA" = 1 ] || echo s) · $NW problem$([ "$NW" = 1 ] || echo s)"
+      echo "$WPROB" | while IFS= read -r l; do
+        [ -n "$l" ] && printf '  %-11s %-7s %s\n' "" "" "$l"
+      done
+      fix "edit them to match @references/workflow.md — the keys are a closed set, and a step names a slug in the library"
     fi
   fi
 fi

@@ -23,6 +23,7 @@ never reads `off` — the map is either right or wrong.
 | `members`    | not a master board — no `members:`     | an entry that is not a board on disk, or an empty list           |
 | `origin`     | no PRDs to read                        | a `derived` PRD with no `from:`, or the @references/parts/derived.md tripwire live |
 | `memos`      | no `memos/`                            | a memo fails the check in `@references/memo.md`                   |
+| `workflows`  | no `workflows/`                        | a file fails the check in `@references/workflow.md`               |
 | `questions`  | no PRDs to read                        | a round the user cannot act on — the four shapes are below        |
 | `view`       | the service is not running             | it runs and this board is not registered                         |
 | `plan`       | no plan on record yet                  | —                                                                |
@@ -56,6 +57,17 @@ never reads `off` — the map is either right or wrong.
   reported nowhere else. An answered round is history and is left alone. Not
   `--fix`-able: what a question should have asked is the one thing only its
   author knows.
+- `workflows` runs `@resources/workflows.py check`, the only reader of the
+  workflow format. It reads the library the way `memos` reads `memos/` —
+  the closed frontmatter set, one slug key, the required sections — and the
+  half no single file can see: a step naming an atomic nobody wrote, and a
+  `workflow:` on a `prd.md` or a spec naming no **workflow** in the library
+  — an atomic is a file, so naming one is this same failure: a route was
+  asked for and a single step was found. Both are silent from the outside,
+  and both send a worker nowhere. A `workflows:` pointing outside `prds/` is
+  checked in full, not mirrored: it is this library shared between boards,
+  not another system's. Not `--fix`-able — what a step should name is its
+  author's to say.
 - `index` runs `@resources/index.py check` over both halves of the map — the
   scopes in @index.md, the manifest in @references/files.md: a file on disk
   with no row, a row naming no file, a scope naming no file, an `@@` keyword

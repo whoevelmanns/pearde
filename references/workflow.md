@@ -117,7 +117,7 @@ is from a run, never from reading.
 
 ## The check
 
-`resources/workflows.py` is the only reader of this format, and the `doctor`
+@resources/workflows.py is the only reader of this format, and the `doctor`
 row `workflows` is that check. It fails on:
 
 - no `---` fence, or one unterminated
@@ -131,7 +131,9 @@ row `workflows` is that check. It fails on:
 - a step row whose `#` is not contiguous from 1, whose `atomic` names no file
   in the directory, or whose `on failure` is neither `stop` nor `→ N` with
   N < `#`
-- `workflow:` on a `prd.md` or a spec naming no file in the library
+- `workflow:` on a `prd.md` or a spec naming no **workflow** in the
+  library — an atomic is a file, so naming one is this same failure:
+  a route was asked for and a single step was found
 
 Checked against the real library, never a fixture — a brief with a dangling
 atomic is a worker sent nowhere.

@@ -34,6 +34,18 @@ prds/workflows/<slug>.md
 An edit is from a run, never from reading. The text carries the current
 lesson; git holds every earlier one.
 
+```sh
+python3 @resources/workflows.py list  [board]        # slug · kind · runs · updated · subject
+python3 @resources/workflows.py show  <slug> [board] # the file
+python3 @resources/workflows.py brief <slug> [board] # the workflow as one page, atomics inlined
+python3 @resources/workflows.py check [board]        # what doctor reports for `workflows`
+```
+
+`brief` is what a worker is handed: the `## Use when`, then each step's row
+with that atomic's body under it, in order — one page read once, instead of
+a workflow and N atomics opened one at a time. It exits 1 on an atomic slug:
+an atomic is shown, not briefed.
+
 ## The two shapes this is not
 
 - **A workflow engine.** Nothing runs a step. A worker reads one page and
