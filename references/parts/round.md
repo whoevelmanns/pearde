@@ -38,14 +38,15 @@ file wrong the moment a worker moves.
 
 - **Established** is the section that pays for the file: a count, a diff, a
   command's verdict, with the time on it. A fact in here is cited, never
-  re-run — @references/parts/loop.md.
+  re-run — @references/parts/loop.md. The progress line is printed by every
+  command, so it is never computed by hand: quote the line, never the sum.
 - **Decided** is the round's judgment calls. A decision the code will not
   explain graduates to a memo, per @references/parts/memos.md; this is the
   scratch it is drafted in.
 - **Asked** is the live frontier: what went to the user and whether it came
   back. A question in here is never re-asked.
 - **Edits** is every workflow edit this round applied or refused, per
-  @references/parts/loop.md step 6 rule 2. A refusal is the half that has to be
+  @references/parts/loop.md step 6. A refusal is the half that has to be
   written down: the file is unchanged, so nothing on disk records that the run
   proposed it or why it was turned down, and the next round would either
   re-refuse it from scratch or take it. Empty when no worker returned a
@@ -56,9 +57,10 @@ file wrong the moment a worker moves.
 
 ## When it is written
 
-At every transition — the same moment the progress line is printed. Steps 2,
-3, 6 and 7 of the loop all move something; each rewrites this file whole
-before it moves on. Never appended and never sectioned by round: the file says
+At every transition — the same moment the progress line is printed, and the
+line says `round file owed` until this file is newer than the PRD it moved.
+Steps 2, 3, 6 and 7 of the loop all move something; each rewrites this file
+whole before it moves on. Never appended and never sectioned by round: the file says
 what is true now, and there is nothing to prune later.
 
 ## After a compaction

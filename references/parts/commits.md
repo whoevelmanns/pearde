@@ -54,10 +54,6 @@ proved no other `claimed` PRD writes that footprint.
   its own line under the spec lines, `workflow: <slug> — <what the run
   taught>`, so the commit says which run paid for the change.
 
-**Gate first.** Commit only what the `done` gate passed: verify output in the
-report, every box `[x]`, spot-checks run. A red tree is a `failed` PRD, and a
-`failed` PRD does not commit.
-
 **Message.** Subject `<prd> — <what landed>`, one line per spec, `prd:` naming
 the folder:
 

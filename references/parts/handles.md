@@ -20,12 +20,12 @@ each skill file says what it does with no board in scope.
 | one round, then stop         | `once`                                                                                                   | — |
 | more implementers            | `workers=5` — written to `prds/settings.md`, persists                                                    | — |
 | deeper spec pipeline         | `pipeline=5` — written to `prds/settings.md`, persists                                                   | — |
-| new PRD                      | `add <title>` — dir + `prd.md` from `@references/templates/prd.md`, `state: open`, `origin: requested`    | `pearde add` · pending · transitions-are-commands |
-| park a derived PRD           | `defer <prd>` — `state: deferred`, per @references/parts/derived.md | `pearde defer` · pending · transitions-are-commands |
+| new PRD                      | `add <title>` — dir + `prd.md` from `@references/templates/prd.md`, `state: open`, `origin: requested`    | `pearde add` |
+| park a derived PRD           | `defer <prd>` — `state: deferred`, per @references/parts/derived.md | `pearde defer` |
 | work out what is wanted      | `drill <prd>` — interview per `@references/drill.md`. With no `<prd>`: the board's own open frontier where there is one, else a new tree | — |
-| retry a failed PRD           | `retry <prd>` — moves `## Failure` into the body as history, sets `open`                                 | `pearde retry` · pending · transitions-are-commands |
-| a blocked PRD's event landed | `unblock <prd>` — re-runs only the open boxes; `done` when they close                                    | `pearde unblock` · pending · transitions-are-commands |
-| close what is finished       | `collect` — every PRD whose acceptance boxes are all `[x]`: verify, commit, `done`. Loop step 6, run on its own | `pearde collect` · pending · collect-is-a-command |
+| retry a failed PRD           | `retry <prd>` — moves `## Failure` into the body as history, sets `open`                                 | `pearde retry` |
+| a blocked PRD's event landed | `unblock <prd>` — re-runs only the open boxes; `done` when they close                                    | `pearde unblock` |
+| close what is finished       | `collect` — every PRD whose acceptance boxes are all `[x]`: verify, commit, `done`. Loop step 6, run on its own | `pearde collect` |
 | run one PRD to done          | `run <prd>` — the loop scoped to that PRD's subtree                                                      | — |
 | the state, for a person      | `report` — rewrites `prds/report.md` whole: planned, in work, undecided or failing, in plain words per `@@report` | — |
 | record a decision            | `memo <subject>` — `prds/memos/<slug>.md` from `@references/templates/memo.md`                            | `pearde memo add <subject>` |
@@ -40,21 +40,20 @@ each skill file says what it does with no board in scope.
 | what a master merges         | `master` with no path — `@resources/board/plan.py members`: every member, its path, `MISSING` when not on disk | `pearde members` |
 | re-order after anything moved| `reconcile` — `@resources/board/plan.py reconcile`: schedule recomputed, anchor kept. The live service already does it, on every board | `pearde reconcile` |
 | is this thing wired?         | `doctor` — `@resources/doctor.sh --fix`, per @@doctor; print every line | `pearde doctor --fix` |
-| take a PRD for a worker      | `claim` | `pearde claim` · pending · transitions-are-commands |
-| hand a PRD back with a state | `release` | `pearde release` · pending · transitions-are-commands |
-| answer a question on a PRD   | `answer` | `pearde answer` · pending · transitions-are-commands |
-| force any transition         | `set` | `pearde set` · pending · transitions-are-commands |
-| validate the specs, sum the weight| `specced` | `pearde specced` · pending · specced-is-a-command |
-| children from the analyst's split| `refine` | `pearde refine` · pending · specced-is-a-command |
+| take a PRD for a worker      | `claim` | `pearde claim` |
+| hand a PRD back with a state | `release` | `pearde release` |
+| answer a question on a PRD   | `answer` | `pearde answer` |
+| force any transition         | `set` | `pearde set` |
+| validate the specs, sum the weight| `specced` | `pearde specced` |
+| children from the analyst's split| `refine` | `pearde refine` |
 | print a worker's brief       | `brief <prd> [--role <role>] [--as <id>] [--force]` — `@resources/board/brief.py`: header line, persona line, workflow block, the role's brief from `@references/parts/workers.md` with the placeholders filled; the role follows the state, `--role` overrides. `brief --consult <id> --question "<q>" [--transcript <path>]` is the consultant's | `pearde brief` |
-| sweep the stale claims       | `sweep` | `pearde sweep` · pending · the-loop-is-commands |
-| a board, registered and planned| `init` | `pearde init` · pending · init-asks-nothing |
-| the board's settings         | `settings` | `pearde settings` · pending · init-asks-nothing |
-| the vision and its axis      | `vision` | `pearde vision` · pending · vision-is-first-class |
+| sweep the stale claims       | `sweep [--apply]` — every claim silent past `claim-ttl` (@references/settings.md), one line each with what `--apply` does: `analyzing → open`, `claimed → failed` with `## Failure` written; never a claim `prds/.round.md` names, never an analyst whose specs are on disk. Loop step 1, once per session | `pearde sweep` |
+| a board, registered and planned| `init` | `pearde init` |
+| the board's settings         | `settings` | `pearde settings` |
+| the vision and its axis      | `vision` | `pearde vision` |
 
-The Command column is the line @resources/pearde.py answers; a row marked
-pending answers `not yet — <child>` until that child lands, and
-`the-loop-is-commands` clears every mark in one edit.
+The Command column is the line @resources/pearde.py answers. A `—` is a
+handle the round answers by hand, with no command behind it.
 
 - `add` is the user asking, so `origin: requested`. Only the orchestrator
   writes `origin: derived`, and only with `from:` — @references/parts/derived.md
@@ -97,6 +96,7 @@ pending answers `not yet — <child>` until that child lands, and
 - The run ends when the subtree is drained — report the target's final state —
   or everything left in it is blocked on the user.
 
-One orchestrator per board. On start, fresh `analyzing` / `claimed` claims you
-did not make may be another session's live workers: say so and run `status`
-only. Never sweep another live session's claims.
+One writer per file, sequenced between sessions. On start, fresh `analyzing`
+/ `claimed` claims you did not make may be another session's live workers:
+say so and run `status` only. `sweep` lists them and `--apply` leaves any
+claim `prds/.round.md` names.

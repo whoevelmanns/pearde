@@ -119,8 +119,12 @@ understanding.
 
 Write the tree in the board's own shape, per @references/parts/board.md: one
 directory per decision holding a `prd.md`, the decisions hanging off it as
-subdirectories with their own. The settled contract is the body. Set
-`state: open`.
+subdirectories with their own — and write it through the commands, never by
+hand. The root is `pearde add "<title>" --body -` with the settled contract on
+stdin; each branch is `pearde refine <prd> < split`, a `## Split` table of the
+decisions hanging off it (`| child | contract | needs |`), repeated per
+level. Every PRD arrives `state: open` from the template. A hand-made
+`state:` is the edit @references/parts/guard.md refuses.
 
 Attach a workflow while the tree is being written, not later. `python3
 @resources/workflows.py list` is the library; when a workflow's `## Use when`

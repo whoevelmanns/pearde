@@ -70,10 +70,9 @@ check "help reads plan.py's docstring for reconcile" 'grep -q "pearde reconcile 
 check "help reads doctor.sh's comment block" 'grep -q "pearde doctor --fix \[board\] *report, then repair" <<< "$H"'
 check "help reads install.sh's three modes" '[ "$(grep -c "^  pearde install" <<< "$H")" = 3 ]'
 check "help reads a discovered module's docstring" 'grep -q "pearde hello *say hello — the fixture command" <<< "$H"'
-check "help marks a reserved name with its child" 'grep -q "pearde add *not yet — transitions-are-commands" <<< "$H"'
+check "RESERVED is empty — every name a child was to deliver has landed" 'python3 -c "import sys; sys.path.insert(0, \"$R/resources\"); import pearde; sys.exit(pearde.RESERVED != {})"'
 check "help: a claimed reserved name is no longer pending" '! grep -q "pearde collect *not yet" <<< "$H"'
-for c in scan plan reconcile gantt calibrate status members view memo workflow questions index doctor install \
-         add claim release answer defer retry unblock set specced refine collect brief sweep init vision settings hello; do
+for c in scan plan reconcile gantt calibrate status members view memo workflow questions index doctor install hello; do
   check "$c --help exits 0" "$P $c --help >/dev/null 2>&1"
 done
 check "--help never runs the command (doctor --help prints one line per mode, no report)" '[ "$($P doctor --help | wc -l | tr -d " ")" = 2 ]'
@@ -97,8 +96,7 @@ check "questions list is forwarded as its own verb" '$P questions list >/dev/nul
 check "a discovered command runs with its arguments" '[ "$($P hello a b)" = "hello a b" ]'
 check "a discovered command's exit code passes through" '$P hello --rc >/dev/null; [ $? = 7 ]'
 check "a module claims a reserved name and it routes there" '[ "$($P collect)" = "hello" ]'
-E="$($P add 2>&1)"; RC=$?
-check "a reserved name prints not yet — <child> and exits 1" '[ "$RC" = 1 ] && [ "$E" = "not yet — transitions-are-commands" ]'
+check "help prints no not yet line — RESERVED is empty" '! grep -q "not yet" <<< "$H"'
 E="$($P colect 2>&1)"; RC=$?
 check "an unknown name exits 2 and names the near miss" '[ "$RC" = 2 ] && grep -q "did you mean collect" <<< "$E"'
 

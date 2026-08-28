@@ -13,6 +13,7 @@ three things it refuses.
     the same board read twice    → nothing changed since; the answer is unchanged
     the manual read three times  → it has not moved; the round file is the note
     a state moved, nothing written → `prds/.round.md` is what survives a compaction
+    a `state:` written by hand   → `pearde set` checks the gate; an editor checks nothing
 
 It denies only what is provably redundant: a repeat whose inputs have not
 changed since the first run. Everything else passes through untouched, and a
@@ -38,6 +39,11 @@ REREADABLE = {"loop.md", "round.md"}
 MANUAL = ("references" + os.sep, "skills" + os.sep)
 
 SCAN = "python3 %s/board/plan.py scan" % ROOT
+
+# The board's own tools write through edit.py and are never refused — a
+# transition repeated is a different board, and a refused one costs nothing.
+TOOLS = re.compile(r"\b(pearde|plan|guard)\.py\b|resources/board/\w+\.py")
+STATE_RE = re.compile(r"^state:[ \t]*(.*?)[ \t]*$", re.M)
 
 # A board walked by hand. `find … prd.md`, `grep -r state:`, `ls prds/*/prd.md`
 # — every spelling of the sweep step 1 stopped asking for.
@@ -192,6 +198,60 @@ def manual(path):
     return ""
 
 
+def fm_state(text):
+    """The `state:` value of a frontmatter block, or None."""
+    if not text.startswith("---"):
+        return None
+    end = text.find("\n---", 3)
+    m = STATE_RE.search(text[3:end] if end > 0 else "")
+    return m.group(1) if m else None
+
+
+def after_edit(path, tool, inp):
+    """(before, after): the file's text now, and as the tool would leave it.
+    `after` is None when the input does not say."""
+    try:
+        cur = open(path, encoding="utf-8").read()
+    except OSError:
+        cur = ""
+    if tool == "Write":
+        return cur, str(inp.get("content") or "")
+    old, new = inp.get("old_string"), inp.get("new_string")
+    if old is None or new is None or old not in cur:
+        return cur, None
+    return cur, (cur.replace(old, new) if inp.get("replace_all")
+                 else cur.replace(old, new, 1))
+
+
+def state_by_hand(tool, inp):
+    """`Edit|Write` on a `prd.md` that changes its `state:` line — refused,
+    naming the command. A body edit passes; the round file reminder is
+    `post`'s. `transitions.py` writes through edit.py, never through a
+    tool, so it is never here."""
+    path = os.path.abspath(str(inp.get("file_path") or ""))
+    if os.path.basename(path) != "prd.md":
+        return
+    board = board_of(os.path.dirname(path))
+    if not board:
+        return
+    before, after = after_edit(path, tool, inp)
+    if after is None or fm_state(before) == fm_state(after):
+        return
+    rel = os.path.relpath(os.path.dirname(path), board)
+    if not before:
+        deny(f"A PRD is made by a command, never written by hand: "
+             f"`pearde add \"<title>\"` for a new one, `pearde refine <prd> "
+             f"< split` for children — each arrives `state: open` from the "
+             f"template. Writing {rel}/prd.md with a `state:` of your own "
+             "skips the gate every command checks.")
+    deny(f"`state:` is written by the tool, never by hand — use `pearde set "
+         f"{rel} {fm_state(after) or '<state>'}`: it checks the gate of "
+         "@references/parts/states.md, prints the progress line and records "
+         "the row; `--force` writes any transition and says so on the line. "
+         "Every other transition has its own command — claim, release, "
+         "answer, specced, refine, collect, sweep.")
+
+
 def touches_board(cmd, board):
     return ("prds" in cmd or "prd.md" in cmd
             or os.path.basename(os.path.dirname(board)) + "/prds" in cmd)
@@ -200,6 +260,9 @@ def touches_board(cmd, board):
 def pre(data):
     tool = data.get("tool_name") or ""
     inp = data.get("tool_input") or {}
+    if tool in ("Edit", "Write"):
+        state_by_hand(tool, inp)
+        ok()
     board = board_of(data.get("cwd"))
     if not board:
         ok()
@@ -216,7 +279,7 @@ def pre(data):
         # `scan` is the thing this guard sends you to. A round that lost its
         # context to a compaction has to be able to ask again, and the board
         # not having moved is exactly when the answer is cheapest.
-        if "plan.py" in cmd or "guard.py" in cmd:
+        if TOOLS.search(cmd):
             ok()
         if not (touches_board(cmd, board) and reads_only(cmd)):
             ok()

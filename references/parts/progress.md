@@ -3,9 +3,10 @@
 The one line printed on every state change, term by term.
 
 Print on EVERY state change. **Printed by the tool**: every transition
-command — @resources/board/transitions.py, `pearde claim` · `release` ·
-`answer` · `retry` · `unblock` · `defer` · `add` · `set` — prints it on its
-stdout with every term below computed from the board after the write. The
+command — `pearde claim` · `release` · `answer` · `retry` · `unblock` ·
+`defer` · `add` · `set` · `sweep` · `specced` · `refine` · `collect` — prints
+it on its stdout with every term below computed from the board after the
+write, and a command run from a shell says `round file owed` before `as`. The
 round computes none of it; the one term the tool cannot know is the persona,
 passed as `--as <id>` or `PEARDE_AS` in the environment.
 

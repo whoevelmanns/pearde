@@ -141,8 +141,8 @@ for l in open(os.environ["TR"]):
     r=json.loads(l); assert sorted(r)==["from","prd","t","to"], r'; echo $?)"
 check "the add row is from null" "$(grep -q '"from": null, "prd": "a-brand-new-thing", "t": "20[^"]*", "to": "open"' "$B/.transitions.jsonl"; echo $?)"
 check ".history.jsonl byte-identical" "$(cd "$D" && git diff --quiet -- prds/.history.jsonl; echo $?)"
-STRAY="$(cd "$D" && git status --porcelain | grep -v 'prds/[a-z/-]*prd.md$' | grep -v '^?? prds/a-brand-new-thing/$' | grep -v '^?? prds/big/under-big/$' | grep -v '^?? prds/.transitions.jsonl$')"
-check "only prd.md files, the two new PRDs and .transitions.jsonl moved" "$([ -z "$STRAY" ]; echo $?)" "$STRAY"
+STRAY="$(cd "$D" && git status --porcelain | grep -v 'prds/[a-z/-]*prd.md$' | grep -v '^?? prds/a-brand-new-thing/$' | grep -v '^?? prds/big/under-big/$' | grep -v '^?? prds/.transitions.jsonl$' | grep -v '^?? prds/.claims/$')"
+check "only prd.md files, the two new PRDs, .transitions.jsonl and .claims/ moved" "$([ -z "$STRAY" ]; echo $?)" "$STRAY"
 
 echo "master board — @<member>/<rel> writes at the member's real path"
 M="$(mktemp -d)"; mkdir -p "$M/prds"
@@ -155,9 +155,9 @@ check "  …the line names the qualified PRD" "$([[ "$OUT" == "▸ @example/land
 rm -rf "$M"
 
 echo "COMMANDS"
-check "COMMANDS exposes the eight names" "$(python3 -c "
+check "COMMANDS exposes the nine names" "$(python3 -c "
 import sys; sys.path.insert(0,'$REPO/resources/board'); import transitions as t
-assert sorted(t.COMMANDS)==['add','answer','claim','defer','release','retry','set','unblock'], sorted(t.COMMANDS)
+assert sorted(t.COMMANDS)==['add','answer','claim','defer','release','retry','set','sweep','unblock'], sorted(t.COMMANDS)
 assert all(callable(f) for f in t.COMMANDS.values())
 "; echo $?)"
 

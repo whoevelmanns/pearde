@@ -196,7 +196,7 @@ report, so the sweep reads it as pass one and not as damage.
 <!-- brief:implementer -->
 > Read `prds/<prd>/prd.md` and every file in `specs/`. The tree already
 > holds the probe's uncommitted code — continue it, it is pass one; the specs
-> were written from it. Implement the specs in `<repo>`. Run each spec's `verify:` command and the repo's own gate. Tick a
+> were written from it. Implement the specs in `<repo>`. Run each spec's `## Verify and Proof` block and the repo's own gate. Tick a
 > box `[x]` only for a check you actually ran, quoting output — and tick it
 > **as you close it**, not in a batch at the end: those boxes are the board's
 > only live view of your run, and the plan is drawn from them. If blocked,

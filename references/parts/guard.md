@@ -2,9 +2,9 @@
 
 @resources/guard.py — the loop's rules as a mechanism rather than a sentence.
 
-@references/parts/loop.md says a step is a fixed set of tool calls, that the
-board is read with one `scan`, and that an established fact is cited rather
-than re-run. A model that ignores those sentences still burns the context
+@references/parts/loop.md says a step is one command and one decision, that
+the board is read with one `scan`, and that an established fact is cited
+rather than re-run. A model that ignores those sentences still burns the context
 window; the round that cost 318,584 output tokens ignored all three. The guard
 is the same three rules where ignoring them is not possible.
 
@@ -16,13 +16,15 @@ is the same three rules where ignoring them is not possible.
 | a board-reading command run twice with nothing changed since | the output is byte-for-byte what you have; cite it from `prds/.round.md` |
 | a third read of the same file, unchanged since the first | what you needed from it belongs in the round file |
 | a third read of a **reference** file — this manual, through any install link | the manual does not move while a round runs. @references/parts/loop.md and @references/parts/round.md are exempt, because a compacted round has to be able to re-read the steps |
+| an `Edit` or `Write` that changes the `state:` line of a `prd.md` — or writes a new `prd.md` carrying one | `use pearde set <prd> <state>`: the command checks the gate of @references/parts/states.md, and a new PRD is `pearde add` or `pearde refine`. A body edit passes. @resources/board/transitions.py writes through @resources/board/edit.py, never through a tool call, so it is never matched — and a worker's shell passes every gate a command has, which is why "never run a transition" stays a sentence in the brief |
 
 And two it only comments on:
 
 - The first read of a spec says the boxes are counted for you — `boxes c/t` in
   the scan. The spec is read for its contract, never to count.
 - A `prd.md` written while `prds/.round.md` is older than it says the round
-  file is owed. That is the reminder step 6 relies on.
+  file is owed. A command is never a tool edit, so every transition command
+  says the same on its own line — `round file owed`, before `as`.
 
 A reference is keyed by its real path, so the same file read once here and
 once through a skill folder of links is one file, not two.
@@ -50,6 +52,10 @@ Project settings in the repo the board lives in, `.claude/settings.json`:
       "matcher": "Bash|Read",
       "hooks": [{ "type": "command",
                   "command": "python3 <pearde>/resources/guard.py pre" }]
+    }, {
+      "matcher": "Edit|Write",
+      "hooks": [{ "type": "command",
+                  "command": "python3 <pearde>/resources/guard.py pre" }]
     }],
     "PostToolUse": [{
       "matcher": "Edit|Write",
@@ -60,9 +66,10 @@ Project settings in the repo the board lives in, `.claude/settings.json`:
 }
 ```
 
-`<pearde>` is this repo's absolute path. `doctor` reports `guard` as `ok`,
-`off` or `broken` and prints the file it looked in; it does not write the
-block, for the same reason it does not wire a status line — a settings file is
+`<pearde>` is this repo's absolute path. The `state:` refusal is a mechanism
+exactly where this block is wired and a sentence everywhere else. `doctor`
+reports `guard` as `ok`, `off` or `broken` and prints the file it looked in;
+it does not write the block, for the same reason it does not wire a status line — a settings file is
 the reader's, and this one decides what their tools may refuse. A newly
 created `.claude/settings.json` is picked up after `/hooks` or a restart: the
 settings watcher only watches directories that had a settings file when the

@@ -1,9 +1,11 @@
 ---
-state: open
+state: done
 origin: requested
+actual: 2.1h
+commit: 7f003a2
 priority: 58
-complexity: 0
-blast-radius:
+complexity: 31
+blast-radius: mid
 repo: pearde
 workflow: probe-then-spec
 needs:
@@ -27,6 +29,12 @@ footprint:
   - resources/guard.py
   - resources/board/transitions.py
   - README.md
+  - references/system.md
+  - resources/pearde.py
+  - prds/the-board-runs-itself/transitions-are-commands/probe/verify.sh
+  - prds/the-board-runs-itself/one-command/probe/verify.sh
+  - prds/workflows-on-the-board/workflow-attach/probe/verify.sh
+  - prds/workflows-on-the-board/workflow-improve/probe/verify.sh
 ---
 
 # the-loop-is-commands — the round is written as the calls it makes, on one page

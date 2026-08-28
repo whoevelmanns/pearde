@@ -9,6 +9,7 @@
     transitions.py retry <prd>
     transitions.py unblock <prd>
     transitions.py set <prd> <state> [--force] [--worker <worker>]
+    transitions.py sweep [--apply]
 
 Every command: `--board <path>` names the board (default: walk up from the
 cwd). `--as <id>` is the persona on the progress line, else `PEARDE_AS` from
@@ -21,6 +22,18 @@ progress line of @references/parts/progress.md with every term computed here,
 appends `{"t","prd","from","to"}` to `prds/.transitions.jsonl` — never to
 `.history.jsonl`, the daemon's burn-down — and exits 1 with the gate named
 when refused, writing nothing.
+
+`claim` also records the claim's baseline — `prds/.claims/<prd>/`, through
+collect.py `snapshot()` — and `answer` lists the `prd.md` it wrote in
+`prds/.claims/riders`, through `owe()`: board state written between
+transitions rides the next collect. A line printed from a shell ends
+`round file owed`: the round file is rewritten at every transition, and
+no hook sees a command.
+
+`sweep` lists every held claim `plan.py` `silent_of` calls silent — no
+file of the PRD's has moved for `claim-ttl` — and `--apply` moves
+`analyzing → open` and `claimed → failed`, never one `prds/.round.md`
+names, never an analyst whose specs are on disk.
 
 `COMMANDS` is what the dispatcher discovers. Each entry takes the argument
 list after the command name and returns the exit code.
@@ -261,10 +274,44 @@ def transition(board, name, to, persona, worker=None, force=False,
     elif cmd in ("release", "retry") and not force:
         editlib.del_key(path, "claim")
     record(prd, frm, to)
+    if cmd == "claim" and not force:
+        snapshot_claim(board, rel)
     line = progress_line(board, rel, frm, to, persona, forced=force,
                          source=source)
+    if source is None:
+        line = owed_line(line)
     out(line)
     return line
+
+
+def owed_line(line):
+    """`round file owed` before `as`: a shell command moved a PRD, and the
+    guard's reminder fires on a tool edit, never on a command — so the line
+    says it. The view's own lines do not: a person at the page is not a
+    round."""
+    head, _, tail = line.rpartition(" · as ")
+    return f"{head} · round file owed · as {tail}" if tail else line
+
+
+def snapshot_claim(board, rel):
+    """The claim's baseline — what is dirty, what the gate says — under
+    `prds/.claims/<rel>/`, the record `collect` measures against. collect.py
+    imports this module, so the import is here, not at the top. A board
+    outside a git repo has nothing to snapshot and says so once."""
+    import collect as collectlib
+    try:
+        collectlib.snapshot(board, rel)
+    except collectlib.Stop as e:
+        print(f"claim: no baseline — {e}", file=sys.stderr)
+
+
+def owe_path(board, path):
+    """List a board-repo path a command wrote between transitions in
+    `prds/.claims/riders` — it rides the next collect."""
+    import collect as collectlib
+    root = planlib.repo_root(board)
+    if root:
+        collectlib.owe(board, os.path.relpath(path, root))
 
 
 def record(prd, frm, to):
@@ -453,6 +500,7 @@ def cmd_answer(board, args, persona):
     path = os.path.join(prd["dir"], "prd.md")
     editlib.append_section(path, "Answers",
                            f"**{qid}** *(answered {now()})* — {text}")
+    owe_path(board, path)
     prds = planlib.scan(board)
     prd = prds[rel]
     left = [q for q in questions_of(prd) if q not in answered_of(prd)]
@@ -519,6 +567,85 @@ def cmd_set(board, args, persona):
     return 0
 
 
+# ── sweep ─────────────────────────────────────────────────────────────────────
+# The board cannot see a worker; `plan.py` `silent_of` is the one rule for a
+# claim whose files have stopped moving, and this is the command that acts on
+# its word. What it lists is the orchestrator's to read first — a swept
+# worker's report and its `## Workflow` rows count whatever the verdict did.
+
+def round_names(board, rel, who):
+    """True when `prds/.round.md` names this claim — the PRD's path, its
+    basename or its worker. A claim the round file names is a session's
+    live work, and `--apply` leaves it."""
+    try:
+        text = open(os.path.join(board, planlib.ROUND_FILE),
+                    encoding="utf-8").read()
+    except OSError:
+        return False
+    for word in (rel, os.path.basename(rel), who):
+        if word and re.search(r"(?<![\w/-])" + re.escape(word) + r"(?![\w/-])",
+                              text):
+            return True
+    return False
+
+
+def sweep_rows(board):
+    """One row per silent claim: (rel, state, claim, age, to, why). `to` is
+    the state `--apply` writes, or None with `why` saying what holds it."""
+    prds = planlib.scan(board)
+    settings = planlib.board_settings(board)
+    rows = []
+    for rel in sorted(prds):
+        p = prds[rel]
+        age = planlib.silent_of(p, settings)
+        if age is None:
+            continue
+        cl = planlib.claim_of(p["fm"]) or {"who": "", "since": ""}
+        specs = [f for f in os.listdir(os.path.join(p["dir"], "specs"))
+                 if f.endswith(".md")] \
+            if os.path.isdir(os.path.join(p["dir"], "specs")) else []
+        if p["state"] == "analyzing" and specs:
+            to, why = None, (f"specs on disk — an analyst that finished: "
+                             f"`pearde specced {rel}`")
+        elif round_names(board, rel, cl["who"]):
+            to, why = None, "named in prds/.round.md — a session's live work"
+        elif p["state"] == "analyzing":
+            to, why = "open", "no specs — `--apply` sets open"
+        else:
+            to, why = "failed", ("`--apply` sets failed; partial code may "
+                                 "stand in the tree")
+        rows.append((rel, p["state"], cl, age, to, why))
+    return rows
+
+
+def cmd_sweep(board, args, persona):
+    """every claim silent past `claim-ttl`; `--apply` moves analyzing → open, claimed → failed"""
+    if args.pos:
+        raise Refused("sweep [--apply]")
+    apply = "apply" in args.flags
+    ttl = planlib.claim_ttl(planlib.board_settings(board))
+    rows = sweep_rows(board)
+    if not rows:
+        print(f"sweep: no claim silent past claim-ttl {planlib.fmt_age(ttl)}")
+        return 0
+    for rel, state, cl, age, to, why in rows:
+        held = f"claim {cl['who']} {cl['since']}".rstrip()
+        print(f"{rel} · {state} · {held} · silent {planlib.fmt_age(age)} · "
+              f"{why}")
+        if not apply or to is None:
+            continue
+        if to == "failed":
+            path = os.path.join(planlib.scan(board)[rel]["dir"], "prd.md")
+            editlib.append_section(
+                path, "Failure",
+                f"swept {now()} — {held}, silent {planlib.fmt_age(age)}: "
+                "no file of this PRD's moved past `claim-ttl`. Read the "
+                "worker's output before a retry; partial code may stand in "
+                "the tree.")
+        transition(board, rel, to, persona)
+    return 0
+
+
 # ── the surface ───────────────────────────────────────────────────────────────
 
 class Args:
@@ -564,7 +691,8 @@ def _command(name, fn):
 COMMANDS = {name: _command(name, fn) for name, fn in (
     ("add", cmd_add), ("claim", cmd_claim), ("release", cmd_release),
     ("answer", cmd_answer), ("defer", cmd_defer), ("retry", cmd_retry),
-    ("unblock", cmd_unblock), ("set", cmd_set))}
+    ("unblock", cmd_unblock), ("set", cmd_set),
+    ("sweep", cmd_sweep))}
 
 
 def main(argv):

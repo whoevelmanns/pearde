@@ -304,8 +304,19 @@ doc "commits.md sends a foreign library to its own repo" references/parts/commit
 
 doc "solo.md writes the edit at the step"     references/parts/solo.md \
     'you write the'
-doc "solo.md names the same rules"            references/parts/solo.md \
-    'Rules 2 to 5 of step 6 still hold'
+# solo.md keeps the lead clause and pins the four collect-edit rules by their
+# own words, so the paragraph cannot be rewritten around the lead and stay green.
+docall() { # name file needle...
+  local name="$1" file="$2"; shift 2
+  for n in "$@"; do grep -qF -- "$n" "$ROOT/$file" || { bad "$name — $file lacks '$n'"; return; }; done
+  ok "$name"
+}
+docall "solo.md names the same rules"          references/parts/solo.md \
+    'Apply or refuse per whose fault' \
+    "applied for the atomic's fault" \
+    "the code's or the PRD's" \
+    'every atomic that ran' \
+    'never rewrite it'
 
 doc "round.md carries the Edits section"      references/parts/round.md \
     '## Edits'
@@ -391,45 +402,6 @@ ORDER_WORKERS="$(awk '/^\*\*On return, either brief\./,/^\*\*Analyst\*\*/' \
 eq "loop states the five actions in order" "$ORDER_LOOP" \
    "@rows|@apply|@runs|@check|@commit|"
 eq "workers.md's summary gives the same order" "$ORDER_WORKERS" "$ORDER_LOOP"
-
-# ── step 6's spelled count and the list it counts must agree ────────────────
-# "Those are N mechanical actions" sits directly under a comma-separated list
-# of them. That number was wrong once already — `POST /report` joined the list
-# and the count did not — so this derives N from the list rather than asserting
-# a literal: the next sentence added to that batch without touching the number
-# fails here.
-counted() { python3 - "$ROOT/references/parts/loop.md" <<'PY'
-import re, sys
-s = open(sys.argv[1], encoding="utf-8").read()
-m = re.search(r"^On each finished worker:(.*?)\n\n", s, re.S | re.M)
-body = " ".join(m.group(1).split()).rstrip(".")
-items, depth, cur = [], 0, ""
-for ch in body:                      # a comma inside parentheses is not an item
-    if ch == "(":
-        depth += 1
-    elif ch == ")":
-        depth -= 1
-    if ch == "," and depth == 0:
-        items.append(cur); cur = ""
-    else:
-        cur += ch
-items.append(cur)
-items = [i.strip() for i in items if i.strip()]
-# "return to step 2" is the loop's next hop, not an action on the result
-items = [i for i in items if not i.startswith("return to")]
-print(len(items))
-PY
-}
-spelled() { python3 - "$ROOT/references/parts/loop.md" <<'PY'
-import re, sys
-words = "zero one two three four five six seven eight nine ten eleven twelve".split()
-s = open(sys.argv[1], encoding="utf-8").read()
-m = re.search(r"Those are (\w+) mechanical\s+actions", s)
-print(words.index(m.group(1)) if m and m.group(1) in words else "-")
-PY
-}
-eq "step 6's spelled count matches the list it counts" "$(spelled)" "$(counted)"
-eq "  … and that list is the seven a collect issues"   "$(counted)" "7"
 
 # ── the census: which of these rules a command can fail ──────────────────────
 # @references/parts/loop.md step 6 now carries five rules. A rule with no

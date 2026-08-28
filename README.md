@@ -10,24 +10,24 @@ A round is seven steps, run until the board is drained or everything left is
 blocked on the user. `once` runs one round. `status` runs step 1 and reports,
 changing nothing. Full text: `@@loop`.
 
-| # | step | what happens |
+| step | command | the orchestrator decides |
 |---|---|---|
-| 1 | **Scan** | `@resources/board/plan.py scan` — the whole board on one page, box counts included. Sweep a dead session's leftovers |
-| 2 | **Answer** | Put every `question` PRD to the user as one round. Write `## Answers`, set them `open` |
-| 3 | **Refine** | Turn an analyst's split into child PRDs. Drill when there is no usable proposal |
-| 4 | **Spec ahead** | Dispatch analysts on `open` PRDs until the spec pipeline is full |
-| 5 | **Implement** | Dispatch implementers on `specced` PRDs until `workers` is full, skipping footprint clashes |
-| 6 | **Collect** | On each finished worker: verify, commit, write the transition, print the progress line |
-| 7 | **Drill, then stop** | Nothing dispatchable means blocked on a person: drill the whole open frontier as one round. Report counts and park `wait` only when every question is already out |
+| 1 scan | `pearde scan` · `pearde sweep` once per session · read `prds/.round.md` · `pearde init` when there is no board | nothing — read |
+| 2 answer | `pearde answer <prd> Q<n> "<text>"` per answer | what to put to the user, per @references/drill.md, and what they said |
+| 3 refine | `pearde refine <prd> < report` | whether the analyst's table is usable; a drill when it is not |
+| 4 spec ahead | `pearde claim <prd> <worker>` · `pearde brief <prd>` → dispatch | which persona the job wears |
+| 5 implement | the same two commands | which persona the job wears |
+| 6 collect | read the report · apply or refuse `## Workflow` edits · `pearde collect <prd>` | whether to believe the report; whether an edit was the atomic's |
+| 7 drill, then stop | one drill round over the frontier · rewrite `prds/report.md` and `prds/.round.md` · `pearde view wait` | the forks and their three answers |
 
 Three rules hold the loop:
 
 - **Collect on the transition, never at the end of the round** — a finished PRD
   still marked `claimed` blocks everything that needs it.
-- **Never take a worker's word for a transition** — `specced` needs spec files
-  on disk, `done` needs verify output actually run.
-- **One orchestrator per board** — it is the only writer of PRD state, so there
-  is nothing to race and no locking.
+- **The command is the gate** — `specced` reads the spec files, `collect` runs
+  the verify blocks, and a `state:` written by hand is what `@@guard` refuses.
+- **One writer per file, sequenced between sessions** — a claim another
+  session's `prds/.round.md` names is its live work, and `sweep` leaves it.
 - **Read the board with one call, and write down what the call cannot know** —
   the scan is step 1, `prds/.round.md` is the round's own memory across a
   compaction, and a fact established once is cited rather than re-run.

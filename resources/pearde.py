@@ -83,27 +83,11 @@ FORWARD = {
     "install":   ("install.sh", [], ()),
 }
 
-# Reserved: the child that delivers each. `the-loop-is-commands` clears
-# the `pending` marks in handles.md once; nothing here needs an edit when a
-# module claims a name — discovery wins over this table.
-RESERVED = {
-    "add": "transitions-are-commands",
-    "claim": "transitions-are-commands",
-    "release": "transitions-are-commands",
-    "answer": "transitions-are-commands",
-    "defer": "transitions-are-commands",
-    "retry": "transitions-are-commands",
-    "unblock": "transitions-are-commands",
-    "set": "transitions-are-commands",
-    "specced": "specced-is-a-command",
-    "refine": "specced-is-a-command",
-    "collect": "collect-is-a-command",
-    "brief": "brief-is-printed",
-    "sweep": "the-loop-is-commands",
-    "init": "init-asks-nothing",
-    "vision": "vision-is-first-class",
-    "settings": "init-asks-nothing",
-}
+# Reserved: a name a later child delivers, answering `not yet — <child>`
+# until a module claims it. Empty today — every name the tree named has its
+# module. Discovery wins over this table, so a row is never removed by hand
+# when a module lands; it is removed when the child's PRD is `done`.
+RESERVED = {}
 
 WIDTH = 80
 

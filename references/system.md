@@ -22,8 +22,8 @@ feature is made of, not a reading list.
   means and what may set it.
 - **Settings** — `language`, `workers`, `pipeline` live in `prds/settings.md`.
   Read it before working the board. Write it when the user changes one.
-  Missing means first run: create it per `@@settings`, then ask the user for
-  the board language — stated by the user, never guessed.
+  Missing means first run: `pearde init` — English by default, said on its
+  first line; `pearde settings language=<l>` changes it.
 - **Who works** — one persona per session, one id from `@@personas`, stored
   nowhere: `engineer` until switched, and the round's line carries it. A
   candidate that differs from the active persona and governs the round: ask
@@ -48,7 +48,7 @@ feature is made of, not a reading list.
   broken install from an absent one.
 
 Handles: `status`, `once`, `add <title>`, `drill <prd>`, `retry <prd>`,
-`unblock <prd>`, `run <prd>`, `memo <subject>`, `plan`, `view`,
+`unblock <prd>`, `sweep`, `collect`, `run <prd>`, `memo <subject>`, `plan`, `view`,
 `persona [<id>]`, `persona create <topic>`, `workers=N`, `pipeline=N` —
 `@@handles` is all of them.
 <!-- pearde:end -->
