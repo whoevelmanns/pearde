@@ -41,6 +41,7 @@ manifest nothing and sits next to the specs it produced.
 |---------------------------------|-----------------------------------------------------------------------------------------------------------|
 | `references/parts/workers.md`   | the analyst brief's "leave the probe code in the tree" gains its location: `prds/<prd>/probe/`, with one clause saying why — `prds/` is outside the manifest scan, so the probe costs no row and travels with the PRD that produced it |
 | `references/parts/workers.md`   | a second clause, for every worker and not only the analyst: probe output quoted into a PRD or a spec is backtick-quoted first. The box matcher is line-based and knows nothing about code fences, so a pasted `- [ ]` is a real box |
+| `references/parts/workers.md`   | a third clause: a probe's FIXTURES are built in a temp dir at run time, never written under `prds/` — a directory holding `prd.md` anywhere under the board is a PRD, and a fixture one moves the board's own counts |
 
 ## The second consequence — pasted output plants real boxes
 
@@ -59,6 +60,21 @@ that is exactly the PRD that cannot afford phantom boxes.
 
 `finished-counts-both-files` widened the matcher, which makes this **strictly
 more likely** — five more spellings now count.
+
+## The third consequence — a fixture `prd.md` becomes a real PRD
+
+`_scan_one` at `resources/board/plan.py:178` walks the whole board and admits
+any directory holding `prd.md`. A probe that writes a fixture PRD under its own
+folder therefore adds it to the board. Measured by the `workflow-attach`
+analyst with a fixture at
+`prds/workflows-on-the-board/workflow-attach/probe/fixture-scratch/prd.md`,
+created and removed: the board went from 13 PRDs to 14 and the progress line
+from `asked 5/10 · 51%` to `asked 5/11 · 47%`.
+
+So the location rule this PRD writes is necessary but not sufficient. The brief
+has to say the other half too: **fixtures go in a temp dir at run time, never
+under `prds/`.** The `workflow-attach` probe already does this — `mktemp -d`
+per run — and that is the shape to name.
 
 ## Rules
 

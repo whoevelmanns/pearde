@@ -118,20 +118,34 @@ PRDs exist (leaf, unclaimed, priority desc): mark each `analyzing` +
 `claim: <worker> <started>` and dispatch analysts in one parallel batch.
 
 Dispatchable is the same test as step 5 — `needs:` all `done`, no footprint
-clash with a `claimed` PRD. A `specced` PRD nobody can be handed is not
-pipeline — counting it starves the analyst stage exactly when the board is
-most stuck.
+clash with a `claimed` PRD, and no `workflow:` that names nothing. A `specced`
+PRD nobody can be handed is not pipeline — counting it starves the analyst
+stage exactly when the board is most stuck.
 
 **5. Implement**
 
 While count(`claimed`) < **workers** and `specced` PRDs exist: pick by
 priority, skip any whose `needs:` are not all `done`, skip any whose footprint
-overlaps a `claimed` PRD, mark `claimed` + `claim: <worker> <started>`,
-dispatch an implementer.
+overlaps a `claimed` PRD, skip any whose `workflow:` names no workflow, mark
+`claimed` + `claim: <worker> <started>`, dispatch an implementer.
 
-- Both skips are real work. A footprint clash makes two workers edit one file.
-  An unmet `needs:` sends a worker at code its dependency has not written.
-- A skipped PRD stays `specced`. Say which of the two holds it, so a stalled
+- All three skips are real work. A footprint clash makes two workers edit one
+  file. An unmet `needs:` sends a worker at code its dependency has not
+  written. A `workflow:` that names no workflow — or names an **atomic**,
+  which is a file but not a route — hands the worker a brief whose opening
+  block expands to nothing, and @references/parts/workflows.md calls that a
+  broken PRD rather than a silent one.
+- The third skip is the only one you can clear yourself, and clearing it is
+  the act, not a wait: fix the slug or remove the key, then dispatch in the
+  same round. `plan.py scan` marks the PRD's line `wf <slug>?`, on a master as
+  well as a plain board, and it is the mark that holds across both. `python3
+  @resources/workflows.py check` says more — it names the file and tells the
+  two breaks apart, and it reads a spec's own `workflow:`, which the scan line
+  never carries — but it reads **one board's own tree**: run on a master it
+  never reaches a member's PRDs, so a member PRD held by a spec's slug shows
+  up in neither output. Run `check` on the board the PRD lives on, and on a
+  master read the mark first.
+- A skipped PRD stays `specced`. Say which of the three holds it, so a stalled
   board reads as a queue rather than a bug.
 - The footprint is the union of the specs' `footprint:` and the PRD's own.
 

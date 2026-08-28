@@ -1,9 +1,10 @@
 ---
-state: open
+state: done
 origin: requested
+actual: 0.6h
 priority: 50
-complexity: 0
-blast-radius:
+complexity: 27
+blast-radius: mid
 repo: pearde
 needs:
   - workflow-format
@@ -16,6 +17,7 @@ footprint:
   - references/drill.md
   - references/parts/workflows.md
   - resources/board/plan.py
+  - references/parts/loop.md
 ---
 
 # workflow-attach — a PRD or a spec names its workflow, and the brief opens with it
@@ -49,8 +51,10 @@ Missing reads as none: the brief is as today.
 | `references/templates/spec.md`    | the key, commented, beside `footprint`                                                                         |
 | `references/parts/workers.md`     | the block below in both briefs; the analyst's SPECCED report names the workflow followed, or `none fit`         |
 | `references/drill.md`             | Output: when a workflow's `## Use when` fits a branch, write `workflow:` on that child                          |
-| `resources/board/plan.py`         | the scan line carries `· wf <slug>` when set, `· wf <slug>?` when the slug names no file                       |
+| `resources/board/plan.py`         | the scan line carries `· wf <slug>` when set, `· wf <slug>?` when the slug names no workflow — an atomic is a file, so naming one marks the same way. `plan`'s `ready now` line carries the `?` form too, beside `(unspecced)`: that list is the dispatch list step 5 skips from. Display only — `compute_plan`'s ordering is untouched |
 | `references/parts/workflows.md`   | the attach row filled                                                                                          |
+| `references/parts/loop.md`        | steps 4 and 5 gain the third skip: a PRD whose `workflow:` names no workflow is not dispatched — fix the slug or remove the key |
+| `references/parts/contract.md`    | one more row, on the `specNN.md` table: who may write a spec, and the narrow condition under which the orchestrator may — `prds/memos/the-orchestrator-may-write-a-spec.md` |
 
 ## The block
 
@@ -77,9 +81,11 @@ per workflow followed.
 - An analyst that followed no workflow reports `workflow: none fit`. A job it
   saw recur is a finding in its report, not a file — a new workflow is
   `workflow add`, the orchestrator's act, at `runs: 0`.
-- A `workflow:` naming no file is a broken PRD, not a silent one: `check`
-  reports it, the scan marks it, the worker is not dispatched until it is
-  fixed or removed.
+- A `workflow:` naming no **workflow** is a broken PRD, not a silent one:
+  `check` reports it, the scan marks it, the worker is not dispatched until it
+  is fixed or removed. Naming an atomic is that same break — a route was asked
+  for and a single step was found — and `resources/workflows.py` already
+  reports the two cases with distinct messages.
 - A member PRD on a master board resolves `workflow:` against its own
   board's library, then the master's — the same order `needs:` resolves in.
 
@@ -90,3 +96,7 @@ per workflow followed.
 - `workflows.py check` reports the dangling one and is silent once the file
   exists.
 - `python3 resources/index.py check` silent.
+- `references/parts/loop.md` step 5 skips a PRD whose `workflow:` names no
+  workflow, and step 4's dispatchable test says the same.
+- `plan.py plan` marks the same PRD `wf <slug>?` on its `ready now` line, and
+  leaves `compute_plan`'s ordering alone.

@@ -6,6 +6,9 @@ priority: 0        # higher first
 complexity: 0      # analyst, at spec time — 1-100. THE WEIGHT the board schedules by
 blast-radius:      # analyst, at spec time — high|mid|low. What breaks if this is wrong
 repo:              # the sub-repo the code lands in; delete if n/a
+# workflow:        # OPTIONAL — how this kind of job is done: a slug in
+#                  #   prds/workflows/. @references/workflow.md.
+#                  #   Absent = the brief alone, as before workflows
 time:              # OPTIONAL. See @references/parts/order.md
   est:             # the weight, only when complexity is absent. Not a duration
   actual:          # a record. Nothing reads it
@@ -14,10 +17,11 @@ time:              # OPTIONAL. See @references/parts/order.md
 <!-- Ordering reads three axes and no clock: dependency (needs + footprint),
      vision importance (priority), and complexity/blast-radius. Add your own
      keys freely, at any nesting. Nothing outside state, origin, from,
-     priority, complexity, blast-radius, claim, repo, needs and footprint is
-     read, and nothing you add is ever dropped.
+     priority, complexity, blast-radius, claim, repo, workflow, needs and
+     footprint is read, and nothing you add is ever dropped.
        needs:     — PRD dir names this one depends on. A hard gate in `plan`
        footprint: — paths this PRD touches. The overlap check
+       workflow:  — the route a worker is handed, expanded into its brief
 
      A derived PRD states, in the body, which requested PRD it would otherwise
      get wrong. If it cannot, it is filed `state: deferred` — and if fixing it

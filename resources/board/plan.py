@@ -41,6 +41,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import memos as memolib  # noqa: E402 — the skill root, one dir up
 import render as renderlib  # noqa: E402 — beside this script
+import workflows as wflib  # noqa: E402 — the skill root, one dir up
 
 # ── board ─────────────────────────────────────────────────────────────────────
 
@@ -1424,6 +1425,39 @@ def progress_terms(board, prds=None, settings=None):
     }
 
 
+def workflow_marks(board, prds):
+    """{rel: "<slug>" | "<slug>?"} for every PRD carrying a `workflow:`.
+
+    The `?` is the break @references/workflow.md names, and it covers two
+    cases that read as one on a line: the slug is in no library this PRD can
+    see, or the file is there and is an **atomic** — a route was asked for and
+    a single step was found. Both leave the worker without a route, so both
+    mark; `workflows.py check` is where they are told apart, in words.
+
+    A member PRD resolves against its own board's library first and the
+    master's second, the order `needs:` resolves in. Each library is scanned
+    once per call — this runs once per `scan`, not once per PRD.
+    """
+    marks, libs = {}, {}
+
+    def lib(b):
+        if b not in libs:
+            libs[b] = wflib.scan(b)
+        return libs[b]
+
+    for rel, p in prds.items():
+        v = p["fm"].get("workflow")
+        if not v or isinstance(v, list):
+            continue
+        slug = str(v).strip()
+        if not slug:
+            continue
+        seen = [b for b in (p.get("board_path"), board) if b]
+        ok = any(lib(b).get(slug, {}).get("kind") == "workflow" for b in seen)
+        marks[rel] = slug if ok else slug + "?"
+    return marks
+
+
 def cmd_scan(board):
     """The whole board as one page a round can hold — step 1, in one call.
 
@@ -1441,6 +1475,7 @@ def cmd_scan(board):
     needs = r["needs"] if r else {}
     after = r["after"] if r else {}
     est = r["est"] if r else {}
+    wf = workflow_marks(board, prds)
     mem = [n for n, _ in members(board)]
     print(f"board: {board} · {len(prds)} PRDs"
           + (f" · master of {len(mem)}: " + ", ".join(mem) if mem else "")
@@ -1464,6 +1499,8 @@ def cmd_scan(board):
         q, a = question_counts(p)
         bits = [f"{p['state']:9}", x, f"p{p['fm'].get('priority', 0)}",
                 f"w{est.get(x, 0):.0f}"]
+        if wf.get(x):
+            bits.append("wf " + wf[x])
         if tt:
             bits.append(f"boxes {c}/{tt}")
         if needs.get(x):
@@ -1546,14 +1583,27 @@ def cmd_plan(board, workers):
     frontier = [x for x in r["order"]
                 if not needs[x] and not after[x] and est[x] > 0]
     if frontier:
+        # `ready now` is the dispatch list, and step 5 of @references/parts/
+        # loop.md skips a PRD whose `workflow:` names no workflow. The other
+        # two skips already show here — an unmet `needs:` drops a PRD out of
+        # this list, a footprint clash prints `after … (footprint)` — so
+        # without this the one skip the ordering does NOT model is the one
+        # the list silently contradicts. Display only: the mark is printed,
+        # the order is untouched. Only the `?` form prints, because this
+        # parenthetical is the register of what holds a PRD back and a slug
+        # that resolves holds back nothing.
+        wf = workflow_marks(board, prds)
         print(f"\nready now — {len(frontier)} in parallel, widest door first")
         for x in frontier:
             p = todo[x]
             hot = p["state"] in ("question", "blocked", "refine", "failed")
+            tags = ["waiting on you"] if hot else [] if feet[x] \
+                else ["unspecced"]
+            if wf.get(x, "").endswith("?"):
+                tags.append("wf " + wf[x])
             print(f"  · {x} [{p['state']}] p{p['fm'].get('priority', 0)}"
                   f" {fw(est[x])} · unblocks {fw(unblocks[x])}"
-                  + ("  (waiting on you)" if hot
-                     else "" if feet[x] else "  (unspecced)"))
+                  + (f"  ({'; '.join(tags)})" if tags else ""))
     gated = [x for x in r["order"] if (needs[x] or after[x]) and est[x] > 0]
     if gated:
         print("\nthen, as gates clear — dispatch order")

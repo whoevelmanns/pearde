@@ -38,6 +38,34 @@ Rules for every worker:
   its population rather than the members it already knows — a check written
   from the answer passes on the answer.
 
+**The workflow block.** When the PRD (or, for an implementer, a spec) carries
+`workflow: <slug>`, this opens the brief immediately after the persona line,
+verbatim, placeholders filled — nothing else about the brief changes:
+
+> Follow the workflow `<slug>`: `python3 @resources/workflows.py brief <slug>
+> <board>` prints it — the steps in order, each with its atomic inlined. Take
+> the steps in order. When a step fails, go where its `on failure` says; a
+> back-edge is taken at most twice, then stop and report with the step named.
+> Your report carries `## Workflow <slug>` per @references/workflow.md: one
+> row per step, and under `### Edits` the replacement text for every failure
+> the atomic caused — a wrong command, a stale path, a check that cannot
+> fail, a shape `## Fails when` does not list. Never edit the workflow files
+> yourself.
+
+- No `workflow:` anywhere: no block, and the brief is exactly as it was.
+- A spec with its own `workflow:` — the implementer follows that one for that
+  spec and the PRD's for the rest, so the brief carries one block per distinct
+  slug and the report one `## Workflow` section per workflow followed.
+- **A worker never writes under `workflows/`.** Edits go in the report; what
+  becomes of them is @references/parts/workflows.md.
+- A slug that names no workflow is a broken PRD, not a silent one: it is not
+  dispatched until the key is fixed or removed. `python3
+  @resources/workflows.py check` reports it and `plan.py scan` marks the line
+  `wf <slug>?` — naming an atomic marks the same way, a route was asked for
+  and a single step was found.
+- A member's worker resolves the slug against its own board's library first,
+  then the master's — the order `needs:` resolves in.
+
 **Analyst** — one per `open` PRD being probed:
 
 > Read `prds/<prd>/prd.md`, including `## Answers`. Then **build it** — never
@@ -55,9 +83,11 @@ Rules for every worker:
 >   a check can fail, and a verify command. Each spec says what already
 >   stands and what is left to finish. Report the spec list, the PRD's
 >   `complexity` (1-100) and `blast-radius` (`high`|`mid`|`low`) with one
->   line of reasoning each, and the union of the footprints. **Do not
->   estimate how long anything will take.** If a spec's compute cost is
->   large enough to change its scope, price that inside the spec.
+>   line of reasoning each, and the union of the footprints. Name the
+>   workflow you followed — `workflow: <slug>`, or `workflow: none fit`, and
+>   a job you saw recur is a finding in the report, never a file you write.
+>   **Do not estimate how long anything will take.** If a spec's compute cost
+>   is large enough to change its scope, price that inside the spec.
 > - **REFINE** — the build hit a missing piece big enough to be its own
 >   contract, or the PRD holds more than one. Report the proposed children,
 >   `<dir-name> — one-line contract` each, and for each the thing the build

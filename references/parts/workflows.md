@@ -34,6 +34,32 @@ prds/workflows/<slug>.md
 An edit is from a run, never from reading. The text carries the current
 lesson; git holds every earlier one.
 
+## Attached
+
+A PRD or a spec names its route in frontmatter. The key is the same `workflow`
+in both places, and @references/parts/contract.md is where it sits in the
+contract:
+
+| where       | written by                                                                    | is                                              |
+|-------------|-------------------------------------------------------------------------------|--------------------------------------------------|
+| `prd.md`    | the user · the drill, on the tree it writes · the orchestrator on `specced`, from the analyst's report | the route every worker on this PRD is handed |
+| `specNN.md` | the analyst                                                                   | overrides the PRD's, for that unit only          |
+
+Missing reads as none, and the brief is exactly as it was before workflows
+existed. Set, the worker's brief opens with the workflow block after the
+persona line — @references/parts/workers.md holds that text, and the worker
+returns `## Workflow <slug>` per @references/workflow.md.
+
+A slug that names **no workflow** in the library is a broken PRD, not a silent
+one: `check` reports it, `plan.py scan` marks the line `wf <slug>?`, and the
+PRD is not dispatched until the key is fixed or removed. Naming an **atomic**
+is that same break — an atomic is a file, so the slug resolves, but a route
+was asked for and a single step was found. A set slug that does resolve prints
+`wf <slug>` on the scan line, unmarked.
+
+A member PRD on a master board resolves against its own board's library first,
+then the master's — the order `needs:` resolves in.
+
 ```sh
 python3 @resources/workflows.py list  [board]        # slug · kind · runs · updated · subject
 python3 @resources/workflows.py show  <slug> [board] # the file

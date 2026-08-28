@@ -121,3 +121,11 @@ Write the tree in the board's own shape, per @references/parts/board.md: one
 directory per decision holding a `prd.md`, the decisions hanging off it as
 subdirectories with their own. The settled contract is the body. Set
 `state: open`.
+
+Attach a workflow while the tree is being written, not later. `python3
+@resources/workflows.py list` is the library; when a workflow's `## Use when`
+fits a branch, write `workflow: <slug>` on that child, so the worker that
+eventually takes it is handed the route with its brief. A branch nothing fits
+carries no key — the brief alone is the honest state, and writing a new
+workflow is `workflow add`, an act of the orchestrator's at `runs: 0`, never
+the drill's.
