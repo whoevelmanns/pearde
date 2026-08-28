@@ -21,6 +21,12 @@ catches all five ways it drifts, and `doctor` runs it:
                                           not exist
     an `@<path>` naming no file           a document addresses a file that is
                                           not there, wherever it wrote it
+
+A row whose anchor ends in `/` names a directory and covers every path beneath
+it — one row for a place the tools keep writing to, where the count of files
+is data rather than structure (`prds/memos/a-manifest-row-can-name-a-directory.md`).
+A directory row naming no directory on disk is still reported: the row is a
+claim about the tree, and an empty claim is the same defect the other way.
 """
 import os
 import re
@@ -58,8 +64,14 @@ def index_text():
 
 
 def files():
-    """Every anchor with a row in the manifest."""
+    """Every anchor with a row in the manifest. One ending in `/` is a
+    directory row."""
     return [a for a in ROW.findall(text(FILES)) if not a.startswith("@")]
+
+
+def covered(path, dir_rows):
+    """True when a directory row covers `path`."""
+    return any(path.startswith(d) for d in dir_rows)
 
 
 def keywords():
@@ -110,12 +122,17 @@ def check():
                 "manifest, one row per tracked file"]
     rows, scopes = files(), keywords()
     listed, disk = set(rows), set(tracked())
+    dir_rows = {a for a in listed if a.endswith("/")}
     manifest = os.path.relpath(FILES, ROOT)
 
     for path in sorted(disk - listed):
-        problems.append(f"{path} is on disk with no row in {manifest}")
-    for path in sorted(listed - disk):
+        if not covered(path, dir_rows):
+            problems.append(f"{path} is on disk with no row in {manifest}")
+    for path in sorted(listed - dir_rows - disk):
         problems.append(f"{manifest} lists @{path} — not on disk")
+    for path in sorted(dir_rows):
+        if not os.path.isdir(os.path.join(ROOT, path)):
+            problems.append(f"{manifest} lists @{path} — no such directory")
     for name in sorted(scopes):
         for anchor in scopes[name]:
             if not os.path.exists(os.path.join(ROOT, anchor)):

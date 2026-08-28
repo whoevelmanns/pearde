@@ -10,6 +10,9 @@
                                           real hours beside weight from it
     plan.py members [board]               what a master board merges
     plan.py status [board]                the board, its members, its memos
+    plan.py example <dir>                 copy the example board to <dir> —
+                                          an empty or new directory; never
+                                          run in place
 
 board = the prds/ directory, a directory holding one, or omitted to walk up
 from the cwd. The plan persists in prds/.plan.json. The view reads it.
@@ -1663,10 +1666,52 @@ def cmd_status(board):
     print(f"view: {serve_url(board)}")
 
 
+# ── the example board ─────────────────────────────────────────────────────────
+# resources/board/example/ — one small board with a row in every band. Every
+# check in this repo runs against a COPY of it: a check that ticks a box in
+# the example changes what every other check sees.
+EXAMPLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "example")
+
+
+def cmd_example(argv):
+    """`pearde example <dir>` — copy the example board to <dir>. Refuses an
+    existing non-empty directory; an empty or missing one is filled. Prints
+    the board path and the scan to run next. argv is everything after the
+    command name, the return is the exit code."""
+    if len(argv) != 1 or argv[0].startswith("--"):
+        print("usage: plan.py example <dir>", file=sys.stderr)
+        return 2
+    dest = os.path.abspath(argv[0])
+    if os.path.isdir(dest) and os.listdir(dest):
+        print(f"pearde: {dest} exists and is not empty — pick an empty or "
+              "new directory", file=sys.stderr)
+        return 2
+    if os.path.exists(dest) and not os.path.isdir(dest):
+        print(f"pearde: {dest} is a file, not a directory", file=sys.stderr)
+        return 2
+    try:
+        import shutil
+        shutil.copytree(EXAMPLE, dest, dirs_exist_ok=True)
+    except OSError as e:
+        print(f"pearde: could not copy the example to {dest} — {e}",
+              file=sys.stderr)
+        return 2
+    print(f"example: {os.path.join(dest, 'prds')}")
+    print(f"      python3 {os.path.abspath(__file__)} scan {dest}")
+    return 0
+
+
+# What the `pearde` dispatcher discovers: {name: callable(argv) -> exit code}.
+COMMANDS = {}
+COMMANDS["example"] = cmd_example
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     flags = [a for a in sys.argv[1:] if a.startswith("--")]
     cmd = args[0] if args else "status"
+    if cmd == "example":          # its argument is not a board yet
+        sys.exit(cmd_example(sys.argv[2:]))
     board = find_board(args[1] if len(args) > 1 else None)
     if cmd == "plan":
         workers = next((int(f.split("=")[1]) for f in flags
@@ -1692,7 +1737,7 @@ def main():
         cmd_scan(board)
     else:
         die(f"unknown command '{cmd}' — scan | plan | reconcile | gantt"
-            " | calibrate | members | status")
+            " | calibrate | members | status | example")
 
 
 if __name__ == "__main__":

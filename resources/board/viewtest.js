@@ -4,6 +4,8 @@
 //
 //   node viewtest.js <path-to-.view.html>
 //   node viewtest.js http://127.0.0.1:8443/board/<name>
+//   node viewtest.js --example            a fresh copy of the example board,
+//                                         rendered and opened as a file
 //
 // Give it the served URL as well as the file. They are different code paths —
 // the service injects its own head script and live loop — and a page that is
@@ -30,11 +32,32 @@ try {
 
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
+const { spawnSync } = require("child_process");
 
-const arg = process.argv[2];
+// --example: copy resources/board/example to a temp dir, plan and render it
+// there, and open that page. Never the directory itself — a check that ticks
+// a box in the example changes what every other check sees. The copy is
+// removed on exit; the snapshots it writes under --snap are keyed by the
+// board's own name, `example`.
+let arg = process.argv[2];
+let scratch = null;
+if (arg === "--example") {
+  scratch = fs.mkdtempSync(path.join(os.tmpdir(), "pearde-example-"));
+  fs.cpSync(path.join(__dirname, "example"), scratch, { recursive: true });
+  const r = spawnSync("python3", [path.join(__dirname, "plan.py"), "gantt", scratch],
+                      { encoding: "utf8" });
+  if (r.status !== 0) {
+    console.error("viewtest: could not render the example copy\n" + (r.stderr || r.stdout));
+    fs.rmSync(scratch, { recursive: true, force: true });
+    process.exit(2);
+  }
+  arg = path.join(scratch, "prds", ".view.html");
+  process.on("exit", () => fs.rmSync(scratch, { recursive: true, force: true }));
+}
 const served = /^https?:\/\//.test(arg || "");
 if (!arg || (!served && !fs.existsSync(arg))) {
-  console.error("viewtest: node viewtest.js <path-to-.view.html | url>");
+  console.error("viewtest: node viewtest.js <path-to-.view.html | url | --example>");
   process.exit(2);
 }
 const file = served ? arg : path.resolve(arg);
@@ -193,16 +216,19 @@ const file = served ? arg : path.resolve(arg);
       const dom = await page.evaluate(n => {
         const s = document.querySelector(`section[data-view="${n}"]`);
         const land = document.querySelector("#land");
-        // Lit stamps a random marker id per page load, and a claim renders
-        // "held 3m". Neither is a change to the markup.
+        // Lit stamps a random marker id per page load, the service prints
+        // "3s ago", and a claim written at a fixed time renders "holding 40m"
+        // that grows with the clock. None is a change to the markup.
         const clean = h => h
           .replace(/lit\$\d+\$/g, "lit$M$")
           .replace(/>[^<]*?\b\d+[smhd] ago\b[^<]*?</g, ">AGO<")
+          .replace(/holding \d+(?:\.\d+)?[mh]\b/g, "holding AGO")
           .replace(/\s+/g, " ").trim();
         const text = e => (e ? e.textContent : "").replace(/\s+/g, " ").trim();
         return {
           markup: clean((s ? s.innerHTML : "") + "||" + (land ? land.innerHTML : "")),
-          text: (text(s) + " || " + text(land)).replace(/\b\d+[smhd] ago\b/g, "AGO"),
+          text: (text(s) + " || " + text(land)).replace(/\b\d+[smhd] ago\b/g, "AGO")
+            .replace(/holding \d+(?:\.\d+)?[mh]\b/g, "holding AGO"),
         };
       }, v);
       const at = path.join(dir, `${tag}.${v}.html`);

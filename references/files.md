@@ -102,6 +102,7 @@ whose scope it changed. Nothing else points at it.
 | @resources/board/viewtest.js | the view's gate — a rendered page in a real browser |
 | @resources/board/lit-core.min.js | Lit 3, vendored — the page's component base |
 | @resources/board/edit.py | the writers — one line at a time |
+| @resources/board/example/ | the example board — eight PRDs, one per band; copied by `plan.py example`, never run in place |
 
 ## `skills/` — one file per skill
 
@@ -138,7 +139,7 @@ Nothing outside it links in past `@@scout`. Its docs ship with it.
 | @resources/scout/findings.md | index two — what won, on which axis, when |
 | @resources/scout/buckets.txt | the taxonomy — the knob |
 | @resources/scout/reading-list.md | the curated, mechanism-mapped list |
-| @resources/scout/snapshots/2026-08-25.tsv | one day's star counts |
+| @resources/scout/snapshots/ | the sweep's dated star counts, one row for the directory |
 | @resources/scout/templates/_typos.toml | typos gate config |
 | @resources/scout/templates/deny.toml | cargo-deny gate config |
 | @resources/scout/templates/dependabot.yml | dependency updates |
