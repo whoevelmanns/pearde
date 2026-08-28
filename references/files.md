@@ -29,6 +29,7 @@ whose scope it changed. Nothing else points at it.
 | @references/install.md | what the system is, and how to install it for any agent |
 | @references/settings.md | board knobs |
 | @references/memo.md | how a decision is recorded |
+| @references/workflow.md | how a job is done — the two file shapes, the steps grammar, the report section |
 | @references/report.md | the board written for a person |
 | @references/drill.md | how to ask |
 | @references/system.md | drop-in instructions block for `AGENTS.md` |
@@ -52,6 +53,7 @@ whose scope it changed. Nothing else points at it.
 | @references/parts/consult.md | putting one problem to one persona, mid-round |
 | @references/parts/commits.md | one PRD, one commit |
 | @references/parts/memos.md | what was decided, and what it beat |
+| @references/parts/workflows.md | the how, accumulated — the folder on one page |
 | @references/parts/progress.md | the line printed on every state change |
 | @references/parts/statusline.md | the same numbers, continuously, for a person |
 | @references/parts/handles.md | every command the board answers to |
@@ -76,6 +78,8 @@ whose scope it changed. Nothing else points at it.
 | @references/templates/prd.md | one PRD |
 | @references/templates/spec.md | one implementable unit |
 | @references/templates/memo.md | one decision record |
+| @references/templates/atomic.md | one unit of work |
+| @references/templates/workflow.md | one ordered route over atomics |
 | @references/templates/report.md | the one rolling state, for a person |
 
 ## `resources/` — run

@@ -53,6 +53,7 @@ explains the rest.
 | `@@derived` | work the board found, and its tripwire | @references/parts/derived.md · @references/parts/order.md · @references/templates/prd.md |
 | `@@commits` | one PRD, one commit, on the transition that lands it | @references/parts/commits.md · @references/parts/states.md |
 | `@@memos` | recording a decision and checking it | @skills/pearde-memo.md · @references/memo.md · @references/parts/memos.md · @references/templates/memo.md · @resources/memos.py |
+| `@@workflows` | how a kind of job is done, and improved on every run | @references/workflow.md · @references/parts/workflows.md · @references/templates/workflow.md · @references/templates/atomic.md |
 | `@@report` | the board written for a person, one rolling state | @skills/pearde-report.md · @references/report.md · @references/templates/report.md · @references/parts/handles.md · @references/parts/loop.md |
 | `@@drill` | asking until the request is a contract | @skills/pearde-drill.md · @references/drill.md · @references/templates/prd.md · @resources/questions.py · @references/parts/handles.md |
 | `@@handles` | every command the board answers to | @references/parts/handles.md · @references/parts/loop.md · @references/drill.md |

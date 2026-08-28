@@ -43,5 +43,7 @@ is a table or a list.
 |---------------|---------------------|---------------------|
 | PRD body      | an analyst, cold    | a contract          |
 | spec body     | an implementer      | a checklist         |
+| atomic        | a worker, mid-step  | a checklist         |
+| workflow      | a worker, cold      | a route             |
 | memo          | a reader months out | decision + argument |
 | worker report | the orchestrator    | verdict + evidence  |
