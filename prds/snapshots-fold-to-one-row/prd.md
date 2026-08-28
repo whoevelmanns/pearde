@@ -1,5 +1,5 @@
 ---
-state: open
+state: superseded
 origin: derived
 from: workflows-on-the-board
 priority: 40
@@ -12,6 +12,32 @@ footprint:
 ---
 
 # snapshots-fold-to-one-row — a manifest row may name a directory
+
+## Superseded 2026-08-28
+
+Landed by `the-board-runs-itself/an-example-board`, commit `646fd4f`, which
+wrote the directory rows into `references/files.md` — including
+`@resources/scout/snapshots/` — as part of its own map work. `index.py check`
+no longer names the snapshot.
+
+The contract here is satisfied, not abandoned. What this file keeps is the
+evidence: the fixture (`2026-08-25.tsv` had a row, `2026-08-28.tsv` did not,
+and every sweep adds another), and the reason the folder row beat both
+gitignoring the directory and enumerating each file — the star-delta is diffed
+against our own snapshots because the stargazers API is gone, so ignoring them
+throws away the only copy of the input. That argument lives in
+`prds/memos/a-manifest-row-can-name-a-directory.md`, which this PRD was written
+to build.
+
+## Deferred 2026-08-28
+
+Parked by the user when @references/parts/derived.md's tripwire fired: three
+derived PRDs live against three requested, which is the board working on
+itself. The deliverable — the `workflows-on-the-board` tree — finishes first,
+and the derived tree comes back as its own round with nothing half-built.
+
+Nothing here is withdrawn. The finding stands as measured; only its place in
+the queue moved.
 
 When this is done, `python3 resources/index.py check` is silent on a tree
 where a scout sweep has just written a new snapshot, and it went silent

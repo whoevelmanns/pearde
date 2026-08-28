@@ -61,7 +61,8 @@ This folder is where the how accumulates.
   on failure |`. `on failure` is `→ N` with N an earlier step, or `stop`. A
   back-edge is taken at most twice per run; the third failure at one step is
   a stop.
-- `runs` counts the times a file was followed. `updated` moves only when the
+- `runs` counts the runs a file was in — one collect, one count, never the
+  traversals inside one run. `updated` moves only when the
   text changed. No log section — git holds the history, the text holds the
   current lesson.
 - Written per @references/language.md, in the board language.

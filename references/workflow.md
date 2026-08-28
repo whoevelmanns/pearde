@@ -44,7 +44,7 @@ runs: 4
 | `subject` | yes      | one line: the unit of work                                |
 | `date`    | yes      | the day it was written. ISO 8601, written never stamped   |
 | `updated` | no       | the day the text last changed from a run                  |
-| `runs`    | no       | times followed. Integer ≥ 0, default 0                    |
+| `runs`    | no       | runs the file was in — one collect, one count. Integer ≥ 0, default 0 |
 
 Body — `@references/templates/atomic.md` is the shape:
 
@@ -144,8 +144,9 @@ atomic is a worker sent nowhere.
   `updated` moves. Git holds what it replaced.
 - **No agent, tool, hook or vendor name.** Commands and files.
 - **The board language**, per @references/language.md.
-- `runs` counts the times the file was followed. `updated` moves only when the
-  text changed.
+- `runs` counts the runs the file was in, not the traversals inside one — a
+  step a back-edge returns to counts once, and so does the atomic it landed
+  on. `updated` moves only when the text changed.
 
 ## Why the board, and the shapes rejected
 

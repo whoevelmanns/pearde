@@ -3,7 +3,7 @@ workflow: <slug>   # equals this filename without .md
 subject: <one line — the job this routes>
 date: <YYYY-MM-DD> # the day it was written. Written, never stamped
 # updated:         # the day the text last changed from a run
-# runs: 0          # times followed. Integer >= 0, default 0
+# runs: 0          # runs this file was in — one collect, one count. Integer >= 0
 ---
 <!-- The keys are a CLOSED set, and exactly one slug key: `workflow` here,
      `atomic` in @references/templates/atomic.md. An undeclared key is a typo
