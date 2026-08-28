@@ -1,6 +1,8 @@
 ---
-state: open
+state: done
 origin: requested
+actual: 11.0h
+commit: 00a1371
 priority: 60
 complexity: 0
 blast-radius:
