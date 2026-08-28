@@ -75,7 +75,7 @@ check "help: a claimed reserved name is no longer pending" '! grep -q "pearde co
 for c in scan plan reconcile gantt calibrate status members view memo workflow questions index doctor install hello; do
   check "$c --help exits 0" "$P $c --help >/dev/null 2>&1"
 done
-check "--help never runs the command (doctor --help prints one line per mode, no report)" '[ "$($P doctor --help | wc -l | tr -d " ")" = 2 ]'
+check "--help never runs the command (doctor --help prints one line per mode, no report)" '[ "$($P doctor --help | wc -l | tr -d " ")" = "$(grep -cE "^#   doctor\.sh " "$R/resources/doctor.sh")" ]'
 
 # ── the default and the board ─────────────────────────────────────────────────
 $P > "$D/a.txt" 2>&1; RA=$?
