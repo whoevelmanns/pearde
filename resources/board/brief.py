@@ -56,6 +56,7 @@ import plan as planlib              # noqa: E402 — every read
 import collect as collectlib        # noqa: E402 — `repo_of`, the one rule
 import transitions as trlib         # noqa: E402 — the gate, and `resolve`
 import workflows as wflib           # noqa: E402 — the route inlined
+import specs as specslib            # noqa: E402 — `limits`, the two numbers
 
 WORKERS = os.path.join(ROOT, "references", "parts", "workers.md")
 PERSONAS = os.path.join(ROOT, "references", "personas")
@@ -303,9 +304,12 @@ def brief_prd(args, out=print):
     pid = args.opt.get("as") or "engineer"
     persona = persona_line(pid)
     local = prd["local"]
+    lim = specslib.limits(prd["board_path"])
     values = {"<prd>": local, "<repo>": repo_of(prd, board),
               "<language>": language_of(prd),
-              "<probe>": f"prds/{local}/probe/"}
+              "<probe>": f"prds/{local}/probe/",
+              "<split_above>": str(lim["split-above"]),
+              "<specs_above>": str(lim["specs-above"])}
     slugs = slugs_of(prd, role)
     wf_lines, marks = [], []
     for s in slugs:

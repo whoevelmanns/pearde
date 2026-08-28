@@ -23,6 +23,11 @@ time:              # OPTIONAL. See @references/parts/order.md
        footprint: — paths this PRD touches. The overlap check
        workflow:  — the route a worker is handed, expanded into its brief
 
+     One sitting is the limit: specs summing `complexity` above `split-above`
+     or counting above `specs-above` (both in prds/settings.md, default 40 and
+     6) make the analyst's verdict REFINE, and `pearde refine` lands the split
+     under `## Children` here — the contract above it stays as written.
+
      A derived PRD states, in the body, which requested PRD it would otherwise
      get wrong. If it cannot, it is filed `state: deferred` — and if fixing it
      would change only how loudly the board notices, it is a memo, not a PRD.

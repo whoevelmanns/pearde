@@ -33,10 +33,10 @@ run big/second >"$D/out"; OUT=$(cat "$D/out")
 eq "big/second exits 0" "$RC" 0
 eq "header line" "$(sed -n 1p "$D/out")" "# brief big/second · analyst · as engineer · wf none · repo $D/ex"
 eq "persona line third" "$(sed -n 3p "$D/out")" "Work as @references/personas/engineer.md."
-# the role section equals the analyst block of workers.md, unquoted, four placeholders filled
+# the role section equals the analyst block of workers.md, unquoted, six placeholders filled
 awk '/^<!-- brief:analyst -->$/{on=1;next} /^<!-- \/brief -->$/{if(on)exit} on' "$WRK" \
   | sed -e 's/^> \{0,1\}//' \
-        -e 's#<prd>#big/second#g' -e "s#<repo>#$D/ex#g" -e 's#<language>#English#g' -e 's#<probe>#prds/big/second/probe/#g' \
+        -e 's#<prd>#big/second#g' -e "s#<repo>#$D/ex#g" -e 's#<language>#English#g' -e 's#<probe>#prds/big/second/probe/#g' -e 's#<split_above>#40#g' -e 's#<specs_above>#6#g' \
   > "$D/want"
 N=$(wc -l < "$D/want" | tr -d ' ')
 sed -n "5,$((4+N))p" "$D/out" > "$D/got"

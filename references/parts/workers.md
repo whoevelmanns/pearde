@@ -56,6 +56,8 @@ is the `doctor` row `briefs`.
 | `<language>` | `language` in the PRD's own board's `settings.md` |
 | `<probe>` | `prds/<prd>/probe/` — where probe code lives |
 | `<board>` | the board whose library holds the slug, for `workflows.py brief` |
+| `<split_above>` | `split-above` in the PRD's own board's `settings.md`, default 40 — @references/settings.md |
+| `<specs_above>` | `specs-above` there, default 6 |
 | `<slug>` | the `workflow:` the block is printed for — in the analyst block it is the worker's to write |
 | `<id>` | `--as`, default `engineer`; `--consult <id>` |
 | `<transcript_path>` | `--transcript` |
@@ -160,6 +162,12 @@ decides the state, and a `stopped` row does not.
 >   build was doing when it hit each. Report the questions. Write the
 >   `## Questions` heading only with the round under it — an empty one stops
 >   the board on nothing, and `@resources/questions.py` reports it.
+>
+> A build whose specs would sum `complexity` above `<split_above>` or count
+> above `<specs_above>` returns REFINE with a `## Split` table, never
+> SPECCED — the two numbers are the board's `settings.md`, and `pearde
+> specced` refuses a set over either. A child over a limit is REFINEd in its
+> turn.
 >
 > Spec what this PRD asks for. A wrong claim you find elsewhere, or a check
 > that could not fail, goes in your report as a finding — not into a spec, and

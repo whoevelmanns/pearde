@@ -1,9 +1,11 @@
 ---
-state: open
+state: done
 origin: requested
+actual: 0.8h
+commit: ae1c69c
 priority: 62
-complexity: 0
-blast-radius:
+complexity: 18
+blast-radius: mid
 repo: pearde
 workflow: probe-then-spec
 needs:
@@ -12,6 +14,8 @@ needs:
 footprint:
   - resources/board/specs.py
   - resources/board/brief.py
+  - resources/board/transitions.py
+  - prds/the-board-runs-itself/brief-is-printed/probe/verify.sh
   - references/settings.md
   - references/parts/workers.md
   - references/templates/prd.md

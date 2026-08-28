@@ -330,6 +330,12 @@ def progress_line(board, rel, frm, to, persona, forced=False, source=None):
 
 # ── the commands ──────────────────────────────────────────────────────────────
 
+# A body this long, or holding a second "When this is done", is more than
+# one sitting — `add` says so on its first line and creates the PRD anyway;
+# the split is the analyst's, through `pearde refine`.
+BIG_LINES = 60
+
+
 def add(board, title, persona, priority=0, body="", parent=None, out=print):
     """A directory and `prd.md` from the template, `open`, `origin:
     requested`. The gate: the slug is free. Returns the new rel. The view's
@@ -349,6 +355,9 @@ def add(board, title, persona, priority=0, body="", parent=None, out=print):
         raise Refused(f"add: the slug `{slug}` is taken — "
                       f"{os.path.relpath(d, board)} exists")
     text = from_template(title, int(priority or 0), body or "")
+    if len(body.strip().splitlines()) > BIG_LINES or \
+            body.lower().count("when this is done") > 1:
+        out("big — expect a split")     # a warning; it gates nothing
     os.makedirs(d)
     editlib.write_atomic(os.path.join(d, "prd.md"), text)
     rel = os.path.relpath(d, board)

@@ -4,7 +4,9 @@
     specs.py specced <prd> [--blast high|mid|low] [--workflow <slug>|none] [--check]
     specs.py refine  <prd> < report
 
-`specced` reads every `specs/*.md`, refuses naming file and line, else writes
+`specced` reads every `specs/*.md`, refuses naming file and line, refuses a
+set over `split-above` or `specs-above` (`over split-above: 58 > 40 — REFINE
+it`; the two keys of `settings.md`, the PRD's own board's), else writes
 `complexity:` as the sum, `blast-radius:` and `workflow:` from the flags,
 clears `claim:`, sets `specced` and prints the progress line. `--check` runs
 the gate and writes nothing. `refine` reads the `## Split` table off stdin,
@@ -50,6 +52,9 @@ NONE_NEEDS = {"", "-", "—", "–", "none"}
 SPECCED_FROM = ("analyzing",)
 REFINE_FROM = ("refine", "analyzing", "open", "question")
 CHILD_HEADER = "| child | contract | needs |\n|---|---|---|"
+# The two size limits of @references/settings.md: over either, a spec set is
+# REFINE and `specced` refuses it. The brief prints the same two numbers.
+LIMITS = (("split-above", 40), ("specs-above", 6))
 
 
 # ── reading a spec ────────────────────────────────────────────────────────────
@@ -174,7 +179,8 @@ def check_spec(path, fm, text, lib, own_feet):
 
 
 def read_specs(prd, lib):
-    """(sum, refusals, warnings, footprints) over every specs/*.md."""
+    """(sum, count, refusals, warnings, footprints) over every
+    specs/*.md."""
     sdir = os.path.join(prd["dir"], "specs")
     files = (sorted(f for f in os.listdir(sdir) if f.endswith(".md"))
              if os.path.isdir(sdir) else [])
@@ -195,7 +201,23 @@ def read_specs(prd, lib):
         feet += fp
         if not b:
             total += int(str(fm.get("complexity")))
-    return total, bad, warn, feet
+    return total, len(files), bad, warn, feet
+
+
+def limits(board_path):
+    """{key: int} for `split-above` and `specs-above` from one board's
+    `settings.md` — the PRD's own, so a master reads each member's. A key
+    missing or not an integer reads at its default."""
+    fm = plan.board_settings(board_path)
+    out = {}
+    for k, d in LIMITS:
+        v = fm.get(k)
+        try:
+            out[k] = int(str(v).strip()) if v not in (None, "") \
+                and not isinstance(v, list) else d
+        except ValueError:
+            out[k] = d
+    return out
 
 
 def library(board, prd):
@@ -229,11 +251,17 @@ def specced(board, args, persona):
             lib.get(workflow, {}).get("kind") != "workflow":
         raise Refused(f"--workflow `{workflow}` names no workflow in the "
                       "library")
-    total, bad, warn, feet = read_specs(prd, lib)
+    total, count, bad, warn, feet = read_specs(prd, lib)
     for w in warn:
         print(f"warn: {w}", file=sys.stderr)
     if bad:
         raise Refused("\n".join(bad))
+    lim = limits(prd["board_path"])
+    over = [f"over {k}: {n} > {lim[k]} — REFINE it"
+            for k, n in (("split-above", total), ("specs-above", count))
+            if n > lim[k]]
+    if over:
+        raise Refused("\n".join(over))
     if check:
         print(f"{rel}: ok · complexity {total} · footprint "
               + ", ".join(sorted(set(feet))))
