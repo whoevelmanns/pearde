@@ -69,6 +69,11 @@ round file rewritten says so. A refusal names the call that answers instead.
   finished — collect it per step 6, and only then is anything left over a
   leftover. `analyzing` with spec files on disk is an analyst that finished:
   the transition is `specced` with the specs' `complexity` summed, not `open`.
+- **A swept worker's `## Workflow` rows are read with its report**, before the
+  sweep moves the state. The run happened whatever the verdict did, so its
+  `runs` still count and its `### Edits` are still the atomic's — a route that
+  only improves when the PRD lands is a route that never improves on the runs
+  that had the most to say. Left no report, nothing was run: sweep it.
 
 A worker its infrastructure killed — API error, lost network, full disk — is
 not a failed attempt:
@@ -156,13 +161,42 @@ present), write the transition, commit per @references/parts/commits.md, clear
 `claim:`, print the progress line, rewrite `prds/.round.md`, post the report
 with `POST /report` per @references/parts/view.md, return to step 2.
 
-**A collect is a checklist, not an analysis.** Those are six mechanical
+**A collect is a checklist, not an analysis.** Those are seven mechanical
 actions on a result you already have — issue them as one batch, in one turn.
 The worker's report is the evidence; the scan's `boxes c/t` is the count. If
 something in the result genuinely needs deciding — a red check that may be
 yours, a defect outside the worker's scope — it gets one short paragraph and a
 decision, and the decision goes in the round file. It never becomes a
 re-derivation of the round.
+
+**A report carrying `## Workflow <slug>` followed a route, and the run is what
+improves it** — @references/parts/workflows.md. Five more actions, in the same
+batch as the ones above:
+
+1. **Read the rows.** The PRD's transition is the verdict's, exactly as it is
+   without a workflow — a `stopped` row changes nothing about it. Whether that
+   stop was the atomic's fault is rule 2's question, answered per edit.
+2. **Apply an edit when the failure was the atomic's** — a wrong command, a
+   stale path, a check that cannot fail, a failure shape `## Fails when` does
+   not list. **Refuse it when the failure was the code's or the PRD's**, and
+   say which in the round. The worker wrote the replacement text: paste it or
+   refuse it, never rewrite it. **That binds the replacement text, not the
+   file it lands in** — splitting an atomic that grew a second job, and moving
+   a step whose place the run disproved, are the orchestrator's edits per
+   @references/parts/workflows.md, and neither rewrites a word the worker
+   wrote.
+3. **`runs` +1** on the workflow and on every atomic that ran, and `updated:
+   <today>` on every file whose text changed. Nothing counts this for you, and
+   an uncounted run is a file that reads as never followed.
+4. **`python3 @resources/workflows.py check` before the commit.** An edit that
+   breaks the format is refused, not repaired — repairing it makes the
+   orchestrator the author of a line no run produced.
+5. **The changed files ride the PRD's commit**, named in the message per
+   @references/parts/commits.md. The PRD's own `footprint:` does not change:
+   the library is the board's, not the PRD's.
+
+**One writer: the orchestrator.** Two workers proposing edits to one atomic in
+one round is two collects, and the second reads the file as the first left it.
 
 **Collect on the transition, never at the end of the round.** A PRD whose work
 is done and whose state still says `claimed` blocks every PRD that `needs:` it

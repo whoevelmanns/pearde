@@ -66,6 +66,16 @@ verbatim, placeholders filled — nothing else about the brief changes:
 - A member's worker resolves the slug against its own board's library first,
   then the master's — the order `needs:` resolves in.
 
+**On return, either brief.** `## Workflow <slug>` present in the report is a
+route that was run, and the run is what improves it. The five actions are
+@references/parts/loop.md step 6, in the same batch as the collect: read the
+rows, apply the edits whose failure was the atomic's and refuse the rest saying
+which, `runs` +1 on the workflow and every atomic that ran with `updated:
+<today>` where the text changed, `python3 @resources/workflows.py check` before
+the commit, and the changed files on the PRD's commit. Absent, there is nothing
+to collect and the PRD's transition is unchanged either way — the verdict
+decides the state, and a `stopped` row does not.
+
 **Analyst** — one per `open` PRD being probed:
 
 > Read `prds/<prd>/prd.md`, including `## Answers`. Then **build it** — never
@@ -136,6 +146,7 @@ On return:
 | DONE, every box ticked, verify output shown                                      | `done`                                 |
 | DONE, open boxes waiting on something named, everything the worker owns proven   | `blocked` + `needs:`                   |
 | anything less                                                                    | `failed`, or answer a BLOCKED worker and let it finish |
+| any of the three, plus `## Workflow <slug>`                                      | the row's state, and the five actions above |
 
 Two unclosable boxes to catch when the specs land:
 

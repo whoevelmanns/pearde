@@ -29,6 +29,9 @@ file wrong the moment a worker moves.
 ## Asked
 - <question put to the user> · <answered | out>
 
+## Edits
+- <slug> `## <section>` — applied | refused · <whose fault the failure was>
+
 ## Owed
 - <the next action, as an action>
 ```
@@ -41,6 +44,13 @@ file wrong the moment a worker moves.
   scratch it is drafted in.
 - **Asked** is the live frontier: what went to the user and whether it came
   back. A question in here is never re-asked.
+- **Edits** is every workflow edit this round applied or refused, per
+  @references/parts/loop.md step 6 rule 2. A refusal is the half that has to be
+  written down: the file is unchanged, so nothing on disk records that the run
+  proposed it or why it was turned down, and the next round would either
+  re-refuse it from scratch or take it. Empty when no worker returned a
+  `## Workflow` section — the section is then omitted, not left with a
+  placeholder under it.
 - **Owed** is one line, in the imperative, and it is the first thing the next
   turn does.
 

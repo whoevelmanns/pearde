@@ -10,9 +10,31 @@ needs:
   - workflow-reader
 footprint:
   - prds/workflows
+  - references/workflow.md
+  - references/templates/atomic.md
+  - references/templates/workflow.md
 ---
 
 # workflow-seed — the first library, written from this repo's own recurring jobs
+
+## Carried here — `runs` means one collect, one count
+
+`workflow-improve` closed an ambiguity that this PRD is the first to meet.
+`runs` is described as *"times followed"*, which a back-edge makes two answers:
+the improve loop's rule counts **one per collect**, but a step re-entered by
+`on failure → N` was literally followed twice. `reproduced` by that PRD's
+probe, check `a back-edge does not double-count step 1`.
+
+@references/parts/workflows.md now says one collect, one count. The loose
+phrase survives at **four sites across three files**, and this PRD's footprint
+has been widened to hold all three: `references/workflow.md:47` and `:147`,
+`references/templates/atomic.md:6`, `references/templates/workflow.md:6`.
+Correct all four sites to the settled reading.
+
+It is carried here rather than fixed there because an author reading a template
+and an orchestrator reading `parts/workflows.md` would otherwise write
+different numbers into the same field — and this is the PRD that writes the
+first library from those templates.
 
 When this is done, `prds/workflows/` holds enough that the next PRD on this
 board is dispatched with a `workflow:` on it, and the improve loop has

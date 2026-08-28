@@ -19,15 +19,21 @@ Board state written between transitions — answers, a refine split, a memo —
 rides the next commit.
 
 **Scope: the footprint, never the tree.** Add the union of the specs'
-`footprint:` and the PRD's own, plus the PRD's folder. Never `git add -A`,
-never `git commit -a` — step 5 already proved no other `claimed` PRD writes
-that footprint.
+`footprint:` and the PRD's own, plus the PRD's folder, plus any workflow file
+the collect edited. Never `git add -A`, never `git commit -a` — step 5 already
+proved no other `claimed` PRD writes that footprint.
 
 - **The inherited tree is not the board's.** Step 1 records what is dirty
   before the round starts. Those paths are never added, whatever footprint
   they fall in. Name them once in the round.
 - **A path the worker wrote outside its footprint is a wrong footprint.**
   Commit it with the rest and say so.
+- **A workflow file a collect edited is added with the rest, and named in the
+  message.** It is the one path in the commit that no `footprint:` declares:
+  the library is the board's, not the PRD's, so the PRD's footprint does not
+  grow to hold it — @references/parts/workflows.md. Name each edited file on
+  its own line under the spec lines, `workflow: <slug> — <what the run
+  taught>`, so the commit says which run paid for the change.
 
 **Gate first.** Commit only what the `done` gate passed: verify output in the
 report, every box `[x]`, spot-checks run. A red tree is a `failed` PRD, and a
@@ -41,6 +47,7 @@ the folder:
 
 <specNN>: <goal>
 <specNN>: <goal>
+workflow: <slug> — <what the run taught>
 
 prd: prds/<path>
 ```
@@ -50,7 +57,9 @@ Write the sha to `commit:` on the PRD, beside `actual:` — the only link from a
 
 **One commit per repo the PRD wrote.** A PRD with `repo:` elsewhere writes
 code there and its record on the board: commit each where it lives, same
-subject. On a master board that is the member's repo.
+subject. On a master board that is the member's repo. A library that
+`workflows:` points into another repo is that same rule: its edits commit
+there, same subject, and never ride a commit in the repo the PRD wrote.
 
 **Never push.** The commit is the board's, the push is the user's. Report what
 is ahead and stop.

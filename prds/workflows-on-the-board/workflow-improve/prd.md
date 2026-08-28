@@ -1,9 +1,10 @@
 ---
-state: open
+state: done
 origin: requested
+actual: 0.7h
 priority: 50
-complexity: 0
-blast-radius:
+complexity: 22
+blast-radius: mid
 repo: pearde
 needs:
   - workflow-attach
@@ -25,7 +26,7 @@ The library improves because it is used, not because someone maintains it.
 ## The collect, extended — loop step 6
 
 On a worker whose report carries `## Workflow <slug>`, in the same batch as
-the six actions step 6 already lists:
+the actions step 6 already lists:
 
 1. Read the rows. The PRD's transition is the verdict's, as today — a
    `stopped` row changes nothing about it. Whether the stop was the
