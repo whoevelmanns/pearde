@@ -3,7 +3,7 @@ atomic: edit-inside-the-footprint
 subject: confine the change to the paths the contract names
 date: 2026-08-28
 updated: 2026-08-28
-runs: 1
+runs: 11
 ---
 
 # edit-inside-the-footprint — the change, and nothing beside it
@@ -34,3 +34,4 @@ runs: 1
 
 | seen | means | do |
 |------|-------|----|
+| a hunk you wrote in a shared file is gone from `git diff` | a sibling staged the whole file and committed your lines with theirs | `git show HEAD:<path>` to confirm they landed, name that commit in the report, and stage nothing twice |

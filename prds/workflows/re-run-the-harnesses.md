@@ -2,7 +2,8 @@
 atomic: re-run-the-harnesses
 subject: re-run the recorded harnesses and account for every changed count
 date: 2026-08-28
-runs: 1
+updated: 2026-08-28
+runs: 21
 ---
 
 # re-run-the-harnesses — every number back, or explained
@@ -31,3 +32,9 @@ runs: 1
 
 | seen | means | do |
 |------|-------|----|
+| a count moved on a harness whose inputs you did not touch | the harness's own text changed between the two runs | quote both counts, say the text moved and whose it is; it is not yours to explain |
+| a count moved on a path you never wrote | another live session landed files under `resources/` mid-run | name the paths and say they are not yours; the baseline stands for your own paths |
+| a count dropped on a harness whose failing line is a repo-root `git status` or `git diff` | the check measures the workspace, not this PRD's footprint; a parallel worker's untracked file reddens it | quote the line, list the untracked files it saw and whose they are, leave the harness alone — the rule did not move |
+| `index.py check` or `doctor` prints a line naming a file you did not touch | another session moved the tree under you | `git diff <file>` proves whose it is; report it with the path, do not fix it |
+| a committed harness outside your footprint goes red on a count the contract itself moves | the matcher is honest and the file is not yours | leave it red, quote it beside its baseline, and put the file in the spec's `footprint:` with the one-line matcher change as that spec's work |
+| a count dropped, and every failing line names a file outside your footprint that `git status` shows a live sibling modified after your baseline | the neighbour moved, not your unit | quote the failing lines, the file, and its mtime against your baseline time; report it as a finding and do not back-edge — there is nothing in your footprint that closes it |

@@ -3,7 +3,7 @@ atomic: run-the-scoped-verify
 subject: run the unit's own verify command and quote what it printed
 date: 2026-08-28
 updated: 2026-08-28
-runs: 1
+runs: 11
 ---
 
 # run-the-scoped-verify — the unit measured, not the tree
@@ -33,5 +33,13 @@ runs: 1
 
 | seen | means | do |
 |------|-------|----|
+| a `git status --porcelain <dir>` line in the block prints `?? <dir>/` on a tree you did not write into | the directory itself is untracked, so porcelain reports the whole dir rather than your edits | quote it beside `find <dir> -newer <your newest file> \| wc -l` (0 = untouched), report the spec's line as a finding, and do not tick on the porcelain line alone |
+| a check asserts a checker is silent over the whole fixture board, and the fixture holds a case the checker refuses on purpose | the check measures the fixture's worst neighbour, not the unit | filter the checker's output to the unit's own lines, and quote the refused neighbour's line as the proof it still refuses |
+| a line in the block writes state or commits on the board it is run from | the spec measures a transition on the live board | run that line on a copy — `python3 resources/board/plan.py example <tmpdir>` — quote it, and report the spec's line as a finding |
+| a `grep -c` line in the block exits 1 while printing `0` | zero matches is the result the box wants, and grep's exit says "nothing found" | quote the count and the exit together; the box is closed on the count |
+| the block prints a small integer under a label that reads as a count | the line echoes `${PIPESTATUS[n]}` — an exit status; grep's is 1 on zero matches | quote the command's own output beside the number and read the number as an exit status; report the spec's line as a finding |
+| the block writes a settings key with `>>` and the reader never sees it | `settings.md` is a frontmatter fence plus a body, and `board_settings` reads only the fence — an appended line is body text | insert the key inside the fence, quote both results, and report the spec's fixture line as a finding |
+| a `--check <snapshot before this PRD>` box, and no snapshot was handed over | a snapshot built from `HEAD` predates every uncommitted hunk in the tree, not only this PRD's | take it from `git archive HEAD resources`, name the first differing token per view, and report the box as unclosable on a shared tree rather than ticking it |
+| a spec's acceptance box asserts a count for a harness that reads no path in the spec's `footprint:` | the box gates on the tree's worst neighbour | run it, quote it, and leave the box open with the reason when the neighbour is red — the unit's own verdict comes from the footprint-scoped lines |
 | the block prints its failure word on a tree you know is clean | a `cmd && echo BAD \|\| echo OK` line whose `cmd` exits 0 on zero matches — `find` does, `grep` does not | measure it as `[ -z "$(cmd)" ]`, quote both results, and report the spec's line as a finding |
 | the block's last command exits 0 but an earlier one did not | the block is many commands and only the last one sets `$?` | run and quote them one at a time |

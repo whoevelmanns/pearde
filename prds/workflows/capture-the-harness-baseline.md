@@ -3,21 +3,30 @@ atomic: capture-the-harness-baseline
 subject: record what every committed harness prints before the tree is touched
 date: 2026-08-28
 updated: 2026-08-28
-runs: 1
+runs: 21
 ---
 
 # capture-the-harness-baseline — the numbers as they were before you
 
 ## Do
 
-1. `find prds -name verify.sh` — every committed harness on this board, at
+1. `find prds -name verify.sh | sort` — every committed harness on this board, at
    whatever depth it sits. A fixed glob list aborts on the first depth that
    has no match, and under a shell with `nomatch` it prints nothing at all.
-2. Run each one that reads a path in your `footprint:`, and each one whose
-   PRD is named in `needs:`. Record the exact count it prints, verbatim.
+2. Run each one that reads a path in your `footprint:` — grep each harness
+   for the footprint paths spelled from the repo root (`references/settings.md`,
+   not `settings.md`: a bare board filename matches every fixture that writes
+   one) — each one whose PRD is named in `needs:`, and each one that runs
+   `git status` or `git diff` at the repo root, because that reads every
+   footprint. Record the exact count it prints, verbatim, and `git status
+   --short` beside it: the untracked files a root-level check sees are the
+   only way to tell your drop from a neighbour's later. Save each harness's
+   whole output to a scratch file, not only its count — when a count moves you
+   need the FAIL line, and the machine may sleep before you can re-run it.
 3. Record `python3 resources/index.py check` and `bash resources/doctor.sh`
-   the same way — the lines they print now are the lines you are allowed to
-   still see at the end.
+   the same way — the lines they print now, plus any line the contract itself
+   adds (a new doctor row, a new file the map will name), are the lines you are
+   allowed to still see at the end; name each added one in the report.
 4. A harness that is already failing is recorded as failing before your first
    edit. It is a finding, not yours to fix.
 
@@ -33,5 +42,6 @@ runs: 1
 
 | seen | means | do |
 |------|-------|----|
+| `index.py check` or `doctor` prints lines at step 4 that were not there at step 2 and name files outside your footprint | parallel workers moved the baseline under you | count as yours only the lines naming your footprint; quote the rest beside the baseline as inherited |
 | `no matches found` or `No such file or directory` from the listing | a glob names a depth this board has no harness at | list with `find prds -name verify.sh` — it prints what exists and exits 0 |
 | the listing is empty on a board that has harnesses | the shell aborted the whole command on the first empty glob | same |

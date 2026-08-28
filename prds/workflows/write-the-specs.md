@@ -3,7 +3,7 @@ atomic: write-the-specs
 subject: turn what the build stands up into implementable units
 date: 2026-08-28
 updated: 2026-08-28
-runs: 0
+runs: 10
 ---
 
 # write-the-specs — units another worker can finish
@@ -19,7 +19,7 @@ runs: 0
    spelling inside backticks in any prose about it — the matcher is
    line-based and fence-blind, so a pasted open box becomes a real one.
 4. Give each spec a `## Verify and Proof` block whose every command names a
-   path from that spec's own `footprint:`. Never the whole workspace. There is
+   path from that spec's own `footprint:` — a check that reads a footprint file through a script outside it (`index.py check` on `index.md`) counts as naming it. Never the whole workspace. There is
    no `verify:` frontmatter key — the template's keys are a closed set.
 5. Say in each spec what already stands from the build and what is left.
 6. `grep -c '^- \[ \]' prds/<prd>/specs/*.md` — every spec has at least one

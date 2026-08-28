@@ -2,7 +2,8 @@
 atomic: attempt-the-build
 subject: build the contract until it works or hits something undefined
 date: 2026-08-28
-runs: 0
+updated: 2026-08-28
+runs: 10
 ---
 
 # attempt-the-build — the attempt is the analysis
@@ -12,7 +13,7 @@ runs: 0
 1. Build the thing the contract asks for. Whatever the build passes through
    needs no question; whatever it hits is the finding.
 2. Keep the code under `prds/<prd>/probe/` — never at the repo root, where it
-   would redden the map check for every later PRD.
+   would redden the map check for every later PRD — so a file the PRD's footprint places under `resources/` is built under `probe/` and moved by its spec for every later PRD.
 3. Build every fixture in a directory made at run time — `D=$(mktemp -d)`,
    removed at exit. A fixture `prd.md` left anywhere under `prds/` becomes a
    real PRD the scan picks up.
@@ -33,3 +34,8 @@ runs: 0
 
 | seen | means | do |
 |------|-------|----|
+| a patch's anchor text no longer matches a file you read in step 1 | another session moved the file since | re-read it, merge into its current shape, keep your hunk disjoint from theirs, and name the collision in the report |
+| the fixture's own git repo shows `?? err` or another scratch file after a refusal | the harness wrote its scratch inside the fixture, so "the diff is empty" cannot pass | keep scratch in a second `mktemp -d` outside the fixture repo |
+| `verify.sh` prints a heading and hangs | a line in the harness reads stdin — a bare `cat` or `read` with no file | run it with `</dev/null`, then fix the line |
+| a rule reading mtimes fires on a fresh copy of the example | `plan.py example` copies stat too, so the copy carries the example's own timestamps | `find <copy> -type f -exec touch {} +` before the byte-identity check; set them back only in the fixture that tests age |
+| a page driver reads a Lit element right after `pearde.apply` and sees the old render | Lit renders on a microtask | `await el.updateComplete` before reading the DOM; and run any `pearde.replace` test last, since it removes the page's own element |
