@@ -14,7 +14,9 @@ is — the seven steps of @references/parts/loop.md step 6, in order:
   3  the paths: specs' footprints ∪ the PRD's ∪ the PRD dir ∪ `--also`
      — a dirty path outside it is inherited: listed, never added
      — a dirty path inside it that the claim predates: exit 1, `--widen`
-     — a file holding both: only the hunks the claim does not predate
+     — a file holding both: only the hunks the claim does not predate,
+       staged as the working file with the inherited hunks reversed,
+       and the staged blob checked for parse and placement before 4
   4  one commit per repo, message per @references/parts/commits.md
   5  `commit:` `actual:` written, `claim:` cleared, `done`
   6  `POST /report` to the daemon when it is up
@@ -40,8 +42,10 @@ import datetime
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 
@@ -275,6 +279,150 @@ def hunk_body(h):
     return h.split("\n", 1)[1] if "\n" in h else ""
 
 
+HUNK_HEAD = re.compile(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+PARSERS = {".py": ["python3", "-m", "py_compile"],
+           ".js": ["node", "--check"], ".mjs": ["node", "--check"],
+           ".cjs": ["node", "--check"]}
+
+
+def parse_hunk(h):
+    """{"old": (start, len), "new": (start, len), "minus": [line], "plus":
+    [line]} from one `-U0` hunk. Every line keeps its newline except one the
+    file has none on (`\\ No newline at end of file`). A context line, should
+    one appear, is on both sides."""
+    head, _, body = h.partition("\n")
+    m = HUNK_HEAD.match(head)
+    if not m:
+        raise Stop(f"unreadable hunk header: {head!r}")
+    old = (int(m.group(1)), 1 if m.group(2) is None else int(m.group(2)))
+    new = (int(m.group(3)), 1 if m.group(4) is None else int(m.group(4)))
+    minus, plus, last = [], [], []
+    for line in body.split("\n"):
+        if not line:
+            continue
+        kind, text = line[0], line[1:] + "\n"
+        if kind == "\\":
+            for side in last:
+                side[-1] = side[-1][:-1]
+            continue
+        last = {"-": [minus], "+": [plus], " ": [minus, plus]}.get(kind)
+        if last is None:
+            raise Stop(f"unreadable hunk line: {line!r}")
+        for side in last:
+            side.append(text)
+    if len(minus) != old[1] or len(plus) != new[1]:
+        raise Stop(f"hunk {head!r} says {old[1]}/{new[1]} lines and "
+                   f"carries {len(minus)}/{len(plus)}")
+    return {"old": old, "new": new, "minus": minus, "plus": plus}
+
+
+def reverse_hunks(text, hunks):
+    """`text` — the working file — with every hunk in `hunks` undone, from
+    the bottom up so the line numbers above each stay true. The hunks' new
+    side is `text`'s own coordinates: a `+N,0` hunk puts its `-` lines back
+    after line N; any other hunk holds `text`'s lines N..N+len-1 as its `+`
+    lines, checked before they are replaced by its `-` lines. Nothing here
+    re-derives a position from a patch's old side."""
+    lines = text.splitlines(keepends=True)
+    parsed = sorted((parse_hunk(h) for h in hunks),
+                    key=lambda p: p["new"][0], reverse=True)
+    for a, b in zip(parsed, parsed[1:]):
+        if a["new"][0] == b["new"][0]:
+            raise Stop(f"two hunks start at line {a['new'][0]} of the "
+                       f"working file — the diff is not one this reader "
+                       f"understands")
+    for p in parsed:
+        start, n = p["new"]
+        at = start if n == 0 else start - 1
+        have = lines[at:at + n]
+        if have != p["plus"]:
+            raise Stop(f"line {start} of the working file is not what its "
+                       f"hunk says: {have!r} against {p['plus']!r}")
+        lines[at:at + n] = p["minus"]
+    return "".join(lines)
+
+
+def misplaced(staged, kept, foreign, working_len):
+    """Where the staged blob disagrees with the working file: one line per
+    kept hunk whose `+` lines are not at the working position minus the
+    lines the foreign hunks above it hold, and one when the blob's length
+    is not the working file's minus the foreign hunks'. [] is placement
+    proven; an exit code of `git apply` never is."""
+    lines = staged.splitlines(keepends=True)
+    fs = [parse_hunk(h) for h in foreign]
+    out = []
+    want = working_len - sum(f["new"][1] - f["old"][1] for f in fs)
+    if len(lines) != want:
+        out.append(f"the staged blob holds {len(lines)} lines, the working "
+                   f"file minus the inherited hunks holds {want}")
+    for k in (parse_hunk(h) for h in kept):
+        start, n = k["new"]
+        shift = sum(f["new"][1] - f["old"][1] for f in fs
+                    if f["new"][0] < start)
+        at = start - shift
+        if n == 0:
+            if lines[at:at + k["old"][1]] == k["minus"]:
+                out.append(f"hunk @@ +{start},0: its removed lines still "
+                           f"sit after line {at} of the staged blob")
+            continue
+        have = lines[at - 1:at - 1 + n]
+        if have != k["plus"]:
+            where = [i + 1 for i in range(len(lines))
+                     if lines[i:i + n] == k["plus"]]
+            out.append(f"hunk @@ +{start},{n}: expected at line {at} of "
+                       f"the staged blob, found at "
+                       f"{', '.join(map(str, where)) or 'no line'}")
+    return out
+
+
+def parse_error(path, text):
+    """What the parser for `path`'s suffix says of `text`, "" when it
+    parses or no parser is on this machine."""
+    cmd = PARSERS.get(os.path.splitext(path)[1])
+    if not cmd or not shutil.which(cmd[0]):
+        return ""                  # no parser here — nothing to say
+    d = os.path.realpath(tempfile.mkdtemp())   # a parser prints the real path
+    try:
+        tmp = os.path.join(d, os.path.basename(path))
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+        code, output = run(cmd + [tmp], d)
+        return output.replace(tmp, path).strip() if code else ""
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def stage_by_hunk(root, path, foreign):
+    """Stage `path` as the working file with the inherited hunks reversed:
+    hash the rebuilt text, point the index at it. Returns the text staged."""
+    with open(os.path.join(root, path), encoding="utf-8") as f:
+        work = f.read()
+    blob = reverse_hunks(work, foreign)
+    sha = git_out(root, "hash-object", "-w", "--stdin", "--path", path,
+                  input=blob).strip()
+    entry = git_out(root, "ls-files", "-s", "--", path).split()
+    mode = entry[0] if entry else "100644"
+    git_out(root, "update-index", "--cacheinfo", f"{mode},{sha},{path}")
+    return work, blob
+
+
+def placement_refusals(root, partial, staged):
+    """Every reason not to commit what step 3 staged by hunk: a blob that
+    does not parse, or a kept hunk not at its place. `staged` is
+    {path: (working text, staged text)}."""
+    out = []
+    for path, (kept, foreign) in partial.items():
+        work, _ = staged[path]
+        blob = git_out(root, "show", f":{path}")
+        err = parse_error(path, blob)
+        if err:
+            out.append(f"{path}: the staged blob does not parse — {err}")
+        for m in misplaced(blob, kept, foreign,
+                           len(work.splitlines(keepends=True))):
+            out.append(f"{path}: {m}")
+    return out
+
+
 # ── the baseline ──────────────────────────────────────────────────────────────
 
 def claims_dir(board, rel):
@@ -456,21 +604,23 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
             return False
 
     def new_hunks(root, p):
-        """The hunks of `p` the baseline does not hold, as one patch, or ""
-        when every hunk is inherited. None when there is no baseline — the
-        file goes whole or not at all. Zero context on both sides, so two
-        edits near each other are two hunks and not one merged one."""
+        """`(kept, inherited)` — the hunks of `p` the baseline does not
+        hold and the ones it does, each a list of hunk text — or "" when
+        every hunk is inherited, "all" when none is. None when there is no
+        baseline — the file goes whole or not at all. Zero context on both
+        sides, so two edits near each other are two hunks and not one
+        merged one."""
         if base is None:
             return None
         cur = split_hunks(git_out(root, "diff", "HEAD", "-U0", "--no-color",
                                   "--", p)).get(p)
         if not cur:
             return ""
-        head, hunks = cur
+        _, hunks = cur
         old = base["hunks"].get(p, set())
         keep = [h for h in hunks if hunk_body(h) not in old]
-        return head + "".join(keep) if keep and len(keep) < len(hunks) \
-            else ("all" if keep else "")
+        theirs = [h for h in hunks if hunk_body(h) in old]
+        return (keep, theirs) if keep and theirs else ("all" if keep else "")
 
     plan = {}
     for root, union in groups.items():
@@ -627,10 +777,20 @@ def collect_one(board, rel, opts, out=print):
             continue
         if p["add"]:
             git_out(root, "add", "--", *p["add"])
-        for patch in p["partial"].values():
-            # the hunks' old side is HEAD, which is what the index holds
-            git_out(root, "apply", "--cached", "--unidiff-zero", "-",
-                    input=patch)
+        # a shared file is staged as the working file with the inherited
+        # hunks reversed — never as a patch with hunks left out, which
+        # `git apply` places by a line number that counts the missing ones
+        staged = {path: stage_by_hunk(root, path, foreign)
+                  for path, (_, foreign) in p["partial"].items()}
+        refusals = placement_refusals(root, p["partial"], staged)
+        if refusals:
+            git_out(root, "reset", "-q", "--", *p["add"], *p["partial"])
+            out(f"{rel}: staged by hunk and refused — nothing committed, "
+                f"the index put back:")
+            for x in refusals:
+                out(f"  {x}")
+            raise Stop(f"{rel}: {len(refusals)} placement refusal(s) in "
+                       f"{root}")
         r = subprocess.run(["git", "-C", root, "commit", "-q", "-F", "-"],
                            input=message, capture_output=True, text=True)
         if r.returncode != 0:

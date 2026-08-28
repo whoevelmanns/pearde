@@ -40,7 +40,11 @@ proved no other `claimed` PRD writes that footprint.
   footprint is listed once and left. A dirty path inside the footprint that
   the claim predates stops the collect; `--widen <path>` takes it, and the
   message names it on a `widen:` line. A file holding inherited hunks and the
-  worker's is committed by hunk, and the inherited hunks stay in the tree.
+  worker's is committed by hunk: the staged blob is
+  the working file with the inherited hunks reversed, each hunk at the line
+  the working file has it, checked for parse and placement before the commit
+  — never a patch `git apply` places — and the inherited hunks stay in the
+  tree.
 - **`commit:` rides the next collect.** The sha is written after the commit
   it names, so it cannot be in it. `owe()` lists the path in
   `prds/.claims/riders`; the next collect on the board adds it and says
