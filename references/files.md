@@ -86,6 +86,7 @@ whose scope it changed. Nothing else points at it.
 
 | anchor | is |
 |---|---|
+| @resources/pearde.py | the one command — a dispatcher over every script; discovers `COMMANDS` in `resources/board/*.py`; `help` from docstrings |
 | @resources/install.sh | build one skill folder of links per file in `skills/` |
 | @resources/doctor.sh | install check + repair |
 | @resources/guard.py | the PreToolUse/PostToolUse hook that enforces the loop |

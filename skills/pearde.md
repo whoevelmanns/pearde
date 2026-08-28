@@ -9,5 +9,5 @@ and nothing else is read before it is needed.
 Step 1 of any round is one call, so make it in the same turn:
 
 ```bash
-python3 @resources/board/plan.py scan
+python3 @resources/pearde.py scan
 ```

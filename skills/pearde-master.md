@@ -17,8 +17,8 @@ members:
 - **Naming is the whole install.** `master <path> …` appends to `members:`
   and asks the group's `name:` the first time. It creates nothing in a member.
 - **Run the round in the parent from then on.** The merged scan, the merged
-  plan, one timeline. `python3 @resources/board/plan.py members <board>` lists
+  plan, one timeline. `python3 @resources/pearde.py members [board]` lists
   every member with its path, and `MISSING` where it is not on disk.
 - **A missing member is the failure that matters**: the plan loses a whole
   project silently, and the board reads as smaller rather than broken.
-  `@resources/doctor.sh` grows a `members` row on a master board.
+  `pearde doctor` grows a `members` row on a master board.

@@ -65,6 +65,7 @@ bash @resources/install.sh --apply <skills-dir>  # make it
 bash @resources/install.sh --remove <skills-dir> # take it back out
 ```
 
+- **One word.** `--apply` prints `alias pearde='python3 <repo>/resources/pearde.py'` — add it to your shell yourself. Nothing here writes a shell file. Every skill file names the same `python3 @resources/pearde.py <cmd>` line, so the alias and the skills are one surface.
 - **Links, not copies.** One source of truth, so editing this repo updates
   every install at once. A copy drifts, and nothing says it happened.
 - **Windows** needs Developer Mode or Administrator for a symlink. Without
@@ -204,7 +205,7 @@ Remove the skill folders you made, or `bash @resources/install.sh --remove
 <skills-dir>`. `git checkout SKILL.md` restores the installer if `--apply`
 retired it. Delete the `pearde:begin`/`:end` block from the instructions file,
 leaving the rest of it alone. Unwire the status line yourself — that
-file is yours.
+file is yours. Drop the alias from your shell file — it was yours to add.
 
 `prds/` is your data: untouched by installing, and it survives uninstalling.
 The view stops with `python3 @resources/board/serve.py stop`. Nothing else of

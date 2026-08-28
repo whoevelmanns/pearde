@@ -3,6 +3,7 @@
 
     python3 memos.py check [board]      one problem per line; silent when clean
     python3 memos.py list  [board]      slug · kind · status · date · subject
+    python3 memos.py add   <subject> [board]  slug it, write the memo from the template, print the path
 
 A memo is `prds/memos/<slug>.md`. It is not a PRD: no state, never claimed,
 never dispatched, invisible to the loop and to the progress line. It records
@@ -12,6 +13,7 @@ file is its only reader, so the format has one home.
 Python 3 stdlib only. @resources/board/plan.py and @resources/board/serve.py
 import `scan` from here rather than growing a second frontmatter parser.
 """
+import datetime
 import os
 import re
 import sys
@@ -178,6 +180,57 @@ def check(board):
     return bad
 
 
+def slug(subject):
+    """The rule of @references/parts/handles.md: lowercase, spaces to
+    hyphens — every run of anything else collapses to one hyphen."""
+    return re.sub(r"[^a-z0-9]+", "-", subject.lower()).strip("-")
+
+
+def add(board, subject):
+    """Write `<memos>/<slug>.md` from @references/templates/memo.md and
+    return its path. Line-based: `memo:`, `subject:`, `date:` and the title
+    line are filled in; every other template line, comments included, is
+    kept — the reader fills the sections. Exits 2 on a subject that slugs to
+    nothing, 1 on a path that exists or a `memos:` dir that is another
+    system's — that dir is mirrored read-only, nothing is written there."""
+    subject = subject.strip()
+    sl = slug(subject)
+    if not sl:
+        print(f"memos: `{subject}` slugs to nothing", file=sys.stderr)
+        sys.exit(2)
+    d, external = memos_dir(board)
+    if external:
+        print(f"memos: settings.md points `memos:` at {d} — another system's "
+              "records, mirrored read-only; write the memo there",
+              file=sys.stderr)
+        sys.exit(1)
+    path = os.path.join(d, sl + ".md")
+    if os.path.exists(path):
+        print(f"memos: {path} exists", file=sys.stderr)
+        sys.exit(1)
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    tpl = open(os.path.join(root, "references", "templates", "memo.md"),
+               encoding="utf-8").read()
+    today = datetime.date.today().isoformat()
+    out = []
+    for line in tpl.splitlines():
+        if line.startswith("memo: <slug>"):
+            line = f"memo: {sl}"
+        elif line.startswith("subject: "):
+            line = f"subject: {subject}"
+        elif line.startswith("date: "):
+            line = f"date: {today}"
+        elif line.startswith("# <slug> — "):
+            line = f"# {sl} — {subject}"
+        out.append(line)
+    os.makedirs(d, exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write("\n".join(out) + "\n")
+    os.replace(tmp, path)
+    return path
+
+
 def find_board(arg):
     if arg:
         p = os.path.abspath(arg)
@@ -198,6 +251,13 @@ def find_board(arg):
 
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else "check"
+    if cmd == "add":
+        if len(argv) < 3 or not argv[2].strip():
+            print("memos: add <subject> [board]", file=sys.stderr)
+            return 2
+        board = find_board(argv[3] if len(argv) > 3 else None)
+        print(add(board, argv[2]))
+        return 0
     board = find_board(argv[2] if len(argv) > 2 else None)
     if cmd == "check":
         bad = check(board)
