@@ -2,7 +2,8 @@
 atomic: run-the-repo-gate
 subject: run the map check and the install check, and account for every line
 date: 2026-08-28
-runs: 13
+updated: 2026-08-28
+runs: 14
 ---
 
 # run-the-repo-gate — the two commands that read the whole tree
@@ -30,3 +31,4 @@ runs: 13
 
 | seen | means | do |
 |------|-------|----|
+| `doctor` at step 4 prints a row that was not there at step 2, and it is `off`, not `broken` | a sibling's `resources/doctor.sh` added a part between the two runs — `off` is absent, not wrong | `git diff --stat resources/doctor.sh` and its mtime against your baseline time; quote the row as inherited and do not clear it |

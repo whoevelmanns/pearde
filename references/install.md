@@ -65,7 +65,7 @@ bash @resources/install.sh --apply <skills-dir>  # make it
 bash @resources/install.sh --remove <skills-dir> # take it back out
 ```
 
-- **One word.** `--apply` prints `alias pearde='python3 <repo>/resources/pearde.py'` — add it to your shell yourself. Nothing here writes a shell file. Every skill file names the same `python3 @resources/pearde.py <cmd>` line, so the alias and the skills are one surface.
+- **Two lines.** `--apply` prints `alias pearde='python3 <repo>/resources/pearde.py'` and `export PEARDE_AS=engineer` — add both to your shell yourself. Nothing here writes a shell file. The alias is the one word; every skill file names the same `python3 @resources/pearde.py <cmd>` line, so the alias and the skills are one surface. The export is who is working: every command that moves a PRD records `· as <id>` on its line from that variable and refuses without it, per @references/parts/personas.md — `add` alone files a new PRD `· as engineer (default)`, so the first minute runs before the export is in place. `persona <id>` re-exports it.
 - **Links, not copies.** One source of truth, so editing this repo updates
   every install at once. A copy drifts, and nothing says it happened.
 - **Windows** needs Developer Mode or Administrator for a symlink. Without
@@ -198,7 +198,8 @@ members:
 `pearde init` — one command, and a board exists: `prds/settings.md` with every
 knob named, `language: English` said on its first line, `prds/vision.md` from
 the template, the daemon watching it, `doctor` once, and the three lines to
-run next. It asks nothing; `pearde settings <key>=<value>` changes a knob, per
+run next — each runs as printed, with the two lines above in the shell. It
+asks nothing; `pearde settings <key>=<value>` changes a knob, per
 @references/settings.md. Nothing about installing does that, and nothing
 about installing touches `prds/`.
 

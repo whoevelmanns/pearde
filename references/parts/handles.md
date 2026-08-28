@@ -20,7 +20,7 @@ each skill file says what it does with no board in scope.
 | one round, then stop         | `once`                                                                                                   | — |
 | more implementers            | `workers=5` — written to `prds/settings.md`, persists                                                    | — |
 | deeper spec pipeline         | `pipeline=5` — written to `prds/settings.md`, persists                                                   | — |
-| new PRD                      | `add <title>` — dir + `prd.md` from `@references/templates/prd.md`, `state: open`, `origin: requested`    | `pearde add` |
+| new PRD                      | `add <title>` — dir + `prd.md` from `@references/templates/prd.md`, `state: open`, `origin: requested`. Runs as printed: with no `--as` and no `PEARDE_AS` it files the PRD `· as engineer (default)`, the one transition that does — a new PRD has no earlier line to rewrite | `pearde add` |
 | park a derived PRD           | `defer <prd>` — `state: deferred`, per @references/parts/derived.md | `pearde defer` |
 | work out what is wanted      | `drill <prd>` — interview per `@references/drill.md`. With no `<prd>`: the board's own open frontier where there is one, else a new tree | — |
 | retry a failed PRD           | `retry <prd>` — moves `## Failure` into the body as history, sets `open`                                 | `pearde retry` |
@@ -29,7 +29,7 @@ each skill file says what it does with no board in scope.
 | run one PRD to done          | `run <prd>` — the loop scoped to that PRD's subtree                                                      | — |
 | the state, for a person      | `report` — rewrites `prds/report.md` whole: planned, in work, undecided or failing, in plain words per `@@report` | — |
 | record a decision            | `memo <subject>` — `prds/memos/<slug>.md` from `@references/templates/memo.md`                            | `pearde memo add <subject>` |
-| who is working               | `persona` — the active one and why; `persona <id>` switches, for this session only. Stored nowhere        | — |
+| who is working               | `persona` — the active one and why; `persona <id>` switches, for this session only: `export PEARDE_AS=<id>`, the variable every command reads, exported as `engineer` by the install line. Stored on no board file | — |
 | one persona's read on one problem | `ask <id> <question>` — calls that persona, pointed at this session for context, and talks to it until the question is settled. It answers and writes nothing; the session keeps its own persona. The board calls one on its own judgment too, unasked | — |
 | a persona for a new field    | `persona create <topic>` — research the field and its real practitioners, compose one from the best of them, per `@@personas` | — |
 | pre-plan the dispatch order  | `plan` — `@resources/board/plan.py plan`; print the frontier and queue it returns                                       | `pearde plan` |
@@ -73,8 +73,10 @@ handle the round answers by hand, with no command behind it.
   disagree. Write the memo when the call is made, not when the work lands.
 - `persona <id>` and `ask <id>` are the switch and the question. Switch when
   the whole round wants a different reading. Ask when one problem does.
-  Neither writes a file — the switch is `@@personas`, the call is `@@consult`,
-  and the round's `· as <id>` is the only record either leaves.
+  Neither writes a board file — the switch is `export PEARDE_AS=<id>` per
+  `@@personas`, or `--as <id>` on a line that runs in a fresh shell; the call
+  is `@@consult`; and the round's `· as <id>` is the only record on the board
+  either leaves.
 - `ask` is a handle, not a permission. The board reaches a persona on its own
   judgment mid-round — before `done`, on a naming call, on a report it cannot
   check from inside its own frame — and says who it asked and what came back.

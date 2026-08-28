@@ -3,7 +3,7 @@ atomic: run-the-scoped-verify
 subject: run the unit's own verify command and quote what it printed
 date: 2026-08-28
 updated: 2026-08-28
-runs: 13
+runs: 14
 ---
 
 # run-the-scoped-verify — the unit measured, not the tree
@@ -44,3 +44,4 @@ runs: 13
 | the block prints its failure word on a tree you know is clean | a `cmd && echo BAD \|\| echo OK` line whose `cmd` exits 0 on zero matches — `find` does, `grep` does not | measure it as `[ -z "$(cmd)" ]`, quote both results, and report the spec's line as a finding |
 | the block's last command exits 0 but an earlier one did not | the block is many commands and only the last one sets `$?` | run and quote them one at a time |
 | a line in the block runs a command expecting a refusal (`add x` with no `--as`, a gated transition) and the run leaves a new `??` under `prds/` | the refusal was lifted under you — a sibling's uncommitted change made the probe a writer, and it wrote on the live board | `git status --short prds` right after the run; remove only what the run filed, re-point the line at a `python3 resources/board/plan.py example <tmpdir>` copy so it measures the claim rather than the refusal, and report the spec's line as a finding |
+| a box asserts a file's diff is confined to named places, and `git diff` shows one more hunk in a function the spec itself says a sibling PRD is editing | the tree is shared; the box measures this unit's hunks, not the file's | list the hunks by `@@` header, name the sibling's and the untouched lines between, tick on your own hunks and quote the sibling's beside the box |

@@ -81,7 +81,7 @@ has "E addressing keeps @ and @@" "$(awk '/^## Addressing/{f=1;next} f' "$README
 echo "F. every claim is true to the code"
 # on a copy of the example board, never the live one: `add` writes a PRD
 python3 "$ROOT/resources/board/plan.py" example "$S/copy" >/dev/null
-has "F add --as engineer prints as engineer, so the quickstart row says so" "$(python3 "$ROOT/resources/board/transitions.py" add "quickstart probe" --as engineer --board "$S/copy" 2>&1)" "· as engineer"
+has "F add as printed — no --as, no PEARDE_AS — files it as engineer, so the quickstart row says so" "$(env -u PEARDE_AS python3 "$ROOT/resources/board/transitions.py" add "quickstart probe" --board "$S/copy" 2>&1)" "· as engineer"
 eq  "F the daemon's default port is 8443" "$(grep -c '127.0.0.1:8443' "$README")" "2"
 eq  "F eleven skills" "$(ls "$ROOT/skills"/*.md | wc -l | tr -d ' ')" "11"
 has "F init's first line names the language" "$(sed -n '/^def cmd_init/,/^def /p' "$ROOT/resources/board/init.py")" 'language {language} — '

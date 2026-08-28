@@ -10,16 +10,16 @@ dependency, no build step.
 ```sh
 python3 <repo>/resources/pearde.py install --apply <skills-dir>
 pearde init --example
-pearde add --as engineer "Ship the quickstart"
+pearde add "Ship the quickstart"
 pearde
 pearde view
 ```
 
 | line | prints |
 |---|---|
-| `install --apply` | `✓ built <skills-dir>/<name>` for the eleven skills, then the one line the next four need: `alias pearde='python3 <repo>/resources/pearde.py'` — add it to your shell |
+| `install --apply` | `✓ built <skills-dir>/<name>` for the eleven skills, then the two lines the next four need: `alias pearde='python3 <repo>/resources/pearde.py'` and `export PEARDE_AS=engineer` — add both to your shell |
 | `init --example` | `board example · language English — pearde settings language=<l> changes it`, what it wrote (`settings.md`, `vision.md`, four `.gitignore` names), `serve: started on http://127.0.0.1:8443`, one `doctor` report, then three lines: the page's URL, `pearde add`, `pearde` |
-| `add --as engineer` | the progress line: `▸ ship-the-quickstart: — → open · asked 2/9 · 14% · … · as engineer` — every state change prints one |
+| `add` | the progress line: `▸ ship-the-quickstart: — → open · asked 2/9 · 14% · … · as engineer` — every state change prints one |
 | `pearde` | the board on one page — `board`, `vision`, `counts`, `progress`, then the five bands in dispatch order: `collect`, `waiting on you`, `in flight`, `ready`, `gated` |
 | `view` | `serve: watching example · <path> · live view http://127.0.0.1:8443/board/example`, and the browser opens on it |
 

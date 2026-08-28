@@ -142,8 +142,9 @@ fi
 [ "$BLOCKED" = 1 ] && { echo "pearde install: something is in the way — see the ! lines."; exit 1; }
 case "$MODE" in
   apply)  [ "$CHANGED" = 1 ] && echo "pearde install: built." || echo "pearde install: already built — nothing to do."
-          echo "  one word for every tool — add to your shell, nothing here writes it:"
-          echo "  alias pearde='python3 $ROOT/resources/pearde.py'" ;;
+          echo "  add to your shell, nothing here writes it — one word for every tool, and who is working:"
+          echo "  alias pearde='python3 $ROOT/resources/pearde.py'"
+          echo "  export PEARDE_AS=engineer" ;;
   remove) [ "$CHANGED" = 1 ] && echo "pearde install: removed. prds/ is your data and was not touched." || echo "pearde install: nothing of ours was there." ;;
   *)      echo "pearde install: report only — pass --apply to build it." ;;
 esac

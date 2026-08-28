@@ -14,7 +14,9 @@
 Every command: `--board <path>` names the board (default: walk up from the
 cwd). `--as <id>` is the persona on the progress line, else `PEARDE_AS` from
 the environment, else the command refuses — the line is the only record of
-the persona, and a default would rewrite it.
+the persona, and a default would rewrite it. `add` is the one exception: a
+new PRD has no earlier line to rewrite, so with neither it files the PRD
+`· as engineer (default)` and says so on the line.
 
 Every command checks the gate @references/parts/states.md names, writes
 through edit.py — one frontmatter line at a time, atomically — prints the
@@ -63,6 +65,13 @@ TRANSITIONS_FILE = ".transitions.jsonl"
 STATES = ("open", "analyzing", "refine", "question", "specced", "claimed",
           "blocked", "done", "failed")
 PARKED = "deferred"
+
+# The one command that runs with no persona named: a new PRD has no earlier
+# `· as <id>` line a default could rewrite. Every other command refuses,
+# naming the line `install --apply` prints beside the alias.
+DEFAULT_PERSONA = "engineer"
+DEFAULTS_FOR = ("add",)
+INSTALL_LINE = "export PEARDE_AS=engineer"
 
 
 class Refused(Exception):
@@ -666,15 +675,27 @@ class Args:
                 self.pos.append(a)
 
 
+def persona_default(name):
+    """What a command runs as when neither `--as` nor `PEARDE_AS` named a
+    persona: `engineer (default)` for a command in DEFAULTS_FOR, said on the
+    line so the record shows nobody chose it; a refusal for every other one,
+    which would rewrite what an earlier persona's line recorded."""
+    if name in DEFAULTS_FOR:
+        return f"{DEFAULT_PERSONA} (default)"
+    raise Refused("persona: `--as <id>` on the line, or PEARDE_AS in the "
+                  f"environment — `{INSTALL_LINE}` is the line `install "
+                  "--apply` prints beside the alias; add it to your shell")
+
+
 def run(name, fn, argv):
     args = Args(argv)
     try:
-        persona = args.opt.get("as") or os.environ.get("PEARDE_AS", "")
-        if not persona.strip():
-            raise Refused("persona: `--as <id>` or PEARDE_AS in the "
-                          "environment — the line is the only record of it")
+        persona = (args.opt.get("as")
+                   or os.environ.get("PEARDE_AS", "")).strip()
+        if not persona:
+            persona = persona_default(name)
         board = planlib.find_board(args.opt.get("board"))
-        return fn(board, args, persona.strip())
+        return fn(board, args, persona)
     except Refused as e:
         print(f"pearde {name}: refused — {e}", file=sys.stderr)
         return 1

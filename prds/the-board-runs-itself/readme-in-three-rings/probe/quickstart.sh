@@ -42,9 +42,12 @@ eq  "1 install exits 0" "$RC" "0"
 has "1 install says built" "$OUT" "pearde install: built."
 ALIAS="$(printf '%s\n' "$OUT" | sed -n "s/^ *alias pearde='\(.*\)'$/\1/p")"
 has "1 install prints the alias" "$OUT" "alias pearde='python3 "
+EXPORT="$(printf '%s\n' "$OUT" | sed -n 's/^ *\(export PEARDE_AS=engineer\)$/\1/p')"
+eq  "1 install prints the export, bare" "$EXPORT" "export PEARDE_AS=engineer"
 eq  "1 the skills dir holds eleven folders" "$(find "$SKILLS" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" "11"
 eq  "1 each folder holds the five links" "$(find "$SKILLS" -mindepth 2 -maxdepth 2 -type l | wc -l | tr -d ' ')" "55"
 pearde() { $ALIAS "$@"; }
+eval "$EXPORT"          # the second pasted line — who is working, as the README says
 
 # ── 2. init --example ────────────────────────────────────────────────────────
 cd "$PROJ" && git init -q .
@@ -63,11 +66,12 @@ eq  "2 vision.md exists" "$( [ -f prds/vision.md ] && echo yes )" "yes"
 eq  "2 six PRDs on disk" "$(find prds -mindepth 2 -maxdepth 2 -name prd.md | wc -l | tr -d ' ')" "6"
 
 # ── 3. add ───────────────────────────────────────────────────────────────────
-OUT="$(pearde add --as engineer "Ship the quickstart" 2>&1)"; RC=$?
-show 'pearde add --as engineer "Ship the quickstart"' "$OUT"
+OUT="$(pearde add "Ship the quickstart" 2>&1)"; RC=$?
+show 'pearde add "Ship the quickstart"' "$OUT"
 eq  "3 add exits 0" "$RC" "0"
 has "3 the progress line names the PRD" "$OUT" "ship-the-quickstart"
 has "3 ...and its state" "$OUT" "open"
+eq  "3 ...as engineer, from the export — no --as on the line" "$([[ "$OUT" == *" · as engineer" ]]; echo $?)" "0"
 eq  "3 prd.md exists" "$( [ -f prds/ship-the-quickstart/prd.md ] && echo yes )" "yes"
 eq  "3 state: open" "$(awk -F'[: #]+' '/^state:/{print $2; exit}' prds/ship-the-quickstart/prd.md)" "open"
 

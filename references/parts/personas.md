@@ -9,11 +9,22 @@ A persona is what gets noticed first, what gets pushed back on, what counts as
 done. The role is what the session does; the persona is who does it. One is
 active at a time. @references/personas/INDEX.md is the roster.
 
-**A persona is stored nowhere.** No key in `prds/settings.md`, no file beside
-the board. It is session state: it starts as `engineer`, holds until switched,
-ends with the session. The round's line carries `· as <id>` per
-@references/parts/progress.md, and that is the only record — which is also
-where the status line reads it from.
+**A persona is stored on no board file.** No key in `prds/settings.md`, no
+file beside the board. It is session state, and the session's environment is
+where it lives: `PEARDE_AS`, exported as `engineer` by the line
+`install --apply` prints beside the alias, read by every command that moves a
+PRD. It starts as `engineer`, holds until switched, ends with the shell.
+`persona <id>` is `export PEARDE_AS=<id>`; where each command runs in a fresh
+shell — an agent's tool call — it is `--as <id>` on the line instead. The
+round's line carries `· as <id>` from the same variable per
+@references/parts/progress.md, and that line is the only record on the board
+— which is also where the status line reads it from.
+
+A command with neither `--as` nor `PEARDE_AS` refuses, naming the install
+line: a guessed `engineer` after a `persona skeptic` would rewrite the only
+record the switch has. `add` alone runs — a new PRD has no earlier line to
+rewrite — and its line says `· as engineer (default)`, so the record shows
+nobody chose it.
 
 That is deliberate — a persisted persona outlives the round that justified it,
 follows a board into work of a different shape, and lets two sessions on one
@@ -66,8 +77,8 @@ matches on what the work is, never on how the user phrased it.
 | nothing has been stated yet                                | run as `engineer`, and ask on the first round that has a job to match    |
 
 A switch takes effect immediately and holds until the next one or the end of
-the session. Nothing is written, so nothing has to be unwritten: the way back
-to `engineer` is to say so.
+the session. No board file is written, so nothing has to be unwritten: the way
+back to `engineer` is `export PEARDE_AS=engineer`, the install line again.
 
 **Never switch the session silently.** Print the switch in the same `▸ … · as
 <id>` form the round line uses, even when no state moved — that line is the
