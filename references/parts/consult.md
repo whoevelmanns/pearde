@@ -5,6 +5,10 @@ Putting one problem to one colleague, mid-round, without switching.
 one in @references/parts/workers.md. Switching the session is a different
 question — @references/parts/personas.md.
 
+`pearde brief --consult <id> --question "<q>" [--transcript <path>]` prints
+that brief filled — the id, the transcript path, the board, the repo and the
+question as the user put it. Nothing about it is composed by hand.
+
 **You call one yourself.** `ask <id> <question>` is the user doing what you
 can already do. Reaching a colleague is ordinary work, the way dispatching a
 worker is, and needs no permission.

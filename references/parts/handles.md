@@ -46,7 +46,7 @@ each skill file says what it does with no board in scope.
 | force any transition         | `set` | `pearde set` · pending · transitions-are-commands |
 | validate the specs, sum the weight| `specced` | `pearde specced` · pending · specced-is-a-command |
 | children from the analyst's split| `refine` | `pearde refine` · pending · specced-is-a-command |
-| print a worker's brief       | `brief` | `pearde brief` · pending · brief-is-printed |
+| print a worker's brief       | `brief <prd> [--role <role>] [--as <id>] [--force]` — `@resources/board/brief.py`: header line, persona line, workflow block, the role's brief from `@references/parts/workers.md` with the placeholders filled; the role follows the state, `--role` overrides. `brief --consult <id> --question "<q>" [--transcript <path>]` is the consultant's | `pearde brief` |
 | sweep the stale claims       | `sweep` | `pearde sweep` · pending · the-loop-is-commands |
 | a board, registered and planned| `init` | `pearde init` · pending · init-asks-nothing |
 | the board's settings         | `settings` | `pearde settings` · pending · init-asks-nothing |

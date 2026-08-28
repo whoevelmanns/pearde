@@ -365,6 +365,31 @@ if [ -n "$BOARD" ]; then
   fi
 fi
 
+# ── briefs: the worker briefs, one source, every placeholder named ──────────
+# A brief is printed by `pearde brief` from the blocks between
+# `<!-- brief:<name> -->` … `<!-- /brief -->` in references/parts/workers.md.
+# A marker missing or unterminated prints a brief with a hole in it, and a
+# placeholder the table does not name is filled by nobody — both silent from
+# the outside. brief.py `--check` is the one reader of that shape.
+if [ ! -f "$DIR/board/brief.py" ]; then
+  row briefs off "no resources/board/brief.py — nothing prints a brief yet"
+  fix "land brief-is-printed: the module under resources/board/ exposing COMMANDS"
+else
+  BPROB=$(python3 "$DIR/board/brief.py" --check 2>&1)
+  NB=$(grep -c '^<!-- brief:' "$SKILL_ROOT/references/parts/workers.md" 2>/dev/null | tr -d ' ')
+  if [ -z "$BPROB" ]; then
+    row briefs ok "$NB blocks in references/parts/workers.md · every placeholder named"
+  else
+    NP=$(echo "$BPROB" | wc -l | tr -d ' ')
+    NB=${NB:-0}
+    row briefs broken "$NB block$([ "$NB" = 1 ] || echo s) · $NP problem$([ "$NP" = 1 ] || echo s)"
+    echo "$BPROB" | while IFS= read -r l; do
+      [ -n "$l" ] && printf '  %-11s %-7s %s\n' "" "" "$l"
+    done
+    fix "close every <!-- brief:<name> --> with <!-- /brief -->, and name each placeholder in the table — references/parts/workers.md"
+  fi
+fi
+
 # ── questions: what the board says it is waiting on you for ──────────────────
 # A round that is not asked is indistinguishable from a board with nothing to
 # ask. Both are silent. This row reads the shape of `## Questions` and

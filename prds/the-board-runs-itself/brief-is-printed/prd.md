@@ -1,15 +1,20 @@
 ---
-state: open
+state: done
 origin: requested
+actual: 0.7h
+commit: 117e270
 priority: 64
-complexity: 0
-blast-radius:
+complexity: 20
+blast-radius: mid
 repo: pearde
 workflow: probe-then-spec
 needs:
   - one-command
 footprint:
   - resources/board/brief.py
+  - references/files.md
+  - references/parts/handles.md
+  - index.md
   - references/parts/workers.md
   - references/parts/consult.md
   - resources/doctor.sh

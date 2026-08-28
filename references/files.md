@@ -105,6 +105,7 @@ whose scope it changed. Nothing else points at it.
 | @resources/board/lit-core.min.js | Lit 3, vendored — the page's component base |
 | @resources/board/edit.py | the writers — one line at a time |
 | @resources/board/collect.py | `collect` — verify, commit the footprint, `done`, one call |
+| @resources/board/brief.py | `brief` — a worker's or a consultant's brief, one command's output; the text is the marker blocks of workers.md, this fills them and holds no copy |
 | @resources/board/specs.py | `specced` and `refine` — the two transitions a spec set decides |
 | @resources/board/init.py | `init` and `settings` — a board after one command, no question; one key of settings.md |
 | @resources/board/transitions.py | the eight transition commands — the one writer of `state:` |

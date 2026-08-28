@@ -2,8 +2,8 @@
 
 The exact text to hand an analyst and an implementer.
 
-Give each worker exactly its brief with the placeholders filled in. `@` and
-`@@` resolve in @index.md.
+Hand each worker the output of `pearde brief <prd>` — one command, nothing
+composed. `@` and `@@` resolve in @index.md.
 
 Rules for every worker:
 
@@ -23,8 +23,6 @@ Rules for every worker:
 - Write per `@@language`, in the board `language` from `prds/settings.md` —
   named in the brief. On a master board, the language of the PRD's **own**
   board.
-- Give a member's worker real paths, never `@<member>/…`. `repo` is the PRD's
-  own, else the member's repo root.
 - A report that is incomplete, or a worker stopped mid-task: continue THAT
   worker — it holds the context. Never respawn it.
 - Report a defect found outside your scope. Do not file it and do not fix it.
@@ -38,10 +36,37 @@ Rules for every worker:
   its population rather than the members it already knows — a check written
   from the answer passes on the answer.
 
+**Every worker, on top of its role.** `pearde brief` prints this last:
+
+<!-- brief:every -->
+> Write in `<language>`, per @references/language.md. Never edit frontmatter,
+> never touch another PRD, never write outside `prds/<prd>/` and the
+> footprint. A defect outside your scope goes in the report, not into a fix.
+<!-- /brief -->
+
+**Placeholders.** `pearde brief` fills these and nothing else. A placeholder
+is `<name>` — lowercase, `_` or `/` inside; one a block uses and this table
+does not name, a row nothing uses, or a marker pair missing or unterminated,
+is the `doctor` row `briefs`.
+
+| placeholder | filled from |
+|---|---|
+| `<prd>` | the PRD's real path under `prds/` — never `@<member>/…` |
+| `<repo>` | the PRD's `repo:` when it is a directory, else the member's repo root, else the board's |
+| `<language>` | `language` in the PRD's own board's `settings.md` |
+| `<probe>` | `prds/<prd>/probe/` — where probe code lives |
+| `<board>` | the board whose library holds the slug, for `workflows.py brief` |
+| `<slug>` | the `workflow:` the block is printed for — in the analyst block it is the worker's to write |
+| `<id>` | `--as`, default `engineer`; `--consult <id>` |
+| `<transcript_path>` | `--transcript` |
+| `<prds/>` | the board path |
+| `<the question, as the user put it>` | `--question` |
+
 **The workflow block.** When the PRD (or, for an implementer, a spec) carries
 `workflow: <slug>`, this opens the brief immediately after the persona line,
 verbatim, placeholders filled — nothing else about the brief changes:
 
+<!-- brief:workflow -->
 > Follow the workflow `<slug>`: `python3 @resources/workflows.py brief <slug>
 > <board>` prints it — the steps in order, each with its atomic inlined. Take
 > the steps in order. When a step fails, go where its `on failure` says; a
@@ -51,6 +76,7 @@ verbatim, placeholders filled — nothing else about the brief changes:
 > the atomic caused — a wrong command, a stale path, a check that cannot
 > fail, a shape `## Fails when` does not list. Never edit the workflow files
 > yourself.
+<!-- /brief -->
 
 - No `workflow:` anywhere: no block, and the brief is exactly as it was.
 - A spec with its own `workflow:` — the implementer follows that one for that
@@ -78,6 +104,7 @@ decides the state, and a `stopped` row does not.
 
 **Analyst** — one per `open` PRD being probed:
 
+<!-- brief:analyst -->
 > Read `prds/<prd>/prd.md`, including `## Answers`. Then **build it** — never
 > spec from reading. Attempt the implementation in `<repo>` and keep going
 > until it works or until it hits something undefined. The attempt is the
@@ -137,6 +164,14 @@ decides the state, and a `stopped` row does not.
 > Spec what this PRD asks for. A wrong claim you find elsewhere, or a check
 > that could not fail, goes in your report as a finding — not into a spec, and
 > not into a new PRD. Widening the contract is REFINE, not initiative.
+>
+> Probe code lives at `<probe>` — `prds/` is outside the manifest scan, so it
+> costs no row and travels with the PRD. Build every fixture in a directory
+> made at run time, never under `prds/` — a directory holding `prd.md`
+> anywhere under the board is a PRD. Quote a box spelling into a PRD or a
+> spec backtick-quoted — the matcher is line-based, and a pasted `- [ ]` is
+> a real box.
+<!-- /brief -->
 
 On return: SPECCED → `pearde specced <prd> --blast <x> [--workflow <slug>]`,
 the values off `## Scores` — the command reads the spec files, refuses what
@@ -150,6 +185,7 @@ report, so the sweep reads it as pass one and not as damage.
 
 **Implementer** — one per `specced` PRD dispatched:
 
+<!-- brief:implementer -->
 > Read `prds/<prd>/prd.md` and every file in `specs/`. The tree already
 > holds the probe's uncommitted code — continue it, it is pass one; the specs
 > were written from it. Implement the specs in `<repo>`. Run each spec's `verify:` command and the repo's own gate. Tick a
@@ -160,6 +196,7 @@ report, so the sweep reads it as pass one and not as damage.
 > do not redefine the spec. Return **DONE** (per-spec box status + verify
 > output) or **FAILED** (what broke, what you tried); on FAILED also write
 > `## Failure` into `prd.md`.
+<!-- /brief -->
 
 On return:
 
@@ -184,6 +221,7 @@ the orchestrator on its own judgment as often as by the user's `ask <id>
 <question>`. The persona is chosen for the question, not the job, and this is
 the only brief that produces no state change:
 
+<!-- brief:consultant -->
 > Work as `@references/personas/<id>.md`.
 >
 > The session asking you is `<transcript_path>`. The board is `<prds/>`, the
@@ -206,6 +244,7 @@ the only brief that produces no state change:
 > Write nothing. No PRD, no frontmatter, no spec, no code, no commit, no file
 > anywhere. A change you think is needed goes in your answer as a
 > recommendation. Do not print a `▸ … · as <id>` line.
+<!-- /brief -->
 
 While it is open: keep it. Follow-ups, disagreements and its own clarifying
 questions go to the consultant you already have — it holds the exchange, and
