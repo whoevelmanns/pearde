@@ -157,10 +157,25 @@ schedules around it. One worker's result is one collect.
 
 A PRD is **finished** when every acceptance box in its specs is `[x]` and
 `prd.md` carries no open box of its own. That is not a state — it is a
-condition read off the disk, which is why the scan reads it for you: a PRD in
-its **collect** section is finished, and `boxes c/t` on any other line is how
-far a live one has got. Counting boxes by opening the specs yourself is the
-same number for the price of the whole file.
+condition read off **both files** on disk, which is why the scan reads it for
+you: a PRD in its **collect** section is finished, and `boxes c/t` on any
+other line is how far a live one has got. Counting boxes by opening the specs
+yourself is the same number for the price of the whole file.
+
+`- [x]` and `- [~]` are both closures, in either file: a struck box is a
+contract term withdrawn with a reason beside it, never work still owed. And a
+box is whatever a tree's own `done` gate calls a box — any of `-`, `*` or
+`+`, or an ordered marker, with any run of spaces before the bracket — so
+that a PRD the board offers for collection is never one a gate would reject.
+
+**`boxes c/t` and the collect line answer different questions, and are meant
+to disagree.** `c/t` is the specs' number and stays the specs' number:
+`specs/*.md` under `## Acceptance`, the only thing that moves while a worker
+works, which is what the lane bar is drawn from. Collect is the stricter
+question and reads `prd.md` whole-file as well. A bar at 100% beside a PRD
+that is not in **collect** is correct output, not a bug — the specs are
+closed and `prd.md` is not. Folding several hundred static `prd.md`
+requirement boxes into `c/t` would swamp the one live signal the plan has.
 
 **Before `done` on work this session implemented, call the skeptic** — one
 question, on your own judgment, no permission needed:

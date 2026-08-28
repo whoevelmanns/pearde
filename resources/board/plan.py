@@ -237,6 +237,25 @@ def spec_data(prd):
     return est, qualify_paths(prd, [f.rstrip("/") for f in feet if f])
 
 
+# Deliberately NOT `opens_an_unticked_box`, and deliberately left as it was
+# when the gates widened. It answers a different question over a different
+# population: the boxes under `## Acceptance` in `specs/*.md`, counted both
+# ways to make a progress fraction, where `opens_an_unticked_box` reads the
+# whole of `prd.md` to make a verdict. Its `[ xX]` capture is the fraction's
+# alphabet — `[~]` is neither counted nor closed by it, because a struck box
+# is a contract term withdrawn rather than a term met, and folding it into
+# `closed/total` would move a bar that nothing was built behind. Matching it
+# to the gates would be matching two rules that answer two questions.
+#
+# What it costs, said plainly because a reader meets it and not the argument
+# above: a spec's Acceptance box spelled `+ [ ]`, `- []`, `1. [ ]` or with a
+# tab after the marker is invisible to this pattern ENTIRELY — not in
+# `closed`, not in `total`. So `closed == total` can be true while a contract
+# term is still open, and the board offers the PRD at a clean n/n. That is
+# survivable only because the `done` gates never read a spec at all
+# (`done_boxes_are_ticked.rs` filters on `name == "prd.md"`), so no spec box
+# in any spelling can make `collect` name a PRD a gate would refuse. An
+# analyst writing `- [ ]` is what keeps the fraction honest.
 BOX_RE = re.compile(r"^\s*[-*]\s+\[([ xX])\]", re.M)
 
 
@@ -303,25 +322,79 @@ def claim_of(fm):
     return {"who": who, "since": m.group(1) if m else ""}
 
 
+def strip_list_marker(rest):
+    """What follows one Markdown list marker at the front of `rest`, or `None`
+    when `rest` does not open a list item.
+
+    A port of `strip_list_marker` in
+    `shared/shared/tests/done_boxes_are_ticked.rs`, whose body mitosys, model
+    and realm adopted on 2026-08-28 (`@infra/gates-adopt-the-best-matcher`).
+    Kept as its own function so it can be read beside the Rust it mirrors.
+
+    The three bullets are Markdown's three. The ordered arm is GFM's: `digits
+    > 9` is GFM's own bound on an ordered marker, and it is what keeps a year
+    or a version number from being read as a list marker; `)` is admitted
+    beside `.` because GFM admits both."""
+    if rest[:1] in ("-", "*", "+"):
+        return rest[1:]
+    digits = len(rest) - len(rest.lstrip("0123456789"))
+    if digits == 0 or digits > 9:
+        return None
+    rest = rest[digits:]
+    return rest[1:] if rest[:1] in (".", ")") else None
+
+
+def opens_an_unticked_box(line):
+    """True when `line` opens an unticked checkbox: a list marker, then a
+    bracket pair holding nothing but whitespace.
+
+    The marker is any of Markdown's three bullets or an ordered marker, and
+    the gap between marker and bracket is any run of spaces, because all of
+    those render as the same open box in every viewer the board is read in.
+    A reader matching one spelling only is one a stray `*`-bulleted box walks
+    past, and a board file is prose, written by hand, in five repositories.
+
+    A ticked box and a struck box are closures and do not match: their
+    brackets are not empty. `- [~]` is a box whose bar the code did not
+    clear, closed with a reason beside it — never work that is merely still
+    owed.
+
+    This body is the four gates' body, which is the point: `collect` naming a
+    PRD a gate would reject is the defect `body_has_open_box` exists to
+    remove, and it comes back the moment the two disagree about what a box
+    is."""
+    rest = strip_list_marker(line.lstrip())
+    if rest is None:
+        return False
+    rest = rest.lstrip(" ")
+    if not rest.startswith("["):
+        return False
+    rest = rest[1:]
+    end = rest.find("]")
+    return end >= 0 and not rest[:end].strip()
+
+
 def body_has_open_box(prd):
-    """True when `prd.md` itself still carries a `- [ ]`.
+    """True when `prd.md` itself still carries an unticked box.
 
-    The specs are not the whole contract. Every tree's own `done` gate reads
-    the boxes in `prd.md` — `realm/src/gates/tests/done_boxes_are_ticked.rs`
-    over the whole file, `mitosys/src/mitosys/gates/tests/` under
-    `## Acceptance` — so a PRD whose specs are all closed can still be one
-    the gate refuses. The widest of the two is what `collect` has to clear,
-    because saying "collect" on a PRD a gate would reject is how a board
-    manufactures the `done`-with-open-boxes defect it is trying to remove.
+    The specs are not the whole contract. All four trees' `done` gates read
+    the boxes in `prd.md` over the whole file, under every heading — mitosys's
+    was scoped under `## Acceptance` until 2026-08-28 and is not any more — so
+    a PRD whose specs are all closed can still be one the gate refuses.
+    Clearing what the gates clear is what `collect` has to do, because saying
+    "collect" on a PRD a gate would reject is how a board manufactures the
+    `done`-with-open-boxes defect it is trying to remove.
 
-    `- [~]` is a closure, not an open box: both gates read it as struck. This
+    The match is `opens_an_unticked_box`, the gates' own matcher, not a
+    literal `- [ ]`: a `* [ ]` box is red to every tree's gate, and until
+    2026-08-28 it was invisible here. `- [~]` stays a closure under it. This
     is the one place the marker set matters, which is why it is not
     `acceptance_of`'s `== "x"` test."""
     try:
         text = open(os.path.join(prd["dir"], "prd.md"), encoding="utf-8").read()
     except OSError:
         return False
-    return any(l.lstrip().startswith("- [ ]") for l in text.splitlines())
+    return any(opens_an_unticked_box(l) for l in text.splitlines())
 
 
 def standing(prd):
@@ -559,9 +632,12 @@ def landing(board, everything):
 
     A row is one unmerged lane matched to the PRD it was cut for, by the slug
     both share. `ready` marks the ones the board says are finished — state
-    `done`, or held with every acceptance box closed — and those are the ones
-    to merge. The rest are in flight and drawn as such: a lane at 50/54 boxes
-    is worth seeing next to the queue it is about to join.
+    `done`, or `collect` — and those are the ones to merge. It reads
+    `collect` rather than the boxes so that "merge this" and "collect this"
+    are one rule: a lane marked ready on a PRD whose `prd.md` still carries an
+    open box is a merge into a gate that would refuse it. The rest are in
+    flight and drawn as such: a lane at 50/54 boxes is worth seeing next to
+    the queue it is about to join.
 
     Ready first, then by priority, then by name for stability — merging is
     collect's work, and collect goes best door first, not oldest first."""
@@ -591,8 +667,9 @@ def landing(board, everything):
                 "state": state, "boxes": boxes,
                 "prio": (t or {}).get("prio") or 0,
                 "est": (t or {}).get("est") or 0,
-                # the board's own claim that the work is finished and tested:
-                # `done`, or every acceptance box closed on a held PRD
+                # the board's own claim that the work is finished and
+                # tested: `done`, or `collect` — every acceptance box closed
+                # on a held PRD AND no open box left in its own `prd.md`
                 "ready": state == "done" or bool((t or {}).get("collect")),
                 # a lane whose slug matches no PRD at all — the PRD was renamed
                 # or never existed. Shown, because an unmerged branch nobody
@@ -701,10 +778,15 @@ def gantt_payload(board, prds, mp, settings):
         except (TypeError, ValueError):
             prio = 0.0
         # boxes for live PRDs only: a `done` PRD's specs are history, and
-        # reading every one of them is the plan-time cost this loop avoids
-        closed, total, held = 0, 0, p["state"] in HOLDING_STATES
+        # reading every one of them is the plan-time cost this loop avoids.
+        # `collect` comes from `standing`, the same reader `tasks[]` above
+        # uses — this row and that one describe the same PRD in the same
+        # payload, and a second spelling of the rule here is how they came to
+        # disagree about a PRD whose specs are closed and whose `prd.md` is
+        # not (`prds/memos/done-counts-which-boxes.md`).
+        closed, total, collect = 0, 0, False
         if p["state"] in LIVE_STATES:
-            closed, total = acceptance(p)
+            _, closed, total, collect = standing(p)
         everything.append({
             "rel": rel, "name": p["name"], "title": p["title"],
             "state": p["state"], "board": p.get("board"),
@@ -718,7 +800,7 @@ def gantt_payload(board, prds, mp, settings):
             "weight": round(float(p["fm"].get("complexity", 0) or 0)
                             or hours(p["fm"].get("est", "")), 2),
             "boxes": [closed, total],
-            "collect": bool(held and total and closed == total),
+            "collect": collect,
             "kids": len(p.get("children") or []),
         })
     land, repos = landing(board, everything)
