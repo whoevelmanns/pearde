@@ -1050,6 +1050,13 @@ def resolve_need(prds, prd, d, idx=None):
         return d
     if (prd.get("board"), d) in local:
         return local[(prd.get("board"), d)]
+    if d.startswith("@"):
+        # `@<board>/<prd>` names another board on purpose. Scanned without
+        # that board — a member on its own — the honest answer is "not here",
+        # never the basename. A cross-tree node writes the same child name on
+        # every member, so the fallback would resolve a qualified need to the
+        # very PRD doing the needing, and the cycle check would kill the scan.
+        return None
     same = by_name.get(os.path.basename(d), [])
     return same[0] if len(same) == 1 else None
 
@@ -1067,7 +1074,12 @@ def resolve_needs(prds, todo, warn=True):
         for d in deps:
             t = resolve_need(prds, p, d, idx)
             if t is None:
-                same = idx[0].get(os.path.basename(str(d).strip()), [])
+                ds = str(d).strip()
+                if warn and ds.startswith("@"):
+                    print(f"plan: {r} needs '{d}' — that board is not in this "
+                          f"scan, ignored", file=sys.stderr)
+                    continue
+                same = idx[0].get(os.path.basename(ds), [])
                 if warn and len(same) > 1:
                     print(f"plan: {r} needs '{d}' — {len(same)} PRDs of that "
                           f"name ({', '.join(same)}); qualify it as "
@@ -1297,6 +1309,66 @@ def question_counts(prd):
         if head.startswith(("questions", "answers")):
             out[head[:1]] = len(re.findall(r"(?m)^\s*(?:\*\*Q|[-*]\s)", rest))
     return out.get("q", 0), out.get("a", 0)
+
+
+# One line of a round, written back. `**Q1** *(answered 2026-08-28 14:22)*
+# — <the decision>`: the id says which fork, the stamp says when it was
+# settled, and everything after the dash is the decision itself. The stamp is
+# optional — rounds answered before the view wrote one still read, they only
+# lose their place in a date order.
+ANSWER_LINE_RE = re.compile(
+    r"^\s*\*\*(Q?\d+[a-z]?)\*\*\s*"
+    r"(?:\*?\(answered\s+([^)]*)\)\*?\s*)?[\u2014\u2013:-]*\s*(.*)$")
+
+# `### Q1: the fork` — the question's own title, so an answer can be read
+# without opening the PRD it came out of.
+QUESTION_HEAD_RE = re.compile(r"(?m)^###\s+(Q?\d+[a-z]?)\s*[:.\u2014\u2013-]?\s*(.*)$")
+
+
+def _h2_sections(body, name):
+    """Every `## <name>` section's text. A round can be asked twice — a second
+    `## Questions` round is a second section, not a replacement."""
+    out = []
+    for m in re.finditer(r"(?m)^##\s+" + name + r"\b[^\n]*$", body or ""):
+        rest = body[m.end():]
+        nxt = re.search(r"(?m)^##\s+", rest)
+        out.append(rest[:nxt.start()] if nxt else rest)
+    return out
+
+
+def _qid(raw):
+    q = raw.upper()
+    return q if q.startswith("Q") else "Q" + q
+
+
+def answers_of(prd):
+    """Every answer written back into one PRD, in the order the file has them.
+
+    The asks view moves an answered question out of the inbox and into the
+    answered panel, and it needs the answer itself to do it — the question it
+    settles, the decision, and when it was made. Reading it out of the file is
+    what makes a redraw, a reload and a second reader agree: the PRD is the
+    record, this is only how it is read."""
+    body = prd.get("body") or ""
+    titles = {}
+    for sec in _h2_sections(body, "Questions"):
+        for m in QUESTION_HEAD_RE.finditer(sec):
+            titles.setdefault(_qid(m.group(1)), m.group(2).strip())
+    out, cur = [], None
+    for sec in _h2_sections(body, "Answers"):
+        cur = None
+        for line in sec.splitlines():
+            m = ANSWER_LINE_RE.match(line)
+            if m:
+                qid = _qid(m.group(1))
+                cur = {"id": qid, "date": (m.group(2) or "").strip(),
+                       "text": m.group(3).strip(),
+                       "question": titles.get(qid, "")}
+                out.append(cur)
+            elif cur is not None and line.strip():
+                # a decision that runs over one line stays one answer
+                cur["text"] = (cur["text"] + " " + line.strip()).strip()
+    return out
 
 
 def weight_of(prd, avg):
