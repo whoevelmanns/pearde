@@ -98,10 +98,29 @@ decides the state, and a `stopped` row does not.
 >   a job you saw recur is a finding in the report, never a file you write.
 >   **Do not estimate how long anything will take.** If a spec's compute cost
 >   is large enough to change its scope, price that inside the spec.
+>   End the report with the block the orchestrator reads the values off,
+>   verbatim:
+>
+>   ```
+>   ## Scores
+>
+>   complexity: <N>
+>   blast-radius: high|mid|low
+>   workflow: <slug> | none fit
+>   ```
 > - **REFINE** — the build hit a missing piece big enough to be its own
 >   contract, or the PRD holds more than one. Report the proposed children,
 >   `<dir-name> — one-line contract` each, and for each the thing the build
->   hit that it answers.
+>   hit that it answers. End the report with the table `pearde refine`
+>   reads, verbatim:
+>
+>   ```
+>   ## Split
+>
+>   | child | contract | needs |
+>   |---|---|---|
+>   | <dir-name> | <one line — what exists when it is done> | <sibling dir names, comma-separated, or —> |
+>   ```
 > - **QUESTION** — the build hit a fork it cannot pick and cannot build
 >   around. **Only a fork you actually hit** — never a hedge, never "should
 >   I also check", never a fact: the build is how facts are found, and a
@@ -119,10 +138,13 @@ decides the state, and a `stopped` row does not.
 > that could not fail, goes in your report as a finding — not into a spec, and
 > not into a new PRD. Widening the contract is REFINE, not initiative.
 
-On return: SPECCED → confirm the spec files exist, write `complexity:` and
-`blast-radius:`, set `specced` — and hand it to its implementer in the same
-round, never to a shelf.
-REFINE / QUESTION → set the state, keep the report. The probe code stays in
+On return: SPECCED → `pearde specced <prd> --blast <x> [--workflow <slug>]`,
+the values off `## Scores` — the command reads the spec files, refuses what
+is not a spec naming file and line, and sums the weight — and hand it to its
+implementer in the same round, never to a shelf.
+REFINE → `pearde refine <prd> < report` — the children exist from the
+`## Split` table and the parent is `open`. QUESTION → set the state, keep
+the report. The probe code stays in
 the tree either way; a PRD abandoned with probe code in it is named in the
 report, so the sweep reads it as pass one and not as damage.
 
@@ -148,12 +170,11 @@ On return:
 | anything less                                                                    | `failed`, or answer a BLOCKED worker and let it finish |
 | any of the three, plus `## Workflow <slug>`                                      | the row's state, and the five actions above |
 
-Two unclosable boxes to catch when the specs land:
-
-- A box asking for a **commit message** — committing is not an implementer's
-  act.
-- A `verify:` running the **whole workspace** — it measures the tree's worst
-  neighbour, not this node's work.
+Two unclosable boxes, caught at the gate rather than by eye: `pearde
+specced` refuses a box that asks the worker to commit — committing is not an
+implementer's act — and warns on a `## Verify and Proof` block naming no path
+under the footprint, because a whole-workspace command measures the tree's
+worst neighbour, not this node's work.
 
 A spec asking to change **another** PRD's body is the orchestrator's edit on
 that transition. The worker reports the wording — one writer per file holds.
