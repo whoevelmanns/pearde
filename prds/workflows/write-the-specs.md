@@ -3,7 +3,7 @@ atomic: write-the-specs
 subject: turn what the build stands up into implementable units
 date: 2026-08-28
 updated: 2026-08-28
-runs: 10
+runs: 11
 ---
 
 # write-the-specs — units another worker can finish
@@ -26,6 +26,7 @@ runs: 10
    box, and none is ticked before an implementer runs it. Then
    `awk '/^```/{f=!f;next} f' prds/<prd>/specs/*.md` and read every command
    back: each must name a path from its own spec's `footprint:`.
+7. `pearde specced <prd> --check` — the gate that reads the set, writing nothing. It refuses a file naming line and reason, and a set over `split-above` or `specs-above`.
 
 ## Done when
 
@@ -39,3 +40,4 @@ runs: 10
 
 | seen | means | do |
 |------|-------|----|
+| `over split-above: N > 40 — REFINE it` | the set is heavier than the board allows | weigh each spec against the siblings' spec files first; if the weight is honest at that scale the verdict is REFINE with a `## Split` table, never a lower number |

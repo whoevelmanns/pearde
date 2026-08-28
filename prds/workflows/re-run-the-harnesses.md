@@ -3,7 +3,7 @@ atomic: re-run-the-harnesses
 subject: re-run the recorded harnesses and account for every changed count
 date: 2026-08-28
 updated: 2026-08-28
-runs: 21
+runs: 22
 ---
 
 # re-run-the-harnesses — every number back, or explained
@@ -38,3 +38,5 @@ runs: 21
 | `index.py check` or `doctor` prints a line naming a file you did not touch | another session moved the tree under you | `git diff <file>` proves whose it is; report it with the path, do not fix it |
 | a committed harness outside your footprint goes red on a count the contract itself moves | the matcher is honest and the file is not yours | leave it red, quote it beside its baseline, and put the file in the spec's `footprint:` with the one-line matcher change as that spec's work |
 | a count dropped, and every failing line names a file outside your footprint that `git status` shows a live sibling modified after your baseline | the neighbour moved, not your unit | quote the failing lines, the file, and its mtime against your baseline time; report it as a finding and do not back-edge — there is nothing in your footprint that closes it |
+| a needle fails on a sentence you kept | the sentence was re-wrapped across a line; the needle is one line | re-wrap so the sentence reads whole on one line and say the rule did not move |
+| a needle names a sentence the contract deleted | the rule now lives in a command | quote the needle, name the command and its line, propose the harness edit — the count is a finding, not yours to repair |

@@ -3,7 +3,7 @@ atomic: read-the-contract
 subject: read the PRD, its answers and everything it cites, before the first edit
 date: 2026-08-28
 updated: 2026-08-28
-runs: 21
+runs: 22
 ---
 
 # read-the-contract — the whole contract in the window before anything moves
@@ -35,3 +35,4 @@ runs: 21
 | seen | means | do |
 |------|-------|----|
 | the coordinator reports the PRD body changed while you were building | the contract moved; the build stands on the old text | re-run this step on the new text, keep the build, name both reads in the report |
+| `git status --short` lists paths the brief did not | the tree is live; other sessions wrote since the brief | record what you see now — that list, not the brief's, tells your hunks from theirs |
