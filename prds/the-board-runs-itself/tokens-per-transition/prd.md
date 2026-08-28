@@ -66,3 +66,7 @@ while it happens rather than in a report written the day after.
 - `pearde status` prints the line with the same numbers.
 - `viewtest` on the copy: the analytics view holds the two series, and
   reads `no guard` when the state file is absent.
+
+## Report
+
+DONE 21/21 · commit 00a1371 · probe 42/42

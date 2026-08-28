@@ -105,3 +105,7 @@ On a copy of the example board:
 - a command run without `--as` and without `PEARDE_AS` exits 1;
 - `.transitions.jsonl` gains one row per successful command, and
   `.history.jsonl` is byte-identical before and after.
+
+## Report
+
+DONE · committed · harnesses 47/47 73/73 39/39

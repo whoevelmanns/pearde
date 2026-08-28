@@ -44,6 +44,8 @@ and no exit 1. `--trust` skips step 2 and
 prints `trusted` on the line — for a report whose output the orchestrator has
 already read and chosen to believe.
 
+DONE 23/23 · commit 6d47021 · harness 133/133 · 47/47 73/73 39/39
+
 ## Rules
 
 - **Never push.** The commit is the board's; the push is the user's.

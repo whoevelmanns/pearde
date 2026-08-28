@@ -96,3 +96,7 @@ clashing, or carrying a slug that names nothing.
 - on a PRD carrying the example workflow, the output holds the workflow block
   and both atomics inlined;
 - `doctor` reports `briefs ok`, and `broken` when a marker is removed.
+
+## Report
+
+DONE 16/16 · commit 2ae39b4 · probe 104/104 · 47/47 73/73 39/39

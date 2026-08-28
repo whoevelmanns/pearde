@@ -74,3 +74,7 @@ gone with it, and what every shell command already reads. So:
 - In a fresh shell with the alias and the export from `install.sh --apply`, the three lines `init --example` prints run in order with exit 0.
 - With `PEARDE_AS` unset: `pearde add "x"` files the PRD and its line ends `· as engineer (default)`; `pearde set x analyzing` still exits 1 naming `PEARDE_AS`.
 - `readme-in-three-rings`' `probe/quickstart.sh` runs its third line without `--as`.
+
+## Report
+
+DONE 18/18 · commit b8ac8ef · probe 96/96

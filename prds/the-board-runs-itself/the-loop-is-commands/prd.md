@@ -123,3 +123,7 @@ same rule from `plan.py`.
   `--apply` on the stale one sets `failed`.
 - `grep -ci "never take a worker" references/parts/*.md README.md` is 0 —
   it is 2 today (`states.md`, `README.md`).
+
+## Report
+
+DONE 25/25 · commit 7a664bf · probe 60/60 · attach 47/47 improve 71/71 transitions 74/74 one-command 54/54

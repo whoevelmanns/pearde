@@ -88,3 +88,7 @@ Two keys in `prds/settings.md`, both read by the analyst brief and by
   `open`, parent carrying `## Children`, `scan` gating the parent on them.
 - `pearde add` with a 70-line body → first line `big — expect a split`, the
   PRD created `open`.
+
+## Report
+
+DONE 17/17 · commit e32a0de · probe 60/60 · audited at HEAD: 47/47 73/73

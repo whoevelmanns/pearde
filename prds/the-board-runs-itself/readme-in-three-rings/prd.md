@@ -76,3 +76,7 @@ table go under **Three rings** as the core ring's body, unchanged in content.
   `states.md`'s table, 9 = 9.
 - `python3 resources/index.py check` silent; `bash resources/doctor.sh`
   every row `ok` or `off`.
+
+## Report
+
+DONE · committed fa82dd3

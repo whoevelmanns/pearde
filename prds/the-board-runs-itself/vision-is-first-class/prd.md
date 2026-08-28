@@ -105,3 +105,7 @@ edges:
   `axis: 2 on · 4 off` — six live PRDs, `big` and `big/second` on.
 - With no `terminals:`, `scan` output is byte-identical to before this PRD.
 - `doctor` reports `vision broken` on a terminal naming no PRD.
+
+## Report
+
+DONE · committed fa82dd3

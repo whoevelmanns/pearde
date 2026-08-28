@@ -81,3 +81,7 @@ each PRD is for in one line each.
   its line; a row `@resources/nosuchdir/` prints a line. Both removed after.
 - `git status --porcelain resources/board/example` is empty after every
   harness in this repo has run once.
+
+## Report
+
+DONE 14/14 · commit 646fd4f · harnesses 47/47 73/73 39/39 · probe 43/43 · viewtest --example 35/35, --check 47/47

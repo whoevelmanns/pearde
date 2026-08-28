@@ -98,3 +98,7 @@ On a copy of the example board:
   and carrying `## Children`, `scan` showing the parent gated on all three;
 - the same table piped again → exit 1 naming the three existing children,
   tree unchanged.
+
+## Report
+
+DONE · committed · harnesses 47/47 73/73 39/39

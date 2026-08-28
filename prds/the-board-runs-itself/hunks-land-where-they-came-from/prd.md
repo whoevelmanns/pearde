@@ -71,3 +71,7 @@ them in the wrong place — silently, since the staged file still parses.
 - `git show :<file> | node --check` and the offset check both pass on the
   fixture, and the offset check refuses a deliberately shifted blob.
 - `bash prds/the-board-runs-itself/collect-is-a-command/probe/verify.sh` stays green at whatever count it then carries.
+
+## Report
+
+DONE 7/7 · commit caec40f · probe 47/47 · collect 133/133
