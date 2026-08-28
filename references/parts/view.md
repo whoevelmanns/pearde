@@ -18,7 +18,7 @@ registered board is listed at `/`. `PEARDE_PORT` moves the port.
 | **board**     | what is where — kanban by state; drag a card to write `state:`    |
 | **asks**      | what is waiting on *you* — every `question` and `blocked` PRD. A round in `@references/drill.md`'s format renders as picks: the fork, its three prepared answers as buttons (recommended pre-selected), and an own-answer box per question |
 | **list**      | all of it — sortable, filterable, one row per PRD                 |
-| **analytics** | how this is going — where the work and weight sit, the est/actual records, the machine-wide hours-per-weight fit, weight left over time |
+| **analytics** | how this is going — where the work and weight sit, the est/actual records, the machine-wide hours-per-weight fit, weight left over time, and what a transition costs: calls per transition over the last thirty, refusals per session, both off the guard's count (@references/parts/guard.md). Calls are the proxy for tokens, named as such; no guard state at all reads `no guard`, never zero |
 | **memos**     | what the board decided — `prds/memos/`, rendered                  |
 | **report**    | the board for a person — `prds/report.md`, rendered. ⌘7. No file, a line saying `pearde report` writes one |
 
@@ -241,12 +241,15 @@ background at session start, and whenever a round ends with work still open.
 
 **What the board keeps.** `prds/.plan.json` is the last plan.
 `prds/.history.jsonl` is one row a day — the only memory the board has, and
-what the burn-down draws. Both are machine-local and regenerable, so gitignore
+what the burn-down draws. `prds/.transitions.jsonl` is one row a transition,
+appended by the transition commands, carrying the guard's count for the window
+before it — what the cost series draw. All are machine-local, so gitignore
 them:
 
 ```
 prds/.plan.json
 prds/.history.jsonl
+prds/.transitions.jsonl
 prds/.view.html
 ```
 

@@ -29,6 +29,39 @@ And two it only comments on:
 A reference is keyed by its real path, so the same file read once here and
 once through a skill folder of links is one file, not two.
 
+## What it counts
+
+The guard sees every tool call a session makes on a board, so it is where the
+round's cost is counted — no second hook, no second process. Per board, in
+the session's file under `boards`:
+
+| key | is |
+|---|---|
+| `calls` · `reads` · `bash` · `edits` · `refused` | tool calls since the session first saw the board, by kind, and how many it refused |
+| `since` | the time of the last transition |
+| `transitions` | how many this session made on the board |
+| `mark` | the counters as they stood at the last transition, with `tokens` — the transcript's output-token sum then |
+
+A transition is where the count is spent. @resources/board/transitions.py
+reads the live session's block — the newest file, because the guard touches
+its file on every call and the call running the command is the last it saw —
+and writes `calls`, `reads`, `refused` and `tokens` on its `.transitions.jsonl`
+row: counter minus mark, then the mark moves and `since` with it.
+`.history.jsonl` is untouched. `tokens` is the output-token sum the session's
+transcript grew by, when the hook input named one and the file is readable;
+otherwise `null` — unmeasured, never zero. A session with the guard off writes
+`null` in every one of the four: it records nothing.
+
+`pearde status` prints the block as one line — `this session: <calls> calls ·
+<refused> refused · <n> transitions · <calls/n> per transition` — and `no
+guard` when there is no session file at all. The analytics view draws the
+same numbers as two series, per @references/parts/view.md. Calls are the
+proxy for tokens, and the page says so.
+
+`PEARDE_GUARD_STATE` moves the state directory for the guard and its readers
+alike; a harness feeding hook JSON to a temp project sets it, and never
+writes under `resources/board/state/`.
+
 **It refuses only what is provably redundant.** "Nothing changed" is the
 newest mtime of any `.md` under the board and its members — 7 ms on a
 227-PRD master board. An unchanged stamp means an identical answer, which is

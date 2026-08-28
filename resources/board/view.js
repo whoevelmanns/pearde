@@ -3177,7 +3177,30 @@ function drawAnalytics() {
     (HIST.length >= 2 ? burndown(HIST) :
       '<div class="empty">collecting — ' + (HIST.length
         ? "one day so far (" + HIST[0].d + "), the line needs two"
-        : "nothing recorded yet") + "</div>") + "</div>";
+        : "nothing recorded yet") + "</div>") + "</div>" +
+
+    // 5 — what a transition costs. The guard counts tool calls per session
+    // and the transition writes the window's count on its row; calls are
+    // the proxy for tokens, which are unmeasured unless a transcript was on
+    // disk. No guard state at all reads `no guard`, never zero.
+    '<div class="chart"><h3>Calls per transition</h3>' +
+    '<p class="sub">tool calls between one state move and the next, the ' +
+    "last thirty · calls are the proxy for tokens · a rising line is the " +
+    "board re-deriving</p>" + costLine(DATA.transitions || [], DATA.guard) +
+    "</div>" +
+
+    '<div class="chart"><h3>Refusals per session</h3>' +
+    '<p class="sub">what the guard refused, by session, oldest first · a ' +
+    "refusal is a call that would have re-read an unchanged board</p>" +
+    (DATA.guard === null || DATA.guard === undefined
+      ? '<div class="empty">no guard</div>'
+      : (DATA.guard.sessions || []).length
+        ? bars(DATA.guard.sessions.map(g => ({k: g.session.slice(0, 12),
+            v: g.refused, calls: g.calls, n: g.transitions})),
+            "var(--c2)", r => r.v + " · " + r.calls + " calls · " + r.n +
+            " transitions")
+        : '<div class="empty">the guard has counted nothing on this ' +
+          "board yet</div>") + "</div>";
   for (const c of $("charts").querySelectorAll("circle[data-rel]"))
     c.onclick = () => { const t = taskFor(c.dataset.rel); if (t) openDrawer(t); };
 }
@@ -3219,6 +3242,34 @@ function burndown(h) {
   g += `<text class="lbl" x="${pad}" y="${H - 10}">${esc(h[0].d)}</text>`;
   g += `<text class="lbl" x="${W - 4}" y="${H - 10}" text-anchor="end">${esc(h[h.length - 1].d)}</text>`;
   g += `<text class="lbl" x="4" y="14">${fmtW(mx)}</text>`;
+  return g + "</svg>";
+}
+
+function costLine(rows, guard) {
+  if (guard === null || guard === undefined)
+    return '<div class="empty">no guard</div>';
+  const h = rows.filter(r => typeof r.calls === "number");
+  if (h.length < 2)
+    return '<div class="empty">' + (h.length
+      ? "one transition counted so far, the line needs two"
+      : "no transition counted under the guard yet") + "</div>";
+  const W = 460, H = 220, pad = 34;
+  const mx = Math.max(...h.map(r => r.calls), 1);
+  const X = i => pad + i / (h.length - 1) * (W - pad - 8);
+  const Y = v => H - pad - v / mx * (H - pad - 12);
+  const pts = h.map((r, i) => `${X(i).toFixed(1)},${Y(r.calls).toFixed(1)}`);
+  let g = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="calls per transition">`;
+  g += `<line class="ax" x1="${pad}" y1="${H - pad}" x2="${W - 4}" y2="${H - pad}"/>`;
+  g += `<polyline class="line" points="${pts.join(" ")}"/>`;
+  h.forEach((r, i) => {
+    const tok = typeof r.tokens === "number" ? r.tokens.toLocaleString() + " tokens" : "tokens unmeasured";
+    g += `<circle class="dot" cx="${X(i).toFixed(1)}" cy="${Y(r.calls).toFixed(1)}" r="3.5">` +
+      `<title>${esc(r.prd)} ${esc(r.from || "—")} → ${esc(r.to)} · ${r.calls} calls, ` +
+      `${r.refused || 0} refused · ${tok} · ${esc(String(r.t).slice(0, 16))}</title></circle>`;
+  });
+  g += `<text class="lbl" x="${pad}" y="${H - 10}">${esc(String(h[0].t).slice(0, 10))}</text>`;
+  g += `<text class="lbl" x="${W - 4}" y="${H - 10}" text-anchor="end">${esc(String(h[h.length - 1].t).slice(0, 10))}</text>`;
+  g += `<text class="lbl" x="4" y="14">${mx} calls</text>`;
   return g + "</svg>";
 }
 

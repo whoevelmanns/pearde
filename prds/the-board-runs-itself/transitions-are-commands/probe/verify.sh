@@ -136,10 +136,10 @@ check "add --parent files under the parent" "$([ "$RC" = 0 ] && [ -f "$B/big/und
 echo "memory"
 ROWS="$(wc -l < "$B/.transitions.jsonl" | tr -d ' ')"
 check ".transitions.jsonl has one row per state move (13)" "$([ "$ROWS" = 13 ]; echo $?)" "$ROWS"
-check "every row is {t,prd,from,to}" "$(TR="$B/.transitions.jsonl" python3 -c 'import json,os
+check "every row is {t,prd,from,to,calls,reads,refused,tokens}" "$(TR="$B/.transitions.jsonl" python3 -c 'import json,os
 for l in open(os.environ["TR"]):
-    r=json.loads(l); assert sorted(r)==["from","prd","t","to"], r'; echo $?)"
-check "the add row is from null" "$(grep -q '"from": null, "prd": "a-brand-new-thing", "t": "20[^"]*", "to": "open"' "$B/.transitions.jsonl"; echo $?)"
+    r=json.loads(l); assert sorted(r)==["calls","from","prd","reads","refused","t","to","tokens"], r'; echo $?)"
+check "the add row is from null" "$(grep -q '"from": null, "prd": "a-brand-new-thing", "reads": [^,]*, "refused": [^,]*, "t": "20[^"]*", "to": "open"' "$B/.transitions.jsonl"; echo $?)"
 check ".history.jsonl byte-identical" "$(cd "$D" && git diff --quiet -- prds/.history.jsonl; echo $?)"
 STRAY="$(cd "$D" && git status --porcelain | grep -v 'prds/[a-z/-]*prd.md$' | grep -v '^?? prds/a-brand-new-thing/$' | grep -v '^?? prds/big/under-big/$' | grep -v '^?? prds/.transitions.jsonl$' | grep -v '^?? prds/.claims/$')"
 check "only prd.md files, the two new PRDs, .transitions.jsonl and .claims/ moved" "$([ -z "$STRAY" ]; echo $?)" "$STRAY"

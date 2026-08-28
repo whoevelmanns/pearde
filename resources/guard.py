@@ -28,7 +28,10 @@ import time
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PEARDE = os.path.dirname(ROOT)          # the repo this guard ships in
-STATE = os.path.join(ROOT, "board", "state", "guard")
+# One JSON file per session. `PEARDE_GUARD_STATE` moves the directory — a
+# harness feeding hook JSON to a temp project must never write here.
+STATE = os.environ.get("PEARDE_GUARD_STATE") or os.path.join(
+    ROOT, "board", "state", "guard")
 ROUND_FILE = ".round.md"
 
 # The manual does not change mid-round, so a repeat read of one of its files
@@ -144,7 +147,50 @@ def clock(t):
     return time.strftime("%H:%M:%S", time.localtime(t))
 
 
+# ── the count ─────────────────────────────────────────────────────────────────
+# The guard sees every tool call a session makes on a board, so it is the one
+# place the round's cost can be counted without a second hook. Per board,
+# under `boards` in the session file: `calls`, `reads`, `bash`, `edits` and
+# `refused` — counted since the session first saw the board — `since`, the
+# time of the last transition, `transitions`, how many there were, and
+# `mark`: the counters as they stood at that transition, with `tokens`, the
+# transcript's output-token sum then. A row's count is counter minus mark;
+# "reset" is the mark moving, so `status` still has the session's totals.
+# transitions.py `hand_over` writes the row and moves the mark; plan.py
+# `status` prints the block.
+COUNTERS = ("calls", "reads", "bash", "edits", "refused")
+KIND = {"Read": "reads", "Bash": "bash", "Edit": "edits", "Write": "edits"}
+_LIVE = {}      # session, st, board — set by `count`, read by `deny`
+
+
+def block_of(st, board):
+    boards = st.setdefault("boards", {})
+    b = boards.setdefault(os.path.realpath(board), {})
+    for k in COUNTERS:
+        b.setdefault(k, 0)
+    b.setdefault("since", time.time())
+    b.setdefault("transitions", 0)
+    b.setdefault("mark", {})
+    return b
+
+
+def count(session, st, board, tool, data):
+    """One call seen on `board`: `calls` and the tool's own counter move, and
+    the transcript path is kept so a transition can price the window."""
+    b = block_of(st, board)
+    b["calls"] += 1
+    if tool in KIND:
+        b[KIND[tool]] += 1
+    if data.get("transcript_path"):
+        st["transcript"] = str(data["transcript_path"])
+    save(session, st)
+    _LIVE.update(session=session, st=st, board=board)
+
+
 def deny(reason):
+    if _LIVE:
+        block_of(_LIVE["st"], _LIVE["board"])["refused"] += 1
+        save(_LIVE["session"], _LIVE["st"])
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "PreToolUse",
         "permissionDecision": "deny",
@@ -260,14 +306,20 @@ def touches_board(cmd, board):
 def pre(data):
     tool = data.get("tool_name") or ""
     inp = data.get("tool_input") or {}
+    session = data.get("session_id") or ""
+    # an edit is counted on the board its file is in, or the cwd's when the
+    # file is outside every board; everything else on the cwd's board
+    board = board_of(data.get("cwd"))
+    if tool in ("Edit", "Write"):
+        board = board_of(os.path.dirname(os.path.abspath(
+            str(inp.get("file_path") or "")))) or board
+    if not board:
+        ok()
+    st = load(session)
+    count(session, st, board, tool, data)
     if tool in ("Edit", "Write"):
         state_by_hand(tool, inp)
         ok()
-    board = board_of(data.get("cwd"))
-    if not board:
-        ok()
-    session = data.get("session_id") or ""
-    st = load(session)
 
     if tool == "Bash":
         cmd = str(inp.get("command") or "")

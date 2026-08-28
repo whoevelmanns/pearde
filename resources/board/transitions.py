@@ -330,9 +330,71 @@ def record(prd, frm, to):
     truncated to 400 rows on every write."""
     row = {"t": datetime.datetime.now().isoformat(timespec="seconds"),
            "prd": prd["local"], "from": frm, "to": to}
+    row.update(hand_over(prd["board_path"]))
     path = os.path.join(prd["board_path"], TRANSITIONS_FILE)
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(row, sort_keys=True) + "\n")
+
+
+def transcript_tokens(path):
+    """The output-token sum of a session transcript on disk — one JSON object
+    a line, an assistant line carrying `message.usage.output_tokens`; a
+    message streamed in several lines is counted once, by its id. None when
+    the file cannot be read: tokens are unmeasured, never zero."""
+    seen = {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            for i, line in enumerate(f):
+                try:
+                    d = json.loads(line)
+                except ValueError:
+                    continue
+                m = d.get("message") if isinstance(d, dict) else None
+                if not isinstance(m, dict):
+                    continue
+                u = m.get("usage") or {}
+                if "output_tokens" in u:
+                    seen[m.get("id") or i] = int(u["output_tokens"] or 0)
+    except (OSError, TypeError, ValueError):
+        return None
+    return sum(seen.values())
+
+
+def hand_over(board):
+    """The guard's count for the window that ends with this transition —
+    `calls`, `reads`, `refused` and `tokens` off the live session's block for
+    this board, counter minus the last mark; the mark then moves to now, and
+    so does `since`. Every value is None
+    when no guard counted: a session with the guard off records nothing.
+    Whatever is wrong with the file is not this command's to refuse on."""
+    out = {"calls": None, "reads": None, "refused": None, "tokens": None}
+    sessions = planlib.guard_sessions()
+    if not sessions:
+        return out
+    sid, _, data = sessions[-1]
+    b = planlib.guard_block(board, data)
+    if b is None:
+        return out
+    mark = b.get("mark") or {}
+    for k in ("calls", "reads", "refused"):
+        out[k] = max(int(b.get(k, 0)) - int(mark.get(k, 0)), 0)
+    total = transcript_tokens(data["transcript"]) \
+        if data.get("transcript") else None
+    if total is not None:
+        out["tokens"] = max(total - int(mark.get("tokens", 0)), 0)
+    b["mark"] = {k: int(b.get(k, 0))
+                 for k in ("calls", "reads", "bash", "edits", "refused")}
+    if total is not None:
+        b["mark"]["tokens"] = total
+    b["transitions"] = int(b.get("transitions", 0)) + 1
+    b["since"] = datetime.datetime.now().timestamp()
+    try:
+        path = os.path.join(planlib.GUARD_DIR, sid + ".json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except OSError:
+        pass
+    return out
 
 
 # ── the progress line ─────────────────────────────────────────────────────────

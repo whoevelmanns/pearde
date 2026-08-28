@@ -1083,6 +1083,10 @@ def gantt_payload(board, prds, mp, settings):
         "boards": [n for n, _ in members(board)],
         "all": everything,
         "history": read_history(board),
+        # the cost series — @references/parts/guard.md. `guard` is None when
+        # no session file exists, and the page says `no guard`
+        "transitions": read_transitions(board),
+        "guard": guard_view(board),
         # the states the loop works, then any the user parked work in
         "states": sorted(LIVE_STATES | {"done"}) + sorted(
             {p["state"] for p in prds.values()} - LIVE_STATES - {"done"}),
@@ -1127,6 +1131,99 @@ def read_history(board):
     except OSError:
         return []
     return rows[-400:]
+
+
+TRANSITIONS_FILE = ".transitions.jsonl"
+
+
+def read_transitions(board, last=30):
+    """The last `last` rows transitions.py `record` appended — one per state
+    move, carrying the guard's count for the window before it (`calls`,
+    `reads`, `refused`, `tokens`, each `null` when no guard was counting).
+    The analytics draw calls per transition off these; `.history.jsonl`
+    stays the burn-down's."""
+    rows = []
+    try:
+        for line in open(os.path.join(board, TRANSITIONS_FILE),
+                         encoding="utf-8"):
+            line = line.strip()
+            if line:
+                try:
+                    rows.append(json.loads(line))
+                except ValueError:
+                    continue
+    except OSError:
+        return []
+    return rows[-last:]
+
+
+# The guard's session files — resources/guard.py writes them, one per
+# session, and `PEARDE_GUARD_STATE` moves the directory for both. plan.py
+# only reads: the newest file is the live session, because the guard touches
+# its file on every tool call, and the call that runs `pearde status` is
+# the last one it saw.
+GUARD_DIR = os.environ.get("PEARDE_GUARD_STATE") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "state", "guard")
+
+
+def guard_sessions():
+    """[(session, mtime, data)] oldest first, or [] with no state dir or no
+    file in it — `no guard`, never zero."""
+    out = []
+    try:
+        names = [n for n in os.listdir(GUARD_DIR) if n.endswith(".json")]
+    except OSError:
+        return out
+    for n in names:
+        path = os.path.join(GUARD_DIR, n)
+        try:
+            out.append((n[:-5], os.stat(path).st_mtime,
+                        json.load(open(path, encoding="utf-8"))))
+        except (OSError, ValueError):
+            continue
+    out.sort(key=lambda x: x[1])
+    return out
+
+
+def guard_block(board, data):
+    """The per-board counter block a session file holds for `board`, or
+    None."""
+    return (data.get("boards") or {}).get(os.path.realpath(board))
+
+
+def guard_view(board):
+    """What the analytics draw: every session that counted on this board,
+    oldest first, or None when the guard has left no file at all."""
+    sessions = guard_sessions()
+    if not sessions:
+        return None
+    rows = []
+    for sid, mtime, data in sessions:
+        b = guard_block(board, data)
+        if b is None:
+            continue
+        rows.append({"session": sid, "at": round(mtime, 3),
+                     "refused": int(b.get("refused", 0)),
+                     "calls": int(b.get("calls", 0)),
+                     "transitions": int(b.get("transitions", 0))})
+    return {"sessions": rows[-30:]}
+
+
+def session_line(board):
+    """`pearde status`'s one line on the cost of this session — the newest
+    guard file's block for this board. `no guard` when there is no file;
+    a session that has not counted here yet says so."""
+    sessions = guard_sessions()
+    if not sessions:
+        return "this session: no guard"
+    b = guard_block(board, sessions[-1][2])
+    if b is None:
+        return "this session: no calls counted on this board"
+    calls = int(b.get("calls", 0))
+    n = int(b.get("transitions", 0))
+    per = f"{calls / n:.1f}" if n else "—"
+    return (f"this session: {calls} calls · {int(b.get('refused', 0))} refused"
+            f" · {n} transitions · {per} per transition")
 
 
 def write_history(board, prds=None):
@@ -1952,6 +2049,7 @@ def cmd_status(board):
             " · no settings.md"
         print(f"  @{name:14} {n:4} PRDs · {path}{own}")
     print(f"view: {serve_url(board)}")
+    print(session_line(board))
 
 
 def vision_json(board, prds, ax):

@@ -1,9 +1,11 @@
 ---
-state: open
+state: done
 origin: requested
+actual: 1.3h
+commit: ae1090a
 priority: 40
-complexity: 0
-blast-radius:
+complexity: 32
+blast-radius: mid
 repo: pearde
 workflow: probe-then-spec
 needs:
@@ -16,6 +18,7 @@ footprint:
   - resources/board/view.js
   - references/parts/guard.md
   - references/parts/view.md
+  - prds/the-board-runs-itself/transitions-are-commands/probe/verify.sh
 ---
 
 # tokens-per-transition — the round's cost is a number on the page, not a post-mortem
