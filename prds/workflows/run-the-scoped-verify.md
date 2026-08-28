@@ -3,7 +3,7 @@ atomic: run-the-scoped-verify
 subject: run the unit's own verify command and quote what it printed
 date: 2026-08-28
 updated: 2026-08-28
-runs: 11
+runs: 12
 ---
 
 # run-the-scoped-verify — the unit measured, not the tree

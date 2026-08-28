@@ -1,13 +1,15 @@
 ---
-state: open
+state: done
 origin: derived
+actual: 0.9h
 from: workflows-on-the-board/workflow-seed
 priority: 70
-complexity: 0
+complexity: 26
 blast-radius: high
 repo: pearde
 footprint:
   - resources/board/plan.py
+  - prds/complexity-is-guarded-like-priority/probe
 ---
 
 # complexity-is-guarded-like-priority — one typo must not take the board down

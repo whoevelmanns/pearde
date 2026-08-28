@@ -2,7 +2,7 @@
 atomic: run-the-repo-gate
 subject: run the map check and the install check, and account for every line
 date: 2026-08-28
-runs: 11
+runs: 12
 ---
 
 # run-the-repo-gate — the two commands that read the whole tree

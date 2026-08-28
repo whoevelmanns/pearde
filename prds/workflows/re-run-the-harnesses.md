@@ -3,7 +3,7 @@ atomic: re-run-the-harnesses
 subject: re-run the recorded harnesses and account for every changed count
 date: 2026-08-28
 updated: 2026-08-28
-runs: 23
+runs: 24
 ---
 
 # re-run-the-harnesses — every number back, or explained
@@ -32,6 +32,8 @@ runs: 23
 
 | seen | means | do |
 |------|-------|----|
+| a count went **up** on a harness you did not touch | every row here reads a count that dropped; a count that rose is the same evidence that the tree moved under you, and a worker that only checks for drops will quietly take credit for a neighbour's landing | quote both counts, say the rise is not yours and name the file whose change explains it — a harness whose baseline you recorded red and that is now green is a finding about the other session, not about your unit |
+| `find prds -name verify.sh` lists a harness that was not there at step 2 | a parallel session landed a PRD mid-run, with its own probe | run it, record it as new with no baseline, and do not compare it to anything; a harness you never had a baseline for cannot regress |
 | a count moved on a harness whose inputs you did not touch | the harness's own text changed between the two runs | quote both counts, say the text moved and whose it is; it is not yours to explain |
 | a count moved on a path you never wrote | another live session landed files under `resources/` mid-run | name the paths and say they are not yours; the baseline stands for your own paths |
 | a count dropped on a harness whose failing line is a repo-root `git status` or `git diff` | the check measures the workspace, not this PRD's footprint; a parallel worker's untracked file reddens it | quote the line, list the untracked files it saw and whose they are, leave the harness alone — the rule did not move |

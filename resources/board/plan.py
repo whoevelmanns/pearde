@@ -82,7 +82,13 @@ ITEM_RE = re.compile(r"^\s*-\s+(.*?)\s*$")
 
 
 def strip_comment(v):
-    return re.sub(r"\s+#.*$", "", v).strip().strip("\"'")
+    # `^` as well as `\s+`: a value that is ONLY a comment is an empty value.
+    # `est:   # the weight, only when complexity is absent` — the template's
+    # own line — parsed to the comment TEXT while the leading run of spaces was
+    # eaten by KEY_RE, so every reader of `est` got a sentence where a duration
+    # was meant. `hours()` read it as 0.0 in silence; `dur()` reports it, which
+    # is how it was found. A `#` inside a word (`repo: a#b`) is still a `#`.
+    return re.sub(r"(^|\s+)#.*$", "", v).strip().strip("\"'")
 
 
 def parse_prd(path):
@@ -241,7 +247,9 @@ def spec_data(prd):
                 fm, _, _ = parse_prd(os.path.join(sdir, f))
                 fp = fm.get("footprint", [])
                 feet += fp if isinstance(fp, list) else [fp]
-                est += float(fm.get("complexity", 0) or 0) or hours(fm.get("est", ""))
+                where = f"{prd['rel']}/specs/{f}"
+                est += (num(fm, "complexity", where)
+                        or dur(fm, "est", where))
     return est, qualify_paths(prd, [f.rstrip("/") for f in feet if f])
 
 
@@ -433,8 +441,75 @@ def hours(v):
     m = re.match(r"^([\d.]+)\s*([mhd]?)$", v)
     if not m:
         return 0.0
-    n, unit = float(m.group(1)), m.group(2)
+    try:
+        n = float(m.group(1))
+    except ValueError:   # `..`, `1.2.3` — the shape matches, the number does not
+        return 0.0
+    unit = m.group(2)
     return n / 60 if unit == "m" else n * 8 if unit == "d" else n
+
+
+# ── numbers a person typed ───────────────────────────────────────────────────
+# Every weight on this board is hand-written: `complexity` on every spec by
+# every analyst the board has ever dispatched, `priority` on every prd.md,
+# `weight-default`, `gantt-day` and `claim-ttl` in settings.md. The population
+# of writers is the population of workers, so the failure mode is a typo — and
+# a bare `float()` over one of them turns that typo into a traceback in `scan`,
+# step 1 of every round, that names no PRD and stops every session on the
+# board. Nothing here reads a number off a file a person wrote except through
+# `num` and `dur`.
+#
+# A bad value reads as 0.0, which is what an UNSCORED value already reads as,
+# and that is the whole of the decision: `compute_plan` and `weight_of` weigh
+# an unscored PRD at the board average and `progress_terms` leaves it out of
+# the average it computes, so a typo is weighed as "we do not know this one's
+# size" rather than as free. What would be wrong is the SILENCE — a weight
+# that quietly becomes 0 is a wrong number that looks like a real one, and it
+# moves the PRD in the plan and in the progress percentage — so every bad
+# value is said out loud, on stderr, naming the file a person has to open.
+# Once per (file, key, value), never once per read: `complexity` is read by
+# five functions in a round and one typo is one problem.
+_BAD_SEEN = set()
+# a duration that is honestly zero — `0`, `0h`, `0.0m` — so `dur` does not
+# report the one value `hours()` and a broken value agree on
+ZERO_RE = re.compile(r"^0*\.?0*\s*[mhd]?$")
+
+
+def bad_value(where, key, v):
+    """Say once that a hand-written value is not a number. Never raises."""
+    seen = (str(where), str(key), repr(v))
+    if seen in _BAD_SEEN:
+        return
+    _BAD_SEEN.add(seen)
+    print(f"plan: {where or '?'} — {key}: {v!r} is not a number, weighed as "
+          f"unscored", file=sys.stderr)
+
+
+def num(fm, key, where="", default=0):
+    """A plain number off frontmatter — `complexity`, `priority`,
+    `weight-default`. 0.0 when absent or empty, 0.0 AND a report when it is
+    there and is not a number. Never raises."""
+    v = fm.get(key, default)
+    if v is None or v == "":
+        return 0.0
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        bad_value(where, key, v)
+        return 0.0
+
+
+def dur(fm, key, where="", default=""):
+    """A duration off frontmatter — `est`, `actual`, `gantt-day` — in hours.
+    `hours()` reads the shapes; this names the file when a value is not one of
+    them. 0.0 when absent or unreadable. Never raises."""
+    v = fm.get(key, default)
+    if v is None or v == "":
+        return 0.0
+    h = hours(v)
+    if h == 0.0 and not ZERO_RE.match(str(v).strip()):
+        bad_value(where, key, v)
+    return h
 
 
 # ── silence ──────────────────────────────────────────────────────────────────
@@ -455,7 +530,10 @@ def claim_ttl(settings):
     if v.isdigit():
         return float(v)
     h = hours(v)
-    return h * 60 if h > 0 else 30.0
+    if h <= 0:
+        bad_value("settings.md", "claim-ttl", v)
+        return 30.0
+    return h * 60
 
 
 def prd_repo(prd):
@@ -905,19 +983,16 @@ def gantt_payload(board, prds, mp, settings):
     the past out to the LEFT of now and pins the parked at now, so where we
     are is a place on the whole track, not kilometre zero of a shrinking
     one."""
-    day_h = hours(settings.get("gantt-day", "8h")) or 8.0
+    day_h = dur(settings, "gantt-day", "settings.md", "8h") or 8.0
     sched = mp.get("schedule", {})
     tasks, unplanned = [], []
     done = parked = containers = 0
     for rel in sorted(prds):
         p = prds[rel]
         st = p["state"]
-        weight = round(float(p["fm"].get("complexity", 0) or 0)
-                       or hours(p["fm"].get("est", "")), 2)
-        try:
-            pr = float(p["fm"].get("priority", 0))
-        except (TypeError, ValueError):
-            pr = 0.0
+        weight = round(num(p["fm"], "complexity", rel)
+                       or dur(p["fm"], "est", rel), 2)
+        pr = num(p["fm"], "priority", rel)
         nd = p["fm"].get("needs", [])
         nd = nd if isinstance(nd, list) else [nd]
         base = {
@@ -974,10 +1049,7 @@ def gantt_payload(board, prds, mp, settings):
     everything = []
     for rel in sorted(prds):
         p = prds[rel]
-        try:
-            prio = float(p["fm"].get("priority", 0))
-        except (TypeError, ValueError):
-            prio = 0.0
+        prio = num(p["fm"], "priority", rel)
         # boxes for live PRDs only: a `done` PRD's specs are history, and
         # reading every one of them is the plan-time cost this loop avoids.
         # `collect` comes from `standing`, the same reader `tasks[]` above
@@ -993,13 +1065,13 @@ def gantt_payload(board, prds, mp, settings):
             "state": p["state"], "board": p.get("board"),
             "parent": p.get("parent"),
             "prio": int(prio) if prio == int(prio) else prio,
-            "est": round(hours(p["fm"].get("est", "")), 2),
-            "actual": round(hours(p["fm"].get("actual", "")), 2),
+            "est": round(dur(p["fm"], "est", rel), 2),
+            "actual": round(dur(p["fm"], "actual", rel), 2),
             # the weight the board schedules by — complexity, falling back
             # to est. est and actual are records the plan never schedules
             # by; `calibrate` fits real hours from them
-            "weight": round(float(p["fm"].get("complexity", 0) or 0)
-                            or hours(p["fm"].get("est", "")), 2),
+            "weight": round(num(p["fm"], "complexity", rel)
+                            or dur(p["fm"], "est", rel), 2),
             "boxes": [closed, total],
             "collect": collect,
             "kids": len(p.get("children") or []),
@@ -1064,11 +1136,11 @@ def write_history(board, prds=None):
     today = datetime.date.today().isoformat()
     row = {"d": today, "states": {}, "hleft": 0.0, "hdone": 0.0,
            "done": 0, "left": 0}
-    for p in prds.values():
+    for rel, p in prds.items():
         st = p["state"]
         row["states"][st] = row["states"].get(st, 0) + 1
-        h = (float(p["fm"].get("complexity", 0) or 0)
-             or hours(p["fm"].get("est", "")))
+        h = (num(p["fm"], "complexity", rel)
+             or dur(p["fm"], "est", rel))
         if st == "done":
             row["done"] += 1
             row["hdone"] += h
@@ -1138,14 +1210,11 @@ def calib_rows():
         for rel, p in sorted(_scan_one(b).items()):
             if p["state"] != "done":
                 continue
-            act = hours(p["fm"].get("actual", ""))
+            act = dur(p["fm"], "actual", rel)
             if act <= 0:
                 continue
-            try:
-                w = float(p["fm"].get("complexity", 0) or 0)
-            except (TypeError, ValueError):
-                w = 0.0
-            rows.append((name, rel, hours(p["fm"].get("est", "")), act, w))
+            w = num(p["fm"], "complexity", rel)
+            rows.append((name, rel, dur(p["fm"], "est", rel), act, w))
     return rows
 
 
@@ -1317,8 +1386,8 @@ def compute_plan(board, workers=None, warn=True):
     for r, p in todo.items():
         e, f = spec_data(p)
         # complexity is the weight. est is the fallback for an unscored PRD
-        est[r] = (e or float(p["fm"].get("complexity", 0) or 0)
-                  or hours(p["fm"].get("est", "")))
+        est[r] = (e or num(p["fm"], "complexity", r)
+                  or dur(p["fm"], "est", r))
         feet[r] = f
     # A parent with live children is a container: the work is in the children,
     # and weighing it too counts the same work twice. It still waits for them.
@@ -1327,7 +1396,7 @@ def compute_plan(board, workers=None, warn=True):
             est[r] = 0.0
     known = [e for e in est.values() if e > 0]
     avg = (sum(known) / len(known) if known
-           else float(settings.get("weight-default", 50) or 50))
+           else num(settings, "weight-default", "settings.md", 50) or 50)
     for r, p in todo.items():
         if not est[r] and not any(c in todo for c in p["children"]):
             est[r] = avg
@@ -1348,10 +1417,7 @@ def compute_plan(board, workers=None, warn=True):
             est[r] = max(est[r] * (1 - frac), est[r] * 0.05)
 
     def prio(r):
-        try:
-            return float(todo[r]["fm"].get("priority", 0))
-        except ValueError:
-            return 0.0
+        return num(todo[r]["fm"], "priority", r)
 
     # The vision axis orders the frontier: asap lanes first, then on-axis
     # deepest-first, then the old widest-door order. A PRD off the axis (or a
@@ -1577,8 +1643,8 @@ def weight_of(prd, avg):
     else `est`, else the board average. `compute_plan` weighs only live work;
     the progress line's percentage needs the closed PRDs too."""
     e, _ = spec_data(prd)
-    return (float(prd["fm"].get("complexity", 0) or 0) or e
-            or hours(prd["fm"].get("est", "")) or avg)
+    return (num(prd["fm"], "complexity", prd["rel"]) or e
+            or dur(prd["fm"], "est", prd["rel"]) or avg)
 
 
 def progress_terms(board, prds=None, settings=None):
@@ -1590,10 +1656,10 @@ def progress_terms(board, prds=None, settings=None):
     prds = scan(board) if prds is None else prds
     settings = board_settings(board) if settings is None else settings
     live = {r: p for r, p in prds.items() if p["state"] in LIVE_STATES}
-    scored = [w for w in (float(p["fm"].get("complexity", 0) or 0)
-                          for p in prds.values()) if w > 0]
+    scored = [w for w in (num(p["fm"], "complexity", r)
+                          for r, p in prds.items()) if w > 0]
     avg = (sum(scored) / len(scored) if scored
-           else float(settings.get("weight-default", 50) or 50))
+           else num(settings, "weight-default", "settings.md", 50) or 50)
 
     def origin(p):
         return "derived" if str(p["fm"].get("origin", "")).strip() == \
@@ -1904,17 +1970,14 @@ def vision_json(board, prds, ax):
             if t is None or prds[t]["state"] != "done":
                 unmet.append(str(d).strip())
         specs = os.path.join(p["dir"], "specs")
-        try:
-            prio = float(p["fm"].get("priority", 0) or 0)
-        except ValueError:
-            prio = 0.0
+        prio = num(p["fm"], "priority", r)
         d = ax["depth"].get(r)
         rows.append({
             "addr": (r if r.startswith(MEMBER_SIGIL)
                      else f"{MEMBER_SIGIL}{name}/{r}"),
             "board": p["board"] or name, "rel": p["local"],
             "state": p["state"], "depth": d, "reach": ax["reach"].get(r, 0),
-            "est": hours(p["fm"].get("est", "")) or None, "prio": prio,
+            "est": dur(p["fm"], "est", r) or None, "prio": prio,
             "ready": (not p["children"] and not unmet
                       and p["state"] in ("open", "specced", "failed")),
             "on_axis": d is not None, "blocked_by": unmet,

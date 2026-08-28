@@ -3,7 +3,7 @@ atomic: attempt-the-build
 subject: build the contract until it works or hits something undefined
 date: 2026-08-28
 updated: 2026-08-28
-runs: 12
+runs: 13
 ---
 
 # attempt-the-build — the attempt is the analysis
@@ -12,8 +12,14 @@ runs: 12
 
 1. Build the thing the contract asks for. Whatever the build passes through
    needs no question; whatever it hits is the finding.
-2. Keep the code under `prds/<prd>/probe/` — never at the repo root, where it
-   would redden the map check for every later PRD — so a file the PRD's footprint places under `resources/` is built under `probe/` and moved by its spec for every later PRD.
+2. Keep NEW code under `prds/<prd>/probe/` — never at the repo root, where it
+   would redden the map check for every later PRD — so a file the PRD's
+   footprint places under `resources/` is built under `probe/` and moved by
+   its spec. A change that is an **edit to an existing footprint file** cannot
+   be staged this way: a guard, a rename or a branch has no meaning outside
+   the function it lives in, so it is built in place, in the footprint file
+   itself, and the spec records what already stands rather than what to move.
+   Say which it was in the report.
 3. Build every fixture in a directory made at run time — `D=$(mktemp -d)`,
    removed at exit. A fixture `prd.md` left anywhere under `prds/` becomes a
    real PRD the scan picks up.
@@ -34,6 +40,7 @@ runs: 12
 
 | seen | means | do |
 |------|-------|----|
+| every fixture lands on one board, and assertions pass or fail in the wrong sections | the fixture-maker is called as `B=$(mktemp_helper)`, and command substitution runs it in a **subshell** — a counter or path it keeps never reaches the caller, so every call returns the same board | make each fixture with its own `mktemp -d` inside the helper and echo that; never keep state in a helper you call through `$(…)` |
 | a patch's anchor text no longer matches a file you read in step 1 | another session moved the file since | re-read it, merge into its current shape, keep your hunk disjoint from theirs, and name the collision in the report |
 | the fixture's own git repo shows `?? err` or another scratch file after a refusal | the harness wrote its scratch inside the fixture, so "the diff is empty" cannot pass | keep scratch in a second `mktemp -d` outside the fixture repo |
 | `verify.sh` prints a heading and hangs | a line in the harness reads stdin — a bare `cat` or `read` with no file | run it with `</dev/null`, then fix the line |
