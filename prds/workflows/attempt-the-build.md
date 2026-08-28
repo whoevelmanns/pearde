@@ -2,8 +2,8 @@
 atomic: attempt-the-build
 subject: build the contract until it works or hits something undefined
 date: 2026-08-28
-updated: 2026-08-28
-runs: 16
+updated: 2026-08-29
+runs: 17
 ---
 
 # attempt-the-build — the attempt is the analysis
@@ -40,6 +40,8 @@ runs: 16
 
 | seen | means | do |
 |------|-------|----|
+| a fixture board built under `mktemp -d` shows up in `serve.py status` after the run, on a path that no longer exists | the probe ran a command whose repair registers whatever board it is handed — `doctor --fix` is one — and the live daemon's registry outlives the temp dir | never run a `--fix`-shaped command against a fixture while a real service is up; point it at a dead port (`PEARDE_PORT=1`) so the repair cannot connect, and check `serve.py status` at the end. `serve.py forget <name>` removes one already landed |
+| the probe passes standalone and fails only when the runner that is its own subject runs it | the probe is itself an instance of the population it measures, and inherits the environment that runner sets — a guard variable, a cwd, a port — so it measures the guard instead of the behaviour | clear it explicitly for every fixture invocation (`env -u <VAR>`), keep one assertion that sets it deliberately, and run the harness both ways before quoting a count |
 | every fixture lands on one board, and assertions pass or fail in the wrong sections | the fixture-maker is called as `B=$(mktemp_helper)`, and command substitution runs it in a **subshell** — a counter or path it keeps never reaches the caller, so every call returns the same board | make each fixture with its own `mktemp -d` inside the helper and echo that; never keep state in a helper you call through `$(…)` |
 | a patch's anchor text no longer matches a file you read in step 1 | another session moved the file since | re-read it, merge into its current shape, keep your hunk disjoint from theirs, and name the collision in the report |
 | the fixture's own git repo shows `?? err` or another scratch file after a refusal | the harness wrote its scratch inside the fixture, so "the diff is empty" cannot pass | keep scratch in a second `mktemp -d` outside the fixture repo |

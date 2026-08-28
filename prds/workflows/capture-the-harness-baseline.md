@@ -2,8 +2,8 @@
 atomic: capture-the-harness-baseline
 subject: record what every committed harness prints before the tree is touched
 date: 2026-08-28
-updated: 2026-08-28
-runs: 30
+updated: 2026-08-29
+runs: 31
 ---
 
 # capture-the-harness-baseline — the numbers as they were before you
@@ -24,7 +24,7 @@ runs: 30
    whole output to a scratch file, not only its count — when a count moves you
    need the FAIL line, and the machine may sleep before you can re-run it.
 3. Record `python3 resources/index.py check` and `bash resources/doctor.sh`
-   the same way — the lines they print now, plus any line the contract itself
+   the same way — **their exit codes as well as their lines** — the lines they print now, plus any line the contract itself
    adds (a new doctor row, a new file the map will name), are the lines you are
    allowed to still see at the end; name each added one in the report.
 4. A harness that is already failing is recorded as failing before your first

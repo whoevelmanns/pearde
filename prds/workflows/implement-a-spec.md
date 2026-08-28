@@ -2,7 +2,7 @@
 workflow: implement-a-spec
 subject: a specced unit, from reading it to the gates green
 date: 2026-08-28
-runs: 15
+runs: 16
 ---
 
 # implement-a-spec — one specced unit, finished and measured

@@ -1,14 +1,17 @@
 ---
-state: open
+state: done
 origin: derived
+actual: 1.4h
 from: complexity-is-guarded-like-priority
 priority: 65
-complexity: 0
+complexity: 22
 blast-radius: mid
 repo: pearde
 footprint:
   - resources/doctor.sh
   - references/parts/doctor.md
+  - references/settings.md
+  - prds/the-gate-runs-the-harnesses/probe
 ---
 
 # the-gate-runs-the-harnesses — a thousand checks nobody runs

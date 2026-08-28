@@ -1,8 +1,11 @@
 #!/bin/bash
 # pearde doctor — is the skill installed, wired, and serving this board?
 #
-#   doctor.sh [board]        report every part, exit 1 when one is broken
-#   doctor.sh --fix [board]  report, then repair what is unambiguous
+#   doctor.sh [board]         report every part, exit 1 when one is broken
+#   doctor.sh --fix [board]   report, then repair what is unambiguous
+#   doctor.sh --harnesses [board]
+#                             also run the board's own verify.sh harnesses,
+#                             whatever `harnesses:` in settings.md says
 #
 # One part per line: `ok`, `off` (installed nowhere, nothing to repair), or
 # `broken` (installed and not working — the failure that otherwise runs
@@ -30,7 +33,14 @@ set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL_ROOT="$(cd "$DIR/.." && pwd)"
 FIX=0
-[ "${1:-}" = "--fix" ] && { FIX=1; shift; }
+HFLAG=0
+while [ $# -gt 0 ]; do
+  case "${1:-}" in
+    --fix)       FIX=1;   shift ;;
+    --harnesses) HFLAG=1; shift ;;
+    *) break ;;
+  esac
+done
 START="${1:-$PWD}"
 
 BROKEN=0
@@ -282,8 +292,8 @@ if [ -n "$BOARD" ] && [ "$N" -gt 0 ] 2>/dev/null; then
     { if (ph>=2) next
       if ($0 ~ /^---[ \t]*$/) { ph++; if (ph==2) {
           if (og=="derived") { d++; if (fr=="") nofrom++
-            if (st!="done" && st!="deferred") dlive++ }
-          else { a++; if (st!="done" && st!="deferred") alive++ } }
+            if (st!="done" && st!="deferred" && st!="superseded") dlive++ }
+          else { a++; if (st!="done" && st!="deferred" && st!="superseded") alive++ } }
         next }
       if (ph==1) {
         if ($1=="origin:") { og=$2; sub(/#.*/,"",og) }
@@ -466,11 +476,99 @@ if [ -n "$BOARD" ]; then
   fi
 fi
 
+# ── harnesses: the board's own acceptance checks, actually run ───────────────
+# Every PRD is closed against its own verify.sh, and until this row existed
+# nothing ran one: `grep -rn verify.sh resources/ .claude` returned nothing,
+# there is no CI and no hook, and every green total on record was a person
+# remembering to type the command. So doctor runs them.
+#
+# The expected count is the harness's own and is never recorded here. A
+# harness that pins its denominator — `[ "$((PASS+FAIL))" = 39 ] || no ...` —
+# fails loudly when a check is dropped; one that does not prints a smaller
+# total and exits 0, which is indistinguishable from success. So a harness
+# that does not pin one is reported as unpinned rather than trusted, and its
+# pass does not make this row green on its own account. A recorded expected
+# total would be a second copy of a number the file already carries, and this
+# board has twice paid for that shape.
+#
+# Opt-in, because it is slow: the row is the only one here measured in tens of
+# seconds, and doctor is run to answer "is this wired up" in a second.
+if [ -n "$BOARD" ]; then
+  HLIST=$(find "$BOARD" -name verify.sh 2>/dev/null | sort)
+  HN=$(printf '%s\n' "$HLIST" | grep -c .)
+  HON=0
+  [ "$HFLAG" = 1 ] && HON=1
+  grep -qE '^[[:space:]]*harnesses:[[:space:]]*(on|yes|true)[[:space:]]*$' \
+       "$BOARD/settings.md" 2>/dev/null && HON=1
+  if [ "$HN" = 0 ]; then
+    row harnesses off "no verify.sh under $BOARD — a PRD gets one when it is specced"
+  elif [ -n "${PEARDE_HARNESSES:-}" ]; then
+    # A harness may run doctor — two on this board do. Without this guard a
+    # board with `harnesses: on` runs doctor, which runs the harness, which
+    # runs doctor, forever.
+    row harnesses off "$HN harness$([ "$HN" = 1 ] || echo es) · not run inside a harness"
+  elif [ "$HON" = 0 ]; then
+    row harnesses off "$HN harness$([ "$HN" = 1 ] || echo es) · not run — this row costs tens of seconds"
+    fix "harnesses: on in $BOARD/settings.md, or one run: bash $DIR/doctor.sh --harnesses $START"
+  else
+    HG=0; HU=0; HF=0; HFAILED=""; HUNPINNED=""
+    HT0=$(date +%s)
+    HTMP=$(mktemp -d)
+    while IFS= read -r h; do
+      [ -n "$h" ] || continue
+      rel="${h#"$START"/}"; rel="${rel#"$SKILL_ROOT"/}"
+      PEARDE_HARNESSES=1 bash "$h" </dev/null >"$HTMP/out" 2>&1
+      hrc=$?
+      # The pin is read as the idiom, not as semantics: a test comparing the
+      # harness's own executed total against an integer literal.
+      if grep -qE '\$\(\([[:space:]]*[Pp][Aa][Ss][Ss][[:space:]]*\+[[:space:]]*[Ff][Aa][Ii][Ll][[:space:]]*\)\)[^=]*(=|-eq)[[:space:]]*"?[0-9]+' "$h"; then
+        pinned=1
+      else
+        pinned=0
+      fi
+      if [ "$hrc" != 0 ]; then
+        HF=$((HF + 1))
+        # the marker every harness on this board prints, at the start of its
+        # own line — matching `FAIL` anywhere on a line quotes a passing
+        # check whose name happens to contain the word
+        first=$(grep -m1 -E '^[[:space:]]*FAIL' "$HTMP/out" | sed 's/^[[:space:]]*//')
+        [ -z "$first" ] && first=$(tail -1 "$HTMP/out" | sed 's/^[[:space:]]*//')
+        HFAILED="$HFAILED
+$rel — exit $hrc${first:+ · $first}"
+      elif [ "$pinned" = 1 ]; then
+        HG=$((HG + 1))
+      fi
+      [ "$pinned" = 0 ] && { HU=$((HU + 1)); HUNPINNED="$HUNPINNED
+$rel"; }
+    done <<EOF
+$HLIST
+EOF
+    rm -rf "$HTMP"
+    HSECS=$(( $(date +%s) - HT0 ))
+    HDET="$HG of $HN green · ${HSECS}s"
+    [ "$HU" -gt 0 ] && HDET="$HG of $HN green · $HU unpinned · ${HSECS}s"
+    if [ "$HF" -gt 0 ]; then
+      row harnesses broken "$HDET · $HF failed"
+      printf '%s\n' "$HFAILED" | while IFS= read -r l; do [ -n "$l" ] && note "$l"; done
+      fix "run the named harness and read its FAIL lines: bash $START/<path above>"
+    else
+      row harnesses ok "$HDET"
+    fi
+    if [ "$HU" -gt 0 ]; then
+      printf '%s\n' "$HUNPINNED" | grep -v '^$' | head -5 \
+        | while IFS= read -r l; do note "unpinned · $l"; done
+      [ "$HU" -gt 5 ] && note "unpinned · … and $((HU - 5)) more"
+      note "unpinned: the total it prints is the total it ran, so a dropped check reads as success"
+      note "pin it: [ \"\$((PASS+FAIL))\" = <n> ] || no \"expected <n> checks, ran \$((PASS+FAIL))\""
+    fi
+  fi
+fi
+
 echo
 if [ "$FIX" = 1 ] && [ "$REPAIRED" = 1 ]; then
   echo "pearde: repaired — re-checking."
   echo
-  exec bash "$0" "$START"
+  if [ "$HFLAG" = 1 ]; then exec bash "$0" --harnesses "$START"; else exec bash "$0" "$START"; fi
 fi
 [ "$BROKEN" = 1 ] && echo "pearde: something is installed and not working — the fixes are above." && exit 1
 # What doctor cannot see is where the skills were installed — that is the

@@ -8,6 +8,7 @@ An install that is present and broken looks exactly like one that is absent.
 ```sh
 bash @resources/doctor.sh [board]         # report; exit 1 when a part is broken
 bash @resources/doctor.sh --fix [board]   # report, then repair
+bash @resources/doctor.sh --harnesses [board]   # …and run the board's harnesses
 ```
 
 One part per line, each `ok`, `off`, or `broken`. A broken part carries the
@@ -27,6 +28,7 @@ never reads `off` — the map is either right or wrong.
 | `questions`  | no PRDs to read                        | a round the user cannot act on — the four shapes are below        |
 | `view`       | the service is not running             | it runs and this board is not registered                         |
 | `plan`       | no plan on record yet                  | —                                                                |
+| `harnesses`  | `harnesses:` is not `on` and `--harnesses` was not passed, or the board has no `verify.sh` | a harness exits non-zero — named, with its first `FAIL` line |
 
 - **No agent is named in `doctor.sh`, and none is looked for.** Where a skill
   folder goes and where a status line is configured are the reader's setup,
@@ -73,8 +75,38 @@ never reads `off` — the map is either right or wrong.
   with no row, a row naming no file, a scope naming no file, an `@@` keyword
   nobody defined. It is not `--fix`-able — which row a new file belongs in is
   a judgement.
+- `harnesses` runs the board's own acceptance checks — every `verify.sh` that
+  `find` returns under `prds/`, and nothing else: a harness outside this board
+  is not this board's business. Every PRD is closed against one, and until
+  this row existed nothing ran them: no CI, no hook, no command — every green
+  total on record was a person remembering to type it. **Opt-in, because it
+  is slow**: this is the one row measured in tens of seconds where the rest
+  answer in one, and a gate nobody can afford to run is the defect it fixes,
+  repeated. `harnesses: on` in `prds/settings.md`, default off, or
+  `--harnesses` for a single run whatever the key says.
+- **The expected count is the harness's own — no ledger.** A recorded total
+  is a second copy of a number the file already carries, and this board has
+  twice paid for that shape. A harness that pins its denominator —
+  `[ "$((PASS+FAIL))" = 39 ] || no "expected 39 checks, ran $((PASS+FAIL))"` —
+  fails loudly when a check is dropped. One that does not prints a smaller
+  total and exits 0, which is indistinguishable from success, so it is
+  reported as **unpinned** rather than trusted: it is named under the row, and
+  its pass does not make the row green on its own account. What doctor reads
+  is the *idiom*, not the semantics — a test comparing the harness's own
+  executed total against an integer literal — so `[ "$((PASS+FAIL))" = 0 ]`
+  reads as pinned and asserts nothing, and a literal left behind at the wrong
+  number reads as pinned until the harness is run. Nothing forces a harness to
+  pin one, and nothing here fails on an unpinned harness; the row counts and
+  names them, and the only thing that would enforce it is the harness's own
+  author.
+- A harness that runs `doctor` itself — two on this board do — gets
+  `off · not run inside a harness` from the inner run. Without that guard a
+  board with the key on runs doctor, which runs the harness, which runs
+  doctor, and never returns.
 - After repairing, doctor re-checks once — the report and exit code describe
-  the state the repairs left behind.
+  the state the repairs left behind. `--harnesses` survives the re-check;
+  `--fix` does not repair a red harness, and cannot: what a failing assertion
+  should have said is its author's to say.
 
 Run it on the first run, on `doctor`, and whenever a part is silent when it
 should not be.
