@@ -52,10 +52,10 @@ scope, and write nothing else there.
 
 ## Acceptance
 
-- [ ] `python3 resources/board/plan.py vision --check /Users/feb/dev/infra/prds` exits 0 and prints `7 terminals` — every terminal and edge in the master's `vision.md` resolves before anything is deleted
-- [ ] `python3 resources/board/plan.py vision --json /Users/feb/dev/infra/prds` and the old `.vision.json` agree on `depth` for every address both name (the sets compared by `(board, rel)` with `infra` read as `master`); the differences are listed and each is one of the explained kinds above — a PRD done or added since the file was written, a root `prd.md`, or the own-name rule
-- [ ] `/Users/feb/dev/infra/prds/vision.py`, `allboards.py` and `.vision.json` are no longer on disk, and `grep -c 'vision.py\|allboards.py' /Users/feb/dev/infra/prds/settings.md` prints `0`
-- [ ] `python3 resources/board/plan.py scan /Users/feb/dev/infra/prds` still prints a first line carrying `axis:` after the deletion
+- [x] `python3 resources/board/plan.py vision --check /Users/feb/dev/infra/prds` exits 0 and prints `7 terminals` — every terminal and edge in the master's `vision.md` resolves before anything is deleted
+- [x] `python3 resources/board/plan.py vision --json /Users/feb/dev/infra/prds` and the old `.vision.json` agree on `depth` for every address both name (the sets compared by `(board, rel)` with `infra` read as `master`); the differences are listed and each is one of the explained kinds above — a PRD done or added since the file was written, a root `prd.md`, or the own-name rule
+- [x] `/Users/feb/dev/infra/prds/vision.py`, `allboards.py` and `.vision.json` are no longer on disk, and `grep -c 'vision.py\|allboards.py' /Users/feb/dev/infra/prds/settings.md` prints `0`
+- [x] `python3 resources/board/plan.py scan /Users/feb/dev/infra/prds` still prints a first line carrying `axis:` after the deletion
 
 ## Verify and Proof
 
@@ -81,3 +81,13 @@ ls /Users/feb/dev/infra/prds/vision.py /Users/feb/dev/infra/prds/allboards.py /U
 grep -c 'vision.py\|allboards.py' /Users/feb/dev/infra/prds/settings.md
 python3 resources/board/plan.py scan /Users/feb/dev/infra/prds | head -1
 ```
+
+**Closed by the orchestrator, 2026-08-28, on the master board's own commit** —
+`/Users/feb/dev/infra` `9776cb9` (its session, infra-5d, option 2): `prds/vision.py`
+(−294), `prds/allboards.py` (−542), `prds/.vision.json` (−357) deleted, the
+sentence in `prds/settings.md` § The destination and one line in `prds/plan.md`
+rewritten, `vision.md` untouched. Measured by that session before deleting:
+`pearde vision --json` 15 on-axis vs the script's 12, zero depth differences —
+the three extra are two children a refine created that night and
+`@mitosys/record-shape-port` under the own-name rule. `ls prds/vision.py
+prds/.vision.json` there: `No such file or directory`.
