@@ -3,7 +3,7 @@ atomic: attempt-the-build
 subject: build the contract until it works or hits something undefined
 date: 2026-08-28
 updated: 2026-08-28
-runs: 14
+runs: 15
 ---
 
 # attempt-the-build — the attempt is the analysis
@@ -48,3 +48,5 @@ runs: 14
 | a page driver reads a Lit element right after `pearde.apply` and sees the old render | Lit renders on a microtask | `await el.updateComplete` before reading the DOM; and run any `pearde.replace` test last, since it removes the page's own element |
 | `touch: out of range or illegal time specification` on **darwin** | `touch -d '<n> minutes ago'` is GNU coreutils; darwin's `touch` takes `-t <YYYYMMDDhhmm.SS>` and `date -v` for arithmetic — a GNU box never sees this row | portable on both: `python3 -c 'import os,time,sys; t=time.time()-120; os.utime(sys.argv[1],(t,t))' <file>`; darwin-only: `touch -t "$(date -v-2M +%Y%m%d%H%M.%S)" <file>` |
 | a fixture meant to hold a foreign hunk and a kept one shows a single hunk, and the file goes whole | the two edits touch adjacent lines, and `-U0` merges adjacent changes into one hunk whose body is in neither baseline | leave one untouched line between the foreign edit and the kept one; the merge itself is a finding for the PRD that classifies hunks |
+| `?? prds/<slug>/` appears mid-run and its `prd.md` is the untouched template | a harness in another PRD's probe calls a transition with no `--board` from a cwd inside the repo, and your edit turned its refusal into a write on the real board | before the first edit, grep every harness for the command with no `--board`; run those from a cwd with no `prds/` above; remove the untracked template PRD, name the row it left in `.transitions.jsonl`, and hand the harness's owner the `--board` line |
+| a `sed -n 's/^\(a\|b\)$/\1/p'` extractor captures nothing, or captures `0`, on **darwin** | BSD sed has no `\|` alternation in a basic regex; GNU sed does | `grep -E '^(a|b)'` then `sed 's/^  //'` — portable on both |

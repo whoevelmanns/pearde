@@ -3,7 +3,7 @@ atomic: re-run-the-harnesses
 subject: re-run the recorded harnesses and account for every changed count
 date: 2026-08-28
 updated: 2026-08-28
-runs: 26
+runs: 27
 ---
 
 # re-run-the-harnesses — every number back, or explained
@@ -42,3 +42,4 @@ runs: 26
 | a count dropped, and every failing line names a file outside your footprint that `git status` shows a live sibling modified after your baseline | the neighbour moved, not your unit | quote the failing lines, the file, and its mtime against your baseline time; report it as a finding and do not back-edge — there is nothing in your footprint that closes it |
 | a needle fails on a sentence you kept | the sentence was re-wrapped across a line; the needle is one line | re-wrap so the sentence reads whole on one line and say the rule did not move |
 | a needle names a sentence the contract deleted | the rule now lives in a command | quote the needle, name the command and its line, propose the harness edit — the count is a finding, not yours to repair |
+| a harness has no `cd` and one line runs a transition with no `--board` | it acts on whatever board is above the caller's cwd — the real one, from the repo root | run it from the scratch dir, where `find_board` refuses and the line fails without writing; quote the count and name the line |
