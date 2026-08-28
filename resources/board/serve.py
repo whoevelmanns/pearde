@@ -102,6 +102,7 @@ import plan as planlib  # noqa: E402
 import render as renderlib  # noqa: E402
 import memos as memoslib  # noqa: E402
 import edit as editlib  # noqa: E402
+import transitions as translib  # noqa: E402 — the one writer of `state:`
 
 PORT = int(os.environ.get("PEARDE_PORT", "8443"))
 DIR = os.path.dirname(os.path.abspath(__file__))
@@ -119,7 +120,7 @@ WAIT_MAX_S = 25    # long-poll ceiling; clients just re-poll
 # it polls against no longer matches. Always on: this daemon is local.
 SOURCES = [os.path.join(DIR, f)
            for f in ("serve.py", "render.py", "plan.py", "edit.py",
-                     "view.css", "view.js")]
+                     "transitions.py", "view.css", "view.js")]
 SOURCES.append(os.path.join(os.path.dirname(DIR), "memos.py"))
 
 
@@ -755,28 +756,21 @@ class Handler(BaseHTTPRequestHandler):
             b = by_name(body.get("board"))
             if not b:
                 return self.reply(404, {"error": "unknown board"})
-            title = (body.get("title") or "").strip()
-            if not title:
-                return self.reply(400, {"error": "title required"})
-            slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60]
-            if not slug:
-                return self.reply(400, {"error": "title has no letters"})
-            parent = (body.get("parent") or "").strip("/")
-            base = os.path.join(b.path, parent) if parent else b.path
-            d, n = os.path.join(base, slug), 2
-            while os.path.exists(d):
-                d, n = os.path.join(base, f"{slug}-{n}"), n + 1
-            os.makedirs(d)
-            fm = ["---", "state: open", "origin: requested",
-                  f"priority: {int(body.get('priority') or 0)}"]
-            if body.get("est"):
-                fm.append(f"est: {str(body['est'])[:12]}")
-            fm.append("---")
-            text = ("\n".join(fm) + f"\n\n# {title}\n\n"
-                    + (body.get("body") or "").strip() + "\n")
-            editlib.write_atomic(os.path.join(d, "prd.md"), text)
+            # `transitions.add` is the one way a PRD is filed: the slug is
+            # its gate, and the line it prints lands in serve.log.
+            try:
+                rel = translib.add(
+                    b.path, body.get("title") or "", "view",
+                    priority=int(body.get("priority") or 0),
+                    body=body.get("body") or "",
+                    parent=(body.get("parent") or "").strip("/") or None,
+                    out=lambda line: print(line, flush=True))
+            except translib.Refused as e:
+                return self.reply(409, {"error": str(e)})
+            except ValueError:
+                return self.reply(400, {"error": "priority is an integer"})
             threading.Thread(target=mirror, args=(b,), daemon=True).start()
-            return self.reply(200, {"prd": os.path.relpath(d, b.path)})
+            return self.reply(200, {"prd": rel})
         if path == "/edit":
             # The view writes the board one structured line at a time,
             # atomically, frontmatter and body never in the same write.
@@ -803,7 +797,14 @@ class Handler(BaseHTTPRequestHandler):
             if body.get("title"):
                 editlib.set_title(path_md, str(body["title"])[:250])
                 wrote.append("title")
-            for k, v in (body.get("fm") or {}).items():
+            fm = dict(body.get("fm") or {})
+            # `state:` has one writer — the transition. A person at the page
+            # is the user talking to the board and is not gated, so the call
+            # is forced, and the line in serve.log says `forced · view`.
+            # It goes last: the answer flow appends the answer and sets
+            # `open` in one call, and the gate reads the file as appended.
+            state = fm.pop("state", None)
+            for k, v in fm.items():
                 if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", str(k)):
                     continue
                 if v in (None, ""):
@@ -811,6 +812,19 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     editlib.set_key(path_md, k, str(v).replace("\n", " "))
                 wrote.append(k)
+            if state not in (None, ""):
+                try:
+                    translib.transition(
+                        b.path, rel, str(state).strip(), "view", force=True,
+                        source="view",
+                        out=lambda line: print(line, flush=True))
+                    wrote.append("state")
+                except translib.Refused as e:
+                    if wrote:
+                        threading.Thread(target=mirror, args=(b,),
+                                         daemon=True).start()
+                    return self.reply(409, {"error": str(e), "wrote": wrote,
+                                            "prd": rel})
             if wrote:
                 threading.Thread(target=mirror, args=(b,), daemon=True).start()
             return self.reply(200, {"wrote": wrote, "prd": rel,

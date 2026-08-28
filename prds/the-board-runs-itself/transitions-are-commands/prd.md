@@ -1,6 +1,8 @@
 ---
-state: specced
+state: done
 origin: requested
+actual: 1.2h
+commit: 2ef1e40
 priority: 68
 complexity: 52
 blast-radius: high

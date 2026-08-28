@@ -2,7 +2,12 @@
 
 The one line printed on every state change, term by term.
 
-Print on EVERY state change:
+Print on EVERY state change. **Printed by the tool**: every transition
+command — @resources/board/transitions.py, `pearde claim` · `release` ·
+`answer` · `retry` · `unblock` · `defer` · `add` · `set` — prints it on its
+stdout with every term below computed from the board after the write. The
+round computes none of it; the one term the tool cannot know is the persona,
+passed as `--as <id>` or `PEARDE_AS` in the environment.
 
 ```
 ▸ <prd>: <from> → <to> · asked <ad>/<an> · <ap>% · derived <dd>/<dn> · open <o>/<n> · <q>% · ready <r> · blocked <b> · collect <c> @<w> workers · as <persona>

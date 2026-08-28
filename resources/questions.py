@@ -36,9 +36,14 @@ Q_RE = re.compile(r"^##\s+Questions\b", re.M)
 A_RE = re.compile(r"^##\s+Answers\b", re.M)
 H2_RE = re.compile(r"^##\s+\S", re.M)
 
-# One item inside the round: `### 1. …`, `### Q1: …`, or a numbered item at
-# the top level of the section. Both spellings are live on real boards.
-ITEM_RE = re.compile(r"^(###\s+\S.*|\d+\.\s+\S.*)$", re.M)
+# One item inside the round. Two spellings are live on real boards: `###`
+# heads — `### 1. …`, `### Q1: …` — and numbered items at the top level of the
+# section. A section that carries heads is split on the heads alone: under
+# one, a `1.` line at the top level is a prepared answer of that question,
+# the shape @references/drill.md prescribes, not an item of its own. A section
+# with no head keeps the numbered reading.
+HEAD_RE = re.compile(r"^###\s+\S.*$", re.M)
+ITEM_RE = re.compile(r"^\d+\.\s+\S.*$", re.M)
 
 # …and which of those items is a question. A round also carries dividers and
 # notes — `### Round 2 — raised by the analyst`, `### What answering these
@@ -118,9 +123,11 @@ def sections(body, pattern):
 
 
 def questions_in(text):
-    """The round split into its questions. A section with items is those
-    items; a section with prose and no item shape is one question."""
-    heads = list(ITEM_RE.finditer(text))
+    """The round split into its questions. A section with `###` heads is
+    those heads, each with the numbered answers under it; one with numbered
+    items and no head is those items; one with prose and no item shape is one
+    question."""
+    heads = list(HEAD_RE.finditer(text)) or list(ITEM_RE.finditer(text))
     if not heads:
         return [text] if text.strip() else []
     return [text[h.start():(heads[i + 1].start() if i + 1 < len(heads)

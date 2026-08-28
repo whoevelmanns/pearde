@@ -7,13 +7,13 @@ is yours and no tool touches it.
 
 | key         | written by                     | read for                                          |
 |-------------|--------------------------------|---------------------------------------------------|
-| `state`     | orchestrator                   | the loop, the status line                         |
+| `state`     | the transition command — `pearde claim` · `release` · `answer` · `retry` · `unblock` · `defer` · `set --force`, @resources/board/transitions.py; never by hand | the loop, the status line                         |
 | `priority`  | user                           | **vision importance** — dispatch order, higher first |
 | `complexity`| analyst, at spec time          | **weight** — the progress line, `plan`'s ordering. 1-100 |
 | `blast-radius` | analyst, at spec time       | **what breaks if it is wrong** — `high` \| `mid` \| `low`. Breaks ties, and decides what a round leads with |
 | `est`       | analyst, optional              | the weight of a PRD with no `complexity`. See @references/parts/order.md |
 | `actual`    | orchestrator, optional         | a record. The plan never schedules by it; `plan.py calibrate` fits real hours from it |
-| `claim`     | orchestrator                   | the sweep, elapsed on `done`                      |
+| `claim`     | `pearde claim` writes it, `release` and `retry` clear it | the sweep, elapsed on `done`                      |
 | `repo`      | user                           | the worker brief. Optional                        |
 | `workflow`  | user · the drill, on the tree it writes · orchestrator on `specced`, from the analyst's report | the worker brief, `@resources/workflows.py check`, the scan line. A slug in `prds/workflows/`. Optional |
 | `needs`     | user                           | a hard gate in `plan`'s order. PRD dir names. Optional |
