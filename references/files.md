@@ -104,6 +104,7 @@ whose scope it changed. Nothing else points at it.
 | @resources/board/viewtest.js | the view's gate — a rendered page in a real browser |
 | @resources/board/lit-core.min.js | Lit 3, vendored — the page's component base |
 | @resources/board/edit.py | the writers — one line at a time |
+| @resources/board/collect.py | `collect` — verify, commit the footprint, `done`, one call |
 | @resources/board/specs.py | `specced` and `refine` — the two transitions a spec set decides |
 | @resources/board/transitions.py | the eight transition commands — the one writer of `state:` |
 | @resources/board/example/ | the example board — eight PRDs, one per band; copied by `plan.py example`, never run in place |

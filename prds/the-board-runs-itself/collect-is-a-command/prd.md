@@ -1,10 +1,11 @@
 ---
-state: analyzing
+state: done
 origin: requested
-claim: analyst-collect-is-a-command 2026-08-28 14:29
+actual: 0.9h
+commit: c95e18d
 priority: 66
-complexity: 0
-blast-radius:
+complexity: 36
+blast-radius: mid
 repo: pearde
 workflow: probe-then-spec
 needs:

@@ -2,6 +2,14 @@
 
 One PRD, one commit, on the transition that lands it.
 
+The command is `collect` — `python3 @resources/board/collect.py [<prd>…]`:
+it reads the finished condition off both files, runs every spec's `## Verify
+and Proof` block and the board's `gate:`, commits the paths below with the
+message below, writes `commit:` and `actual:`, clears `claim:`, sets `done`,
+posts the report, prints the progress line. `--dry` prints what it would add
+and what it would leave. The rules on this page are what that command does,
+and the scope rules are the spec of its step 3.
+
 Commit on the transition — otherwise one working tree holds every PRD's work,
 and nothing can be reviewed, reverted, or bisected on its own.
 
@@ -26,6 +34,17 @@ proved no other `claimed` PRD writes that footprint.
 - **The inherited tree is not the board's.** Step 1 records what is dirty
   before the round starts. Those paths are never added, whatever footprint
   they fall in. Name them once in the round.
+  `collect` reads that record from `prds/.claims/<prd>/` — the tracked diff,
+  the untracked list and the gate's output at `claim:`, written by
+  `snapshot()` in @resources/board/collect.py. A dirty path outside the
+  footprint is listed once and left. A dirty path inside the footprint that
+  the claim predates stops the collect; `--widen <path>` takes it, and the
+  message names it on a `widen:` line. A file holding inherited hunks and the
+  worker's is committed by hunk, and the inherited hunks stay in the tree.
+- **`commit:` rides the next collect.** The sha is written after the commit
+  it names, so it cannot be in it. `owe()` lists the path in
+  `prds/.claims/riders`; the next collect on the board adds it and says
+  `rides <path>` on the line.
 - **A path the worker wrote outside its footprint is a wrong footprint.**
   Commit it with the rest and say so.
 - **A workflow file a collect edited is added with the rest, and named in the
@@ -48,9 +67,13 @@ the folder:
 <specNN>: <goal>
 <specNN>: <goal>
 workflow: <slug> — <what the run taught>
+widen: <path>
 
 prd: prds/<path>
 ```
+
+`workflow:` and `widen:` lines are there only when the collect took such a
+path — one per file.
 
 Write the sha to `commit:` on the PRD, beside `actual:` — the only link from a
 `done` PRD to its code, and where `retry` on a regression starts.
