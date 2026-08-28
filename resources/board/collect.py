@@ -413,8 +413,18 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
     what rides, what was widened."""
     prd_rel = os.path.relpath(prd["dir"], board_root)
     groups = {board_root: {prd_rel}}
-    groups.setdefault(repo, set()).update(
-        f for f in feet if not f.startswith(planlib.MEMBER_SIGIL))
+    # `spec_data` qualifies a member PRD's footprint with its own member
+    # sigil so two members' `src/lib.rs` never compare equal. Here the
+    # paths are about to be added in that member's own repo, so its own
+    # sigil comes off again; a path carrying ANOTHER member's sigil is a
+    # cross-repo footprint and is left out, as before.
+    own = (f"{planlib.MEMBER_SIGIL}{prd['board']}/"
+           if prd.get("board") else None)
+    for f in feet:
+        if own and f.startswith(own):
+            groups.setdefault(repo, set()).add(f[len(own):])
+        elif not f.startswith(planlib.MEMBER_SIGIL):
+            groups.setdefault(repo, set()).add(f)
     for a in opts["also"]:
         ap = os.path.abspath(a)
         root = planlib.repo_root(ap)
