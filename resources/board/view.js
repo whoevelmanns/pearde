@@ -2177,6 +2177,17 @@ function section(body, name) {
     .replace(/<!--[\s\S]*?-->/g, "").trim();
 }
 
+/* The technical anchor — which files, which slug, which spec the answer
+   lands in — is an HTML comment under the third answer, per
+   @references/drill.md. It is written for the orchestrator, and nothing that
+   shows a question to a person shows it. Stripped here, once, so every
+   reader below — the asks card, the inspector, and the raw fallback —
+   is clean. */
+function stripAnchor(txt) {
+  return (txt || "").replace(/<!--[\s\S]*?-->/g, "")
+                     .replace(/\n{3,}/g, "\n\n").trim();
+}
+
 /* ── questions as questions ───────────────────────────────────────────────
    drill.md's round format, parsed: `### Q1: title`, the fork as prose, then
    exactly three prepared answers as a numbered list, one `(recommended)`.
@@ -2185,6 +2196,7 @@ function section(body, name) {
    falls back to raw text and a textarea, so every PRD gets answered.       */
 function parseQuestions(txt) {
   if (!txt) return null;
+  txt = stripAnchor(txt);
   const re = /^###\s+(Q?\d+[a-z]?)\s*[:.—-]?\s*(.*)$/gim;
   const marks = [];
   let m;
@@ -2256,7 +2268,7 @@ function questionsHTML(qs, prefix) {
         (o.rec ? '<span class="rec">recommended</span>' : "") +
         "</span></label>").join("") +
       '<label class="opt own"><span class="ohd"><input type="radio" name="' +
-      name + '" value="own"><span class="ot">your own answer</span></span>' +
+      name + '" value="own"><span class="ot">or write your own</span></span>' +
       '<textarea placeholder="in your words — typing here picks this"></textarea>' +
       "</label>" +
       '<div class="qfoot"><button class="act qsend" data-qi="' + i +
@@ -2448,7 +2460,7 @@ function drawBody() {
       h += '<div class="ask"><h5>' +
         (t.state === "question" ? "waiting on you" : "questions") + "</h5>" +
         (dQs ? questionsHTML(dQs, "dq")
-             : (qs ? "<pre>" + esc(qs) + "</pre>" : "") +
+             : (qs ? "<pre>" + esc(stripAnchor(qs)) + "</pre>" : "") +
                '<textarea class="say" id="dsay" placeholder="the answer — ' +
                'numbered to match"></textarea>') +
         '<div class="row2">' +

@@ -1,7 +1,7 @@
 ---
 memo: a-drill-round-fails-its-own-checker
 kind: note
-status: open
+status: decided
 subject: questions.py reads each prepared answer as a question, so a well-formed drill round reports six problems
 date: 2026-08-28
 ---
@@ -88,3 +88,31 @@ attention at the moment it is most expensive.
 - It deliberately says nothing about `view.js`, which reads the same rounds
   correctly. Two readers of one format is the deeper question and this memo
   does not open it.
+
+## Closed 2026-08-29 — fixed, and this memo was stale
+
+`3a84801` (`transitions-are-commands`) split the one matcher into `HEAD_RE`
+and `ITEM_RE` and splits on heads before items, so a numbered answer is no
+longer read as a question head. The defect is gone.
+
+Verified by re-running **this memo's own fixture**, not by reading the diff —
+one `question` PRD, one `### Q1` head, three numbered answers, the first
+carrying `(recommended)`:
+
+```
+python3 resources/questions.py check <fixture>
+exit 0, no output
+```
+
+Where this memo records six lines and exit 1.
+
+**Kept rather than deleted**, because the shape is worth having on record: a
+checker and the format it checks were written by different rounds and
+disagreed, and the disagreement inverted a verdict — it reported the
+recommended answer missing while it was present. The fix is in `3a84801` and
+the fixture above is how to tell if it ever regresses.
+
+**Found stale by the analyst on `a-question-in-plain-words`**, which had been
+handed this memo as live context and rebuilt the fixture rather than trusting
+it. A memo carried forward unverified is the same defect as a check written
+from the answer, and this one was mine.

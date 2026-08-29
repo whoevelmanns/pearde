@@ -1,10 +1,34 @@
 ---
-state: open        # open|analyzing|refine|question|specced|claimed|blocked|done|failed
+state: done        # open|analyzing|refine|question|specced|claimed|blocked|done|failed
 origin: requested  # requested = the user asked | derived = the board found it
 # from:            # derived only — the PRD whose work surfaced this one
+
+## Settled 2026-08-29 — the nine, read narrowly
+
+This PRD's table forbids "one of the nine state names" in a question, and its
+own worked example says *"when they open the board"* — `open` is one of the
+nine. The contract refuses the example it ships as correct.
+
+Its author is a session that committed once and left, so the fork could not be
+put to them. **The user settled it: catch only the board-only words.**
+
+`analyzing`, `specced`, `claimed`, `refine` and `deferred` are refused as bare
+words — nobody says those about their own work, so one appearing in a question
+means the board's vocabulary leaked into it. `open`, `question`, `blocked`,
+`done` and `failed` are ordinary English about one's own work and are caught
+only in their board spelling, which the backtick row already refuses.
+
+Why this rather than the literal nine: the literal reading refuses *"is this
+done?"* and *"should it stay open?"* — questions a person would actually be
+asked — and would require rewriting this PRD's own example. Why not
+backticks-only: that turns the rule back into guidance a worker can forget,
+which is the failure this board has spent the week closing.
+
+The deviation from the table is deliberate and pinned by a box in spec01, so an
+implementer cannot silently widen it back.
 priority: 60        # higher first
-complexity: 0      # analyst, at spec time — 1-100. THE WEIGHT the board schedules by
-blast-radius:      # analyst, at spec time — high|mid|low. What breaks if this is wrong
+complexity: 32      # analyst, at spec time — 1-100. THE WEIGHT the board schedules by
+blast-radius: high
 repo: pearde
 # workflow:        # OPTIONAL — how this kind of job is done: a slug in
 #                  #   prds/workflows/. @references/workflow.md.
@@ -21,6 +45,7 @@ footprint:
   - resources/questions.py
   - resources/board/transitions.py
   - resources/board/view.js
+actual: 1.6h
 ---
 <!-- Ordering reads three axes and no clock: dependency (needs + footprint),
      vision importance (priority), and complexity/blast-radius. Add your own

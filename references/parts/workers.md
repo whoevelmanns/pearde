@@ -155,13 +155,38 @@ decides the state, and a `stopped` row does not.
 >   I also check", never a fact: the build is how facts are found, and a
 >   question your probe did not run into is not yours to ask. Write
 >   `## Questions` into `prd.md` in the round format of
->   `@references/drill.md`: each question is the fork in 1-3 sentences
->   ending in `?` — never the PRD restated — with **three prepared
->   answers**, each a complete, paste-ready decision, three genuinely
->   different versions of the outcome, one `(recommended)`. Say what the
->   build was doing when it hit each. Report the questions. Write the
->   `## Questions` heading only with the round under it — an empty one stops
->   the board on nothing, and `@resources/questions.py` reports it.
+>   `@references/drill.md`: each question is the fork in **two sentences,
+>   then the question mark** — what is being chosen, and what it changes for
+>   the person answering, never the PRD restated — with **three prepared
+>   answers**, each one plain sentence of what they get, three genuinely
+>   different versions of the outcome, one `(recommended)`. **Write for the
+>   person who asked for this, not for the orchestrator**: no backtick, no
+>   path, no file extension, no PRD name, no board word, 60 words in the fork
+>   and 25 in an answer. `@references/drill.md`'s table is the whole rule and
+>   `@resources/questions.py` enforces it, so a round that breaks it is
+>   refused rather than written. Like this:
+>
+>   ```
+>   ### Q1: What the page shows first
+>
+>   You are choosing what a person sees first when they open the board: the
+>   work in progress, or the questions waiting on them. Whichever is first is
+>   what they will act on; the other needs a click?
+>
+>   1. **Questions first** — the page opens on what is waiting on you; the work is one click away. (recommended)
+>   2. **Work first** — the page opens on what is happening; your questions are one click away.
+>   3. **Ask each time** — the page remembers whichever you opened last.
+>
+>   <!-- for the board: serve.py `/` default route; the-page-shows-the-round spec02 -->
+>   ```
+>
+>   The last line is an HTML comment holding the technical anchor — which
+>   files, which slug, which spec the answer lands in. Nothing that shows the
+>   question to a person shows it; the orchestrator reads it when it acts on
+>   the answer. Say what the build was doing when it hit each. Report the
+>   questions. Write the `## Questions` heading only with the round under it —
+>   an empty one stops the board on nothing, and `@resources/questions.py`
+>   reports it.
 >
 > A build whose specs would sum `complexity` above `<split_above>` or count
 > above `<specs_above>` returns REFINE with a `## Split` table, never

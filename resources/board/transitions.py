@@ -63,7 +63,7 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, HERE)
 import edit as editlib          # noqa: E402 — the only writer of bytes
 import plan as planlib          # noqa: E402 — every read
-import questions as qlib        # noqa: E402 — the round check `release … question` runs
+import questions as qlib        # noqa: E402 — the round check `release … question` and `answer` run
 
 TEMPLATE = os.path.join(os.path.dirname(ROOT), "references", "templates",
                         "prd.md")
@@ -143,6 +143,15 @@ def answered_of(prd):
     return {a["id"] for a in planlib.answers_of(prd)}
 
 
+def round_problems(prd):
+    """The plain-words rule of `@references/drill.md`, as this PRD's own lines.
+    `release <prd> question` and `answer` both run it — one reader, so the two
+    edges cannot drift."""
+    local = prd["local"]
+    return [b for b in qlib.check(prd["board_path"])
+            if b.startswith(local + ":")]
+
+
 # ── gates ─────────────────────────────────────────────────────────────────────
 # One function per gate, each raising Refused with the gate named and what
 # would clear it. `transition` picks the gate off the (from, to) edge.
@@ -167,9 +176,7 @@ def gate_release(board, prds, prd, to):
         qs = section(prd["body"], "Questions")
         if not qs or not qs.strip():
             raise Refused("question: no `## Questions` round in the body")
-        local = prd["local"]
-        bad = [b for b in qlib.check(prd["board_path"])
-               if b.startswith(local + ":")]
+        bad = round_problems(prd)
         if bad:
             raise Refused("question: questions.py check refuses the round — "
                           + "; ".join(bad))
@@ -501,7 +508,7 @@ def progress_line(board, rel, frm, to, persona, forced=False, source=None):
     t = planlib.progress_terms(board)
     r = planlib.compute_plan(board, None, warn=False)
     c, ready, blocked = sections(board, t["prds"], r)
-    ad, an = t["asked"]
+    rd, rn = t["done"]
     dd, dn = t["derived"]
     o, n = t["open"]
     live = t["live"]
@@ -514,7 +521,7 @@ def progress_line(board, rel, frm, to, persona, forced=False, source=None):
         bits.append("forced")
     if source:
         bits.append(source)
-    bits += [f"asked {ad}/{an}", f"{t['pct']}%"]
+    bits += [f"done {rd}/{rn}", f"{t['pct']}%"]
     if dn:
         bits.append(f"derived {dd}/{dn}")
     bits += [f"open {o}/{n}", f"{t['openpct']}%", f"ready {ready}",
@@ -664,6 +671,10 @@ def cmd_answer(board, args, persona):
                       + (" — " + ", ".join(qs) if qs else " — no round"))
     if qid in answered_of(prd):
         raise Refused(f"answer: {qid} is already answered")
+    bad = round_problems(prd)      # the round is refused at the last moment it
+    if bad:                        # can still be rewritten — and there is no
+        raise Refused(             # flag past it, by design
+            "answer: questions.py check refuses the round — " + "; ".join(bad))
     path = os.path.join(prd["dir"], "prd.md")
     if args.dry:            # the real run's three outcomes, on a scan that
         left = [q for q in questions_of(prd)      # holds the answer in memory
@@ -751,12 +762,24 @@ def cmd_unblock(board, args, persona):
     return 0
 
 
+# The two states `claim` writes `claim:` into. `set --force` skips the gate,
+# not the bookkeeping: forced into any other state, the key goes the way
+# `release` and `retry` take it, so `brief` does not read the PRD as held.
+CLAIM_STATES = ("analyzing", "claimed")
+
+
 def cmd_set(board, args, persona):
     if len(args.pos) != 2:
         raise Refused("set <prd> <state> [--force]")
     rel, to = args.pos
+    force = "force" in args.flags
+    if force and to not in CLAIM_STATES and not args.dry:
+        prds = planlib.scan(board)
+        prd = prds[resolve(prds, rel)]
+        if prd["state"] != to and planlib.claim_of(prd["fm"]):
+            editlib.del_key(os.path.join(prd["dir"], "prd.md"), "claim")
     transition(board, rel, to, persona, worker=args.opt.get("worker"),
-               force="force" in args.flags, dry=args.dry)
+               force=force, dry=args.dry)
     return 0
 
 
@@ -844,18 +867,10 @@ def cmd_sweep(board, args, persona):
 
 # ── the surface ───────────────────────────────────────────────────────────────
 
-class Flags:
-    """What one command takes: `valued` are `--name <v>` (or `--name=<v>`),
-    `switches` are bare, `multi` are the valued ones that repeat. `str()` is
-    the list the refusal and `--help` print — one list, so they cannot
-    drift."""
-
-    def __init__(self, valued=(), switches=(), multi=()):
-        self.valued, self.switches = tuple(valued), tuple(switches)
-        self.multi = tuple(multi)
-
-    def __str__(self):
-        return ", ".join("--" + k for k in self.valued + self.switches)
+# The declaration class is plan.py's — the root every command module
+# imports, so `vision` and `example` there declare with the same class and
+# `Args` below reads it. The name stays here for every `trlib.Flags` caller.
+Flags = planlib.Flags
 
 
 DRY = ("dry",)
