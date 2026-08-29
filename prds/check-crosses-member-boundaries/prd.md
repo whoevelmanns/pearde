@@ -1,9 +1,9 @@
 ---
-state: deferred
+state: done
 origin: derived
 from: workflows-on-the-board/workflow-reader
 priority: 45
-complexity: 0
+complexity: 26
 blast-radius: mid
 repo: pearde
 needs:
@@ -12,6 +12,7 @@ footprint:
   - resources/workflows.py
   - resources/board/plan.py
   - references/workflow.md
+actual: 2.4h
 ---
 
 # check-crosses-member-boundaries — a master board's check reads its members' PRDs
@@ -158,7 +159,18 @@ means "a route is attached somewhere here" and reads the specs too. Gets
 - A member PRD whose slug resolves in its **own** library but not the master's
   is not reported — the per-member resolution order holds.
 - A member PRD whose slug resolves in the **master's** library but not its own
-  is not reported either, whichever board `check` is pointed at. That is the
-  false positive above, and it is the half that makes `doctor` lie.
+  is not reported **when `check` is pointed at the master**. That is the false
+  positive above, and it is the half that makes `doctor` lie.
+- ~~whichever board `check` is pointed at~~ — **narrowed, measured
+  impossible.** Run against a member on its own, nothing on this board can
+  find that member's master: a member carries no `settings.md` naming one and
+  no back-reference, and `members:` is only ever read downward. `plan.py scan`
+  fails there identically — pointed at the member it marks the same slug
+  `wf mw?` — so the asymmetry is not `check` lagging `scan`, it is the
+  resolution order being implemented once, in the master's context, and from
+  below by nothing. The user's answer is the master direction only; a member
+  run alone is documented as unable to resolve its master's library rather
+  than made able to. `specs/spec01.md` carries the measurement, and
+  `probe/verify.sh` carries the checks.
 - `bash prds/workflows-on-the-board/workflow-reader/verify.sh` still passes, at
   whatever total it then carries.

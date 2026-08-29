@@ -1436,6 +1436,10 @@ def dispatchable(prd, prds, board=None):
                 if x == y or x.startswith(y + "/") or y.startswith(x + "/"):
                     return (f"footprint: {r} is claimed and holds `{y}`, "
                             f"which clashes with `{x}`")
+    v = prd["fm"].get("workflow")
+    if isinstance(v, list):
+        return ("workflow: the key holds one slug — a list is a break, not "
+                "an absence; fix the shape or remove the key")
     mark = workflow_marks(board or prd["board_path"], {rel: prd}).get(rel, "")
     if mark.endswith("?"):
         return (f"workflow: `{mark[:-1]}` names no workflow in "
@@ -1906,7 +1910,14 @@ def workflow_marks(board, prds):
 
     for rel, p in prds.items():
         v = p["fm"].get("workflow")
-        if not v or isinstance(v, list):
+        if not v:
+            continue
+        if isinstance(v, list):
+            # A shape error, not an absence. @references/workflow.md says the
+            # key holds one slug and anything else is a break, so it marks
+            # like one — the line shows it and the loop does not dispatch it.
+            # `workflows.py check` is where it is named in words.
+            marks[rel] = ",".join(str(x).strip() for x in v) + "?"
             continue
         slug = str(v).strip()
         if not slug:

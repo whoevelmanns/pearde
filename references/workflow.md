@@ -24,6 +24,20 @@ equals the slug.
 - `workflows:` in `prds/settings.md` points elsewhere, default `workflows/` —
   several boards share one library.
 
+A PRD or a spec routes itself by carrying `workflow: <slug>` in its own
+frontmatter. The key holds **one slug** — a single scalar naming one file in
+the library. Any other shape is a **break, not an absence**: a list, a
+mapping, or anything that is not a slug reports exactly as a dangling slug
+does, because a key that cannot be read is a route that cannot be taken. A
+key that is simply absent is silence, and silence is fine — a PRD needs no
+route.
+
+The library does **not** merge. Only the refs do: on a master board the check
+crosses into every board named in `members:`, and each slug resolves against
+its own board's library first and the master's second — the order `needs:`
+resolves in, set by @references/parts/workers.md. The libraries are asked in
+turn, never flattened into one set.
+
 ## Atomic
 
 Frontmatter, a **closed** set:
@@ -134,6 +148,14 @@ row `workflows` is that check. It fails on:
 - `workflow:` on a `prd.md` or a spec naming no **workflow** in the
   library — an atomic is a file, so naming one is this same failure:
   a route was asked for and a single step was found
+- `workflow:` on a `prd.md` or a spec holding anything but one slug — a list
+  is neither a slug nor an absence, and passing it over makes a broken PRD a
+  silent one
+- on a master board, either of those on a **member's** PRD or spec, addressed
+  `@<member>/<rel>` — the master's check reads its members, or a green
+  `workflows` row is evidence only about the master's own PRDs
+- a board named in `members:` that is not on disk — a member that cannot be
+  read is not a member that is clean
 
 Checked against the real library, never a fixture — a brief with a dangling
 atomic is a worker sent nowhere.
