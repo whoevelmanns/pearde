@@ -12,15 +12,30 @@ a second of any file changing it swaps the new payload in **where it stands**:
 the rows move, and scroll, zoom, selection and half-typed text do not. Every
 registered board is listed at `/`. `PEARDE_PORT` moves the port.
 
-| view          | answers                                                        |
-|---------------|------------------------------------------------------------------|
-| **timeline**  | what is in front of us — see below                                |
-| **board**     | what is where — kanban by state; drag a card to write `state:`    |
-| **asks**      | what is waiting on *you* — every `question` and `blocked` PRD, and beside them the answered panel. A round in `@references/drill.md`'s format renders as picks: the fork, its three prepared answers as buttons (recommended pre-selected), and an own-answer box per question. An answered question leaves the cards at once and appears in the panel, newest first |
-| **list**      | all of it — sortable, filterable, one row per PRD                 |
-| **analytics** | how this is going — where the work and weight sit, the est/actual records, the machine-wide hours-per-weight fit, weight left over time, and what a transition costs: calls per transition over the last thirty, refusals per session, both off the guard's count (@references/parts/guard.md). Calls are the proxy for tokens, named as such; no guard state at all reads `no guard`, never zero |
-| **memos**     | what the board decided — `prds/memos/`, rendered                  |
-| **report**    | the board for a person — `prds/report.md`, rendered. ⌘7. No file, a line saying `pearde report` writes one |
+**One page, read top to bottom.** There are no tabs. The page opens with what
+is up, then the plan, then the sections below in this order, and the bar in the
+header is anchors that jump to one — it never hides a section, and an anchor
+landing on a folded one opens it. ⌘1–7 jump the same way.
+
+| # | section       | answers                                                        |
+|---|---------------|------------------------------------------------------------------|
+| 1 | **what's up** | what the board is doing and what is next, in prose — `prds/report.md`'s title, lede, `## In work` and `## Planned`, each cut to two or three whole sentences. A renderer, never an author. Beside it, how old the file is, off its modification time and not the dateline inside it; past a day the line says `stale` and carries the class. No file, one line naming `pearde report` |
+| 2 | **timeline**  | what is in front of us — see below                                |
+| 3 | **board**     | what is where — kanban by state; drag a card to write `state:`    |
+| 4 | **analytics** | how this is going — where the work and weight sit, the est/actual records, the machine-wide hours-per-weight fit, weight left over time, and what a transition costs: calls per transition over the last thirty, refusals per session, both off the guard's count (@references/parts/guard.md). Calls are the proxy for tokens, named as such; no guard state at all reads `no guard`, never zero |
+| 5 | **asks**      | what is waiting on *you* — every `question` and `blocked` PRD, and beside them the answered panel. A round in `@references/drill.md`'s format renders as picks: the fork, its three prepared answers as buttons (recommended pre-selected), and an own-answer box per question. An answered question leaves the cards at once and appears in the panel, newest first |
+| 6 | **list**      | all of it — sortable, filterable, one row per PRD                 |
+| 7 | **memos**     | what the board decided — `prds/memos/`, rendered                  |
+| 8 | **report**    | the same file in full, folded — section 1 is its opening. ⌘7 |
+
+**Three of those fold.** `list`, `memos` and `report` are archives, not
+status: measured on a 41-PRD board they are 4038px of a 7065px page. Each
+keeps its anchor and its heading in the flow and renders collapsed behind a
+summary that says what is inside — `41 PRDs · every state, every weight`,
+`13 on record · newest: …` — and opens on a click or on its anchor. What
+folds is the body, by the reader's choice; nothing is hidden by the bar.
+**Every section draws on the first paint**, folded or not, so nothing on
+this page is waiting for a click to exist.
 
 **The now strip is the first thing under the title**, on every view: three
 doors — `to collect N` · `waiting on you N` · `in flight N` — the top three
@@ -30,13 +45,15 @@ the `held` band). Zero renders the door dimmed, never absent, so the strip is
 the same shape on every board and the eye learns where to land. When a worker
 in flight has gone silent the door says how many.
 
-**The round panel** under the numbers is `prds/.round.md`
-(@references/parts/round.md) rendered read-only: `## Owed` first because it is
-the next action, `## Asked` because it is what went to a person, the rest
-folded. It is read over `GET /round` on every swap — the daemon already
-digests every `.md` under the board, so a rewrite lands within a second with
-no watcher of its own. Absent file, absent panel. `## Owed` and `## Asked`
-match by prefix, so a heading with more words after them is the same section.
+**Nothing that is git-ignored is rendered for a person.**
+A file git ignores is machine scratch: `prds/.round.md` is one session's own
+memory (@references/parts/round.md), `prds/.plan.json` and `prds/.history.jsonl`
+are the board's. Each is true only at the instant it was written and each is
+written in the board's own vocabulary — states, footprints, commit shas — which
+is the one register @@report forbids in the document a person reads. The view
+draws tracked files and nothing else. That rule is prose, and prose is not a
+mechanism: what would enforce it is a check that `git check-ignore -q` refuses
+every path the view fetches, and no such check exists.
 
 **Every number is a door.** A count, a swatch, a bar, a column head — if it
 names a set of PRDs, clicking it goes there: `5 waiting on you` opens **asks**,
@@ -227,8 +244,10 @@ person.
   atomically, frontmatter and body never in the same write.
 - A worker's report lands via `POST /report` (`{"board","prd","text"}` →
   `## Report`).
-- `GET /round` and `GET /report` serve `prds/.round.md` and `prds/report.md`
-  as `{"text": <file or null>}`, read from disk on each call like `/prd`.
+- `GET /report` serves `prds/report.md` as `{"text": <file or null>}`, read
+  from disk on each call like `/prd`. `GET /round` still serves
+  `prds/.round.md` the same way, and the page does not read it — see the rule
+  above.
 
 Deep links: `#prd=<rel>` opens one PRD, `#view=asks` a view, `#state=blocked`
 a filtered list, `#crit=1` the critical chain, `#collect=1` the finished work
@@ -345,9 +364,9 @@ pearde.replace("list", "my-list");
 
 - `board`, `asks`, `list`, `analytics`, `memos` and `report` can be
   replaced. The timeline cannot — it is a canvas the plan arithmetic draws.
-- `now` and `round` — the strip and the panel above the views — are replaced
-  the same way: `pearde.replace("now", "my-now")` puts the element in the
-  strip's place and hands it the payload on every swap.
+- `now` and `whatsup` — the door strip and the prose section above the plan —
+  are replaced the same way: `pearde.replace("now", "my-now")` puts the element
+  in the strip's place and hands it the payload on every swap.
 - The page stops drawing a view it has handed over.
 - A replaced view gets the payload as `data` on every swap, like a seam.
 - An unreplaceable name is ignored, never an error.

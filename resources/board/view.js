@@ -138,7 +138,7 @@ function inkOn(fill) {
    same green focus uses, so the bar and the row are one fact. */
 const colOf = t => t.collect && !HOT[t.state] ? T.ok : T[stTok(t.state)];
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-  readTokens(); inkCache.clear(); draw(); drawMini(); if (view !== "timeline") repaintView();
+  readTokens(); inkCache.clear(); draw(); drawMini(); drawAll();
 });
 
 const a = DATA.anchor.split("-").map(Number);
@@ -565,7 +565,7 @@ function go(d) {
     else { filter = d.q; $("q").value = d.q; build(); }
   }
   if (d.view) setView(d.view);
-  else repaintView();
+  else drawAll();
   if (d.prd) {
     const t = taskFor(d.prd);
     if (t) t.plain || (d.view && d.view !== "timeline")
@@ -706,10 +706,9 @@ function drawBar(x0, w, y, h, c, o) {
    the bottom. Measuring gets both right and needs no maintenance. */
 function fitFrame() {
   const st = $("stage");
-  if (!st.offsetParent) return;                 // another view is on
-  const top = st.getBoundingClientRect().top;
-  const below = $("legend").offsetHeight + $("note").offsetHeight + 28;
-  st.style.height = Math.max(280, innerHeight - top - below) + "px";
+  if (!st.offsetParent) return;
+  st.style.height =
+    Math.max(280, Math.min(720, Math.round(innerHeight * 0.74))) + "px";
 }
 
 function resize() {
@@ -1983,7 +1982,7 @@ function move(delta) {
 addEventListener("keydown", e => {
   // ⌘1..⌘6 — the way a Mac app switches tabs
   if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "7") {
-    const b = $("views").querySelectorAll("button")[+e.key - 1];
+    const b = $("views").querySelectorAll("a")[+e.key - 1];
     if (b) { e.preventDefault(); b.click(); }
     return;
   }
@@ -2110,7 +2109,7 @@ function drawHeader() {
   badge.textContent = asks.length;
   badge.classList.toggle("on", asks.length > 0);
   movePill();
-  drawNow(); drawRound();
+  drawNow(); drawWhatsup();
 }
 
 function drawLegend() {
@@ -2694,7 +2693,7 @@ function taskFor(rel) {
    Mac segmented control moves — six buttons repainting is a different,
    cheaper-looking thing */
 function movePill() {
-  const on = $("views").querySelector("button.on");
+  const on = $("views").querySelector("a.on");
   const pill = $("segpill");
   if (!on || !pill) return;
   pill.style.width = on.offsetWidth + "px";
@@ -2711,35 +2710,51 @@ function toast(msg, bad) {
   toastT = setTimeout(() => t.classList.remove("on"), bad ? 4000 : 1800);
 }
 
-function repaintView() {
-  if (replaced.has(view)) return;   // a board's own element draws itself
-  if (view === "board") drawBoard();
-  else if (view === "list") drawList();
-  else if (view === "asks") drawAsks();
-  else if (view === "analytics") drawAnalytics();
-  else if (view === "memos") drawMemos();
-  else if (view === "report") drawReport();
-  else { resize(); retree(); place(); }
+/* Every section draws, on the first paint, whether or not anyone has been
+   near it. This is the whole of what made the page a set of tabs: the old
+   dispatcher ran exactly one draw per repaint, so a stacked page rendered six
+   empty frames — measured at `board` 86px, `list` 177px, `memos` 118px
+   against 692, 1265 and 1661 once each was forced. Three of these fetch; they
+   are all localhost and they all run once. */
+function drawAll() {
+  if (!replaced.has("board")) drawBoard();
+  if (!replaced.has("list")) drawList();
+  if (!replaced.has("asks")) drawAsks();
+  if (!replaced.has("analytics")) drawAnalytics();
+  if (!replaced.has("memos")) drawMemos();
+  if (!replaced.has("report")) drawReport();
+  resize(); retree(); place();
 }
 
-function setView(v) {
-  if (!document.querySelector('section[data-view="' + v + '"]')) v = "timeline";
+/* `setView` no longer hides anything — there is nothing to hide. It marks the
+   bar, opens the section's fold if it has one, and scrolls it under the
+   sticky header. An anchor that lands on a folded archive opens it: a reader
+   who asked for the memos wants the memos, and the PRD's rule is that the bar
+   never hides a section. */
+function setView(v, scrollTo) {
+  const sect = document.querySelector('section[data-view="' + v + '"]');
+  if (!sect) { v = "timeline"; }
   view = v;
-  for (const el of document.querySelectorAll("section[data-view]"))
-    el.classList.toggle("on", el.dataset.view === v);
-  for (const b of $("views").querySelectorAll("button")) {
-    const on = b.dataset.v === v;
-    b.classList.toggle("on", on);
-    b.setAttribute("aria-selected", on ? "true" : "false");
-  }
+  for (const a of $("views").querySelectorAll("a"))
+    a.classList.toggle("on", a.dataset.v === v);
   movePill();
-  $("tcontrols").style.display = v === "timeline" ? "" : "none";
-  $("inview").style.display = v === "timeline" ? "" : "none";
-  repaintView();
+  const el = document.querySelector('section[data-view="' + v + '"]');
+  if (el) {
+    const fold = el.querySelector("details.fold");
+    if (fold) fold.open = true;
+    if (scrollTo !== false) {
+      const top = el.getBoundingClientRect().top + window.scrollY -
+                  ($("titlebar").offsetHeight + 10);
+      scrollTo_(Math.max(0, top));
+    }
+  }
   syncHash();
 }
-for (const b of $("views").querySelectorAll("button"))
-  b.onclick = () => setView(b.dataset.v);
+function scrollTo_(top) {
+  window.scrollTo(reduced ? {top} : {top, behavior: "smooth"});
+}
+for (const a of $("views").querySelectorAll("a"))
+  a.onclick = e => { e.preventDefault(); setView(a.dataset.v); };
 
 /* ── board ─────────────────────────────────────────────────────────────── */
 /* ── the board, as an element ─────────────────────────────────────────────
@@ -2919,7 +2934,7 @@ async function drawAsks() {
       if (only === "reopen") { toast("Reopened"); prdCache.delete(rel);
                                refresh(); }
       card.classList.add("gone");
-      setTimeout(() => { if (view === "asks") drawAsks(); }, reduced ? 0 : 280);
+      setTimeout(() => drawAsks(), reduced ? 0 : 280);
     };
     send.onclick = () => fire();
     const re = card.querySelector(".reopen");
@@ -2959,7 +2974,7 @@ async function drawAsks() {
           const ok = await answerOne(rel, text, last);
           if (ok && last) {
             card.classList.add("gone");
-            setTimeout(() => { if (view === "asks") drawAsks(); },
+            setTimeout(() => drawAsks(),
                        reduced ? 0 : 280);
           }
           return ok;
@@ -3154,6 +3169,9 @@ function drawList() {
   el.rows = rowsOut; el.by = listBy; el.desc = listDesc;
   $("lcount").textContent = rowsOut.length + " of " + ALL.length +
     " · click a row for the PRD";
+  const fn = $("listfoldn");
+  if (fn) fn.textContent = ALL.length + " PRDs · every state, every weight, " +
+    "sortable — open it to search the whole board";
 }
 $("lq").oninput = () => { listQ = $("lq").value; drawList(); };
 
@@ -3195,6 +3213,11 @@ async function drawMemos() {
     } catch (e) { memosLoaded = []; }
   }
   el.memos = memosLoaded;
+  const fn = $("memofoldn");
+  if (fn) fn.textContent = memosLoaded.length
+    ? memosLoaded.length + " on record" + (memosLoaded[0] && memosLoaded[0].subject
+        ? " · newest: " + memosLoaded[0].subject : "")
+    : "none on record yet";
 }
 
 /* ── the now strip: three doors under the title ───────────────────────────
@@ -3233,59 +3256,131 @@ function drawNow() {
   const el = $("now"); if (el) el.data = DATA;
 }
 
-/* ── the round panel: the session's own memory, read-only ─────────────────
-   `prds/.round.md` (@references/parts/round.md) rendered where the work is:
-   `## Owed` first because it is the next action, `## Asked` because it is
-   what went to a person, the rest folded. Absent file, absent panel. Read
-   over GET /round on every swap — the daemon digests the file, so a rewrite
-   lands here within a second with no watcher of its own. */
-function sections(text) {
-  // [{head, lines}] — the title's own lines are the "" section
-  const out = [{head: "", lines: []}];
-  for (const raw of (text || "").split("\n")) {
-    const m = /^##\s+(.+?)\s*$/.exec(raw);
-    if (m) { out.push({head: m[1], lines: []}); continue; }
-    if (/^#\s/.test(raw)) { out[0].title = raw.replace(/^#\s+/, ""); continue; }
-    if (raw.trim()) out[out.length - 1].lines.push(raw.replace(/^\s*[-*]\s+/, ""));
-  }
-  return out;
+/* ── what's up: the board in a person's words, and how old they are ───────
+   `prds/report.md` over `GET /report` — the file `pearde report` rewrites
+   whole, already in the register @@report asks for.
+
+   This section is a RENDERER, not an author. Sentences generated from the
+   scan were the alternative and they would be current and wrong: the board
+   carries a parent PRD whose every child is done and which the planner still
+   counts as work ahead, so a sentence built from the counts announces it as
+   what is next. A person writing prose does not list a finished parent as
+   upcoming. Rendering sidesteps the whole class of that error.
+
+   Beside the words, how old they are — from the file's modification time,
+   baked into the page by `render.py`, and never from the dateline the file
+   carries. A dateline is prose its author can forget; this board's report
+   once sat sixteen commits behind one that read current. Past a day the line
+   says `stale` in words and carries the class, because a state carried by
+   colour alone is a state nothing can read. */
+const REPORT_MTIME = __REPORTMTIME__;
+const DAY_S = 86400;
+
+function ago(secs) {
+  if (secs < 90) return "just now";
+  if (secs < 3600) return Math.round(secs / 60) + " minutes ago";
+  if (secs < 7200) return "an hour ago";
+  if (secs < DAY_S) return Math.round(secs / 3600) + " hours ago";
+  const d = Math.round(secs / DAY_S);
+  return d === 1 ? "a day ago" : d + " days ago";
 }
+
+/* Cut on a sentence end, never mid-clause, and never past `n` of them. A
+   paragraph carrying no terminator is one sentence and is taken whole. */
+function firstSentences(s, n) {
+  // the marker class after the terminator is what keeps a bold lead-in whole:
+  // the report writes `**A single page that says what is going on.** The …`,
+  // and a split that insists on whitespace straight after the `.` drops that
+  // first sentence and leaves two stray asterisks behind it.
+  const m = s.match(/[^.!?]+[.!?]+[*`_)"']*(?:\s|$)/g);
+  return (m ? m.slice(0, n).join("") : s).trim();
+}
+
+/* The report's four parts: its title, its lede, what is in work, what is
+   next. Headings match by prefix, the way every other heading on this page
+   does, so `## In work — this week` is still `## In work`. */
+function reportParts(text) {
+  let title = "", sec = "lede";
+  const buf = {lede: [], inwork: [], planned: []};
+  for (const raw of (text || "").split("\n")) {
+    const l = raw.trim();
+    if (/^#\s/.test(l)) { title = l.replace(/^#\s+/, ""); continue; }
+    const h = /^##\s+(.+?)$/.exec(l);
+    if (h) {
+      const k = h[1].toLowerCase();
+      sec = k.startsWith("in work") ? "inwork"
+          : k.startsWith("planned") ? "planned" : "other";
+      continue;
+    }
+    // the file's own dateline, skipped: the age is the mtime, and two
+    // datelines that disagree is worse than the one that is right
+    if (/^\*[^*].*\*$/.test(l)) continue;
+    if (buf[sec]) buf[sec].push(l);
+  }
+  const para = a => a.join("\n").split(/\n\s*\n/)
+    .map(x => x.replace(/\n/g, " ").replace(/^\s*[-*]\s+/, "").trim())
+    .filter(Boolean)[0] || "";
+  return {title: title, lede: para(buf.lede), inwork: para(buf.inwork),
+          planned: para(buf.planned)};
+}
+
+class PeardeWhatsup extends LitElement {
+  static properties = { text: {}, served: { type: Boolean }, tick: {} };
+  createRenderRoot() { return this; }
+  render() {
+    if (!this.served)
+      return html`<div class="blank">the board's own words are read live —
+        open this board through the service to see them</div>`;
+    if (!this.text)
+      return html`<div class="blank">no report yet — <code>pearde report</code>
+        writes <code>prds/report.md</code>, the board in plain words</div>`;
+    const p = reportParts(this.text);
+    const age = REPORT_MTIME == null ? null
+      : Math.max(0, Date.now() / 1000 - REPORT_MTIME);
+    const stale = age !== null && age > DAY_S;
+    return html`
+      <div class="hd"><h2>${p.title || "what's up"}</h2>
+      ${age === null ? "" : html`<span class="age${stale ? " stale" : ""}"
+        title="how long since prds/report.md was last written — the file's own
+               modification time, not the dateline inside it"
+        >written ${ago(age)}${stale ? " · stale" : ""}</span>`}</div>
+      ${p.lede ? html`<p class="lede">${inline(firstSentences(p.lede, 2))}</p>`
+               : ""}
+      <div class="two">
+        ${p.inwork ? html`<div><h3>in work</h3>
+          <p>${inline(firstSentences(p.inwork, 3))}</p></div>` : ""}
+        ${p.planned ? html`<div><h3>next</h3>
+          <p>${inline(firstSentences(p.planned, 2))}</p></div>` : ""}
+      </div>`;
+  }
+}
+customElements.define("pearde-whatsup", PeardeWhatsup);
+
+async function drawWhatsup() {
+  if (replaced.has("whatsup")) return;
+  const el = $("whatsup"); if (!el) return;
+  el.served = SERVED;
+  el.tick = Date.now();          // the age is counted, so it has to re-render
+  if (!SERVED) return;
+  try {
+    const r = await fetch(API + "/report?board=" +
+                          encodeURIComponent(BOARD_KEY));
+    el.text = (await r.json()).text || "";
+  } catch (e) { el.text = ""; }
+}
+
+/* `code` and **bold**, the only two marks prose on this page gets. Shared by
+   every renderer that draws a person's words rather than a PRD's fields. */
 const inline = s => {
-  const parts = esc(s).split(/(`[^`]+`)/);
+  // NOT esc()'d: Lit escapes an interpolated string on its way into the DOM,
+  // so escaping first is one pass too many and prints `&#39;` at a reader.
+  // esc() is right for the places on this page that build innerHTML by hand;
+  // inside a template it is a bug, and it was one before this section existed.
+  const parts = String(s).split(/(`[^`]+`)/);
   return parts.map(p => p.startsWith("`") ? html`<code>${p.slice(1, -1)}</code>`
     : p.split(/(\*\*[^*]+\*\*)/).map(q => q.startsWith("**")
       ? html`<b>${q.slice(2, -2)}</b>` : q));
 };
-class PeardeRound extends LitElement {
-  static properties = { text: {}, served: { type: Boolean } };
-  createRenderRoot() { return this; }
-  render() {
-    if (!this.served || !this.text) return html``;
-    const secs = sections(this.text);
-    const by = h => secs.find(s => s.head.toLowerCase().startsWith(h));
-    const owed = by("owed"), asked = by("asked");
-    const rest = secs.filter(s => s.head && s !== owed && s !== asked);
-    const list = s => s && s.lines.length
-      ? html`<ul>${s.lines.map(l => html`<li>${inline(l)}</li>`)}</ul>` : "";
-    return html`<div class="rhd"><span class="k">round</span>
-        <span class="t">${secs[0].title ? secs[0].title.replace(/^Round\s+—\s+/, "") : ""}</span></div>
-      ${owed ? html`<div class="sec owed"><h5>owed</h5>${list(owed)}</div>` : ""}
-      ${asked ? html`<div class="sec"><h5>asked</h5>${list(asked)}</div>` : ""}
-      ${rest.length ? html`<details><summary>${rest.map(s => s.head.toLowerCase()).join(" · ")}</summary>
-        ${rest.map(s => html`<div class="sec"><h5>${s.head.toLowerCase()}</h5>${list(s)}</div>`)}</details>` : ""}`;
-  }
-}
-customElements.define("pearde-round", PeardeRound);
-async function drawRound() {
-  if (replaced.has("round")) return;
-  const el = $("round"); if (!el) return;
-  el.served = SERVED;
-  if (!SERVED) return;
-  try {
-    const r = await fetch(API + "/round?board=" + encodeURIComponent(BOARD_KEY));
-    el.text = (await r.json()).text || "";
-  } catch (e) { el.text = ""; }
-}
 
 /* ── the report view: the board for a person ──────────────────────────────
    `prds/report.md` as the seventh view — prose, so it gets the few marks
@@ -3611,7 +3706,7 @@ function apply(payload) {
   drawHeader(); drawLegend(); drawSide();
   memosLoaded = null;
   answersLoaded = null;   // a terminal can answer a round too
-  if (view !== "timeline") repaintView();
+  drawAll();
   if (dTask) {                                  // keep the inspector honest
     const t = taskFor(dTask.rel);
     if (t && !dDirty) { dTask = t; drawBody(); }
@@ -3650,8 +3745,9 @@ function slot(name, tag) {
 const VIEWS_REPLACEABLE = ["board", "asks", "list", "analytics", "memos",
                            "report"];
 // not views, but the page's own elements above them — the now strip and the
-// round panel — a board may take over the same way. The host id is the name.
-const PARTS_REPLACEABLE = ["now", "round"];
+// what's-up section — a board may take over the same way. The host id is
+// the name.
+const PARTS_REPLACEABLE = ["now", "whatsup"];
 const replaced = new Set();
 
 function replace(view, tag) {
@@ -3661,7 +3757,7 @@ function replace(view, tag) {
     const el = document.createElement(tag);
     el.id = view; el.data = DATA;
     host.replaceWith(el);
-    replaced.add(view);          // drawNow / drawRound leave it alone
+    replaced.add(view);          // drawNow / drawWhatsup leave it alone
     slotted.push(el);
     return el;
   }
@@ -3673,7 +3769,7 @@ function replace(view, tag) {
   section.replaceChildren(el);
   replaced.add(view);          // the built-in draw for it stops running
   slotted.push(el);            // it sees every payload swap like any other
-  if (view === currentView()) repaintView();
+  drawAll();
   return el;
 }
 
@@ -3744,12 +3840,16 @@ fitFrame();          // the legend has to exist before the frame can measure it
 resize();
 setMode("vision");
 drawHeader();
+drawAll();           // every section, on the first paint — not one per click
 readHash();
 // the clock ticks for two reasons: the calendar's now-line, and how long a
 // worker has been holding a PRD. Both are read off Date.now(), so both go
 // stale between board changes if nothing repaints.
 setInterval(() => {
   if (mode === "dates" || tasks.some(t => t.held)) draw();
+  // and a third: how old the report is, which is counted from a baked mtime
+  // and would otherwise read "just now" for the whole life of the page
+  const w = $("whatsup"); if (w) w.tick = Date.now();
 }, 60000);
 if (SERVED) setInterval(refresh, 90000);   // a floor under the live loop
 loadAdapters();

@@ -111,7 +111,7 @@ const file = served ? arg : path.resolve(arg);
       onHold: !!(P && typeof P.onHold === "function"),
       hold: typeof window.__pearde_hold === "function",
       titlebar: !!$("#titlebar"),
-      views: q("#views button").length,
+      views: q("#views a").length,
       canvas: !!$("#cv"),
       draws: window.__draws,
       land: !!$("#land"),
@@ -141,7 +141,7 @@ const file = served ? arg : path.resolve(arg);
     ["pearde.onHold callable", r.onHold, ""],
     ["hold hook still wired", r.hold, ""],
     ["the toolbar built", r.titlebar, ""],
-    ["seven view buttons", r.views === 7, `got ${r.views}`],
+    ["seven section anchors", r.views === 7, `got ${r.views}`],
     ["the canvas is sized", r.canvasPainted, ""],
     ["the gantt drew", r.draws > 20, `${r.draws} draw ops`],
     ["the frontier column built", r.land, ""],
@@ -152,15 +152,91 @@ const file = served ? arg : path.resolve(arg);
     ["the inspector exists", r.drawer, ""],
   ];
 
+  // ── one page, seven sections ───────────────────────────────────────────
+  // The three things this page is, asserted rather than eyeballed: the
+  // sections are in the PRD's order, every one of them has drawn before
+  // anything was clicked, and the page does not scroll sideways on a phone.
+  const page1 = await page.evaluate(() => {
+    const secs = [...document.querySelectorAll("section[data-view]")];
+    const h = e => Math.round(e.getBoundingClientRect().height);
+    const head = s => s.querySelector("h2.sect, details.fold > summary");
+    return {
+      order: secs.map(s => s.dataset.view),
+      hidden: secs.filter(s => getComputedStyle(s).display === "none")
+                  .map(s => s.dataset.view),
+      // a section that never drew is an empty frame: its own height is its
+      // heading and nothing else. This is the check that would have caught
+      // the one-draw-per-repaint dispatcher.
+      undrawn: secs.filter(s => h(s) <= h(head(s) || s) + 4)
+                   .map(s => s.dataset.view),
+      // and the stronger form: the content is in the DOM even while a fold
+      // is shut, so the fold is presentation and the draw is eager
+      emptyHosts: secs.filter(s => {
+        const host = s.querySelector(
+          "pearde-board,pearde-list,pearde-memos,pearde-report,#asks,#tiles");
+        return host && host.querySelectorAll("*").length === 0;
+      }).map(s => s.dataset.view),
+      whatsup: !!document.querySelector("pearde-whatsup"),
+      whatsupAbovePlan: (() => {
+        const w = document.querySelector("pearde-whatsup");
+        const t = document.querySelector('section[data-view="timeline"]');
+        return !!w && !!t && (w.compareDocumentPosition(t) &
+                              Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+      })(),
+      tcontrolsInside: !!document.querySelector(
+        'section[data-view="timeline"] #tcontrols'),
+      purposeInside: !!document.querySelector(
+        'section[data-view="timeline"] #purpose'),
+    };
+  });
+  const ORDER = ["timeline", "board", "analytics", "asks", "list", "memos",
+                 "report"];
+  checks.push(["the sections are in the PRD's order",
+               page1.order.join(",") === ORDER.join(","), page1.order.join(" ")]);
+  checks.push(["no section is hidden", page1.hidden.length === 0,
+               page1.hidden.join(" ")]);
+  checks.push(["every section drew on first load, no click",
+               page1.undrawn.length === 0,
+               page1.undrawn.length ? "empty frames: " + page1.undrawn.join(" ") : ""]);
+  checks.push(["...and a folded section has already drawn its body",
+               page1.emptyHosts.length === 0, page1.emptyHosts.join(" ")]);
+  checks.push(["the prose section is the first thing above the plan",
+               page1.whatsup && page1.whatsupAbovePlan, ""]);
+  checks.push(["the plan's toolbar is inside the plan's section",
+               page1.tcontrolsInside, ""]);
+  checks.push(["the vision line is too", page1.purposeInside, ""]);
+
+  // narrow: the page must not scroll sideways. Before this PRD it did —
+  // `body.scrollWidth` 543 against a 390 client, the bar alone 449.
+  const wide0 = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(400);
+  const narrow = await page.evaluate(() => ({
+    body: document.body.scrollWidth,
+    client: document.documentElement.clientWidth,
+    culprits: [...document.querySelectorAll("body *")]
+      .filter(e => e.getBoundingClientRect().width >
+                   document.documentElement.clientWidth + 1)
+      .filter(e => !e.closest("#list"))     // the table scrolls in its own box
+      .slice(0, 4)
+      .map(e => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "")),
+  }));
+  checks.push(["at 390px the page does not scroll sideways",
+               narrow.body === narrow.client,
+               `body ${narrow.body} vs client ${narrow.client}` +
+               (narrow.culprits.length ? " — " + narrow.culprits.join(" ") : "")]);
+  if (wide0) await page.setViewportSize(wide0);
+  await page.waitForTimeout(300);
+
   for (const v of ["timeline", "board", "asks", "list", "analytics", "memos", "report"]) {
     const before = errors.length;
-    await page.click(`#views button[data-v="${v}"]`).catch(e => errors.push(`${v}: ${e.message}`));
+    await page.click(`#views a[data-v="${v}"]`).catch(e => errors.push(`${v}: ${e.message}`));
     await page.waitForTimeout(120);
     const shown = await page.evaluate(n => {
       const s = document.querySelector(`section[data-view="${n}"]`);
       return !!s && getComputedStyle(s).display !== "none";
     }, v);
-    checks.push([`view "${v}" switches clean`, errors.length === before && shown,
+    checks.push([`section "${v}" jumps clean`, errors.length === before && shown,
                  errors.slice(before).join(" | ") || (shown ? "" : "section not shown")]);
     // asks reads each PRD over the wire and renders its round as picks. A card
     // that could not read, or a parsed round showing no options, is the view
@@ -224,7 +300,7 @@ const file = served ? arg : path.resolve(arg);
     const tag = (await page.evaluate(() => (window.pearde && window.pearde.data
       && window.pearde.data.board) || "board")).replace(/[^A-Za-z0-9_.-]/g, "-");
     for (const v of ["timeline", "board", "asks", "list", "analytics", "memos", "report"]) {
-      await page.click(`#views button[data-v="${v}"]`).catch(() => {});
+      await page.click(`#views a[data-v="${v}"]`).catch(() => {});
       await page.waitForTimeout(150);
       const dom = await page.evaluate(n => {
         const s = document.querySelector(`section[data-view="${n}"]`);

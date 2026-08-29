@@ -207,7 +207,9 @@ body{background:var(--bg);color:var(--ink);
 
 /* segmented control — the sliding pill is one transform, not six repaints */
 #views{position:relative;display:flex;background:var(--fill);
-  border-radius:9px;padding:2px;gap:0}
+  border-radius:9px;padding:2px;gap:0;max-width:100%;
+  overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+#views::-webkit-scrollbar{display:none}
 #segpill{position:absolute;top:2px;bottom:2px;left:0;width:0;
   background:var(--content);border-radius:7px;
   box-shadow:0 1px 2px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.05);
@@ -216,12 +218,13 @@ body{background:var(--bg);color:var(--ink);
 :root[data-theme="dark"] #segpill,
 :root:where(:not([data-theme="light"])) #segpill{
   box-shadow:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.07)}
-#views button{position:relative;z-index:1;background:none;border:none;
+#views a{position:relative;z-index:1;background:none;border:none;
   color:var(--ink2);font:500 12.5px/1 -apple-system,system-ui,sans-serif;
   padding:6px 13px;border-radius:7px;cursor:pointer;display:flex;gap:6px;
-  align-items:center;transition:color var(--dur-fast) ease}
-#views button:hover{color:var(--ink)}
-#views button.on{color:var(--ink);font-weight:590}
+  align-items:center;text-decoration:none;white-space:nowrap;
+  transition:color var(--dur-fast) ease}
+#views a:hover{color:var(--ink)}
+#views a.on{color:var(--ink);font-weight:590}
 /* a badge is a count that wants you, so it is allowed a hue */
 #views .badge{font:600 10px/14px -apple-system,system-ui,sans-serif;
   min-width:16px;height:15px;padding:0 4px;border-radius:99px;
@@ -369,8 +372,34 @@ label.lab{color:var(--ink2);font-size:12px}
   opacity:0;pointer-events:none;transition:opacity var(--dur-fast) ease}
 #vrread.on{opacity:1}
 
-section[data-view]{display:none}
-section[data-view].on{display:block;animation:rise var(--dur) var(--ease)}
+/* ── one page, seven sections ─────────────────────────────────────────────
+   Nothing here is hidden. The bar above is anchors, and an anchor that hides
+   what it points at is not a link.
+
+   Status sections scroll open; the three archives — the table of every PRD,
+   the decision records, and the report in full — keep their anchor and their
+   heading and fold their body. Measured, the archives are 2900px of a 5900px
+   page: a reader looking for what is happening would scroll through 28% of
+   the page in memo text to reach the bottom. The PRD's rule is kept — the bar
+   never hides a section, and every one of them is present, headed and
+   reachable — what folds is the body, by the reader's choice, and an anchor
+   into one opens it.                                                        */
+section[data-view]{display:block;margin:0 0 30px;scroll-margin-top:64px}
+h2.sect{font-size:11px;font-weight:620;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ink3);margin:0 0 9px;padding-top:5px;
+  border-top:.5px solid var(--sep-2)}
+details.fold>summary{list-style:none;cursor:pointer;display:flex;
+  align-items:baseline;gap:9px;padding-top:5px;margin:0 0 9px;
+  border-top:.5px solid var(--sep-2)}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary .sect{font-size:11px;font-weight:620;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ink3)}
+details.fold>summary::before{content:"\25B8";color:var(--ink4);font-size:9px;
+  transition:transform var(--dur-fast) var(--ease);display:inline-block}
+details.fold[open]>summary::before{transform:rotate(90deg)}
+details.fold>summary:hover .sect{color:var(--ink)}
+details.fold>summary .n{font-size:11px;color:var(--ink4);font-weight:400;
+  letter-spacing:0;text-transform:none}
 @keyframes rise{from{opacity:0;transform:translateY(4px)}
                 to{opacity:1;transform:none}}
 
@@ -386,8 +415,17 @@ section[data-view].on{display:block;animation:rise var(--dur) var(--ease)}
    writes it here, once. Both cards then stretch to it, so focus cannot grow the
    page by being longer than the plan, and the plan cannot leave a band of dead
    page under the legend. The fallback is for a page opened with no script. */
+/* The old rule was `min(76vh, calc(100vh - 258px))` and the comment above it
+   said the page must not grow past the plan. That constraint belonged to a
+   page that was one screen: the 258 was the measured height of everything
+   above the stage, and section 1 alone moves it. On a page built to be
+   scrolled the plan does not have to be the last thing on screen, so the
+   constraint is retired deliberately, not dropped by accident. What is left
+   is a plain height — most of a fold, capped so a tall monitor does not get
+   one enormous band, floored so a short one still gets a chart. JS writes the
+   same number; this is the fallback for a page opened with no script.        */
 #stage{display:flex;align-items:stretch;
-  height:min(76vh,calc(100vh - 258px));min-height:280px}
+  height:min(74vh,720px);min-height:280px}
 #chart{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
 #frame{position:relative;flex:1 1 auto;min-height:0;
   border:.5px solid var(--sep);
@@ -597,7 +635,7 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
 #list .none{padding:26px;text-align:center;color:var(--ink3);font-size:12.5px}
 
 /* ── asks: the board waiting on a person, and the place to answer ───────── */
-#asks{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));
+#asks{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(430px,100%),1fr));
   align-items:start}
 .ask2{background:var(--content);border:.5px solid var(--sep);
   border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden;
@@ -738,27 +776,64 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
 /* the quiet worker, wherever a holding time is printed */
 .silent{color:var(--warn);font-weight:590}
 
-/* ── the round panel: the session's memory, read-only ─────────────────── */
-#round{display:block;margin:0 0 10px;padding:10px 14px 8px;max-width:76ch;
-  background:var(--content-2);border:.5px solid var(--sep);border-radius:var(--r-lg);
-  font-size:12px;line-height:1.5;color:var(--ink2)}
-#round:empty{display:none}
-#round .rhd{display:flex;gap:8px;align-items:baseline;margin-bottom:6px}
-#round .rhd .k{font:600 10.5px ui-monospace,SFMono-Regular,monospace;
-  letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
-#round .rhd .t{font-weight:590;color:var(--ink)}
-#round h5{font-size:10.5px;font-weight:600;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--ink3);margin:6px 0 2px}
-#round ul{margin:0;padding-left:16px}
-#round li{margin:1px 0}
-/* owed is the next action, so it is the one line set in full ink */
-#round .owed li{color:var(--ink);font-weight:560}
-#round code{font:11px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
-  padding:0 3px;border-radius:3px}
-#round details{margin-top:6px}
-#round summary{cursor:pointer;color:var(--ink3);font-size:11px;
-  font:11px ui-monospace,SFMono-Regular,monospace;letter-spacing:.04em}
-#round details[open] summary{margin-bottom:4px}
+/* ── narrow ──────────────────────────────────────────────────────────────
+   At 390px the unmodified page measured `body.scrollWidth` 543 against a 390
+   client — the bar alone was 449 and overlapped the title. The bar is the
+   main cause and it is gone as a bar; what is left is to stop anything else
+   setting a width the viewport has not got. Nothing here is a phone layout:
+   it is the same page, told not to overflow.                                */
+@media (max-width:720px){
+  #titlebar{flex-wrap:wrap;gap:8px 10px}
+  #views{order:3;flex-basis:100%}
+  #titlebar .right{margin-left:auto}
+  #stage{flex-direction:column;height:auto;min-height:0}
+  #chart{min-height:60vh}
+  #land{flex:0 0 auto;max-height:40vh}
+  #charts{grid-template-columns:1fr}
+  #whatsup .two{grid-template-columns:1fr}
+}
+/* The table and the empty-state card are what is left setting a width the
+   viewport has not got — measured at 390: `table` 575 and `div.blank` 430
+   against a 390 client. Each is boxed rather than allowed to widen the page:
+   the table scrolls inside its own scroller, the card wraps. */
+#list{display:block;max-width:100%;overflow-x:auto}
+#askwrap,#answered,#asks{max-width:100%;min-width:0}
+.blank{max-width:100%;box-sizing:border-box}
+#tiles,#charts{max-width:100%;min-width:0}
+#charts>*{min-width:0;max-width:100%}
+
+/* ── what's up: the first thing on the page, and the only prose on it ────
+   The eye lands on the doors (three verbs), then here (what is going on),
+   then the plan. Everything else is dense, so this is given air and a reading
+   measure and nothing else — no card, no border, no tint. A paragraph that
+   has to be picked out of a box is a paragraph nobody reads.
+   `in work` and `next` sit side by side once there is room, because stacking
+   them costs the plan a hundred pixels of the first fold for nothing.        */
+#whatsup{display:block;margin:0 0 16px}
+/* the heading and how old it is are one line: a title and its timestamp, not
+   two stacked blocks. The 25px that saves is 25px the plan keeps. */
+#whatsup .hd{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;
+  margin:0 0 9px}
+#whatsup h2{font-size:19px;font-weight:620;letter-spacing:-.012em;
+  color:var(--ink);margin:0}
+#whatsup .age{font-size:11.5px;color:var(--ink3);
+  font-variant-numeric:tabular-nums}
+/* stale is a word first and a colour second — a state carried by hue alone
+   is a state a check cannot read and a colour-blind reader cannot see */
+#whatsup .age.stale{color:var(--warn);font-weight:560}
+#whatsup .lede{max-width:76ch;margin:0 0 11px;font-size:13.5px;line-height:1.55;
+  color:var(--ink2)}
+#whatsup .two{display:grid;gap:6px 30px;max-width:96ch}
+@media (min-width:760px){#whatsup .two{grid-template-columns:1fr 1fr}}
+#whatsup h3{font-size:10.5px;font-weight:620;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink3);margin:0 0 3px}
+#whatsup .two p{margin:0 0 8px;font-size:12.5px;line-height:1.5;
+  color:var(--ink2)}
+/* an empty headline says its one line quietly and gets out of the way — a
+   card with a border around "there is nothing here" is 200px of nothing. */
+#whatsup .blank{display:block;background:none;border:0;box-shadow:none;
+  padding:0;margin:0;text-align:left;font-size:12.5px;line-height:1.5;
+  color:var(--ink3);max-width:76ch}
 
 /* ── the report view: prose, read at reading width ────────────────────── */
 #report{display:block}
