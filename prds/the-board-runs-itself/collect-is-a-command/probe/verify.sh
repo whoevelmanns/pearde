@@ -131,7 +131,7 @@ work() {
 }
 run() { ( cd "$D" && python3 "$COLLECT" --board "$D/prds" "$@" ) 2>&1; }
 ncommits() { ( cd "$D" && git rev-list --count HEAD ); }
-paths()    { ( cd "$D" && git show --name-only --format= HEAD | sort | tr '\n' ' ' ); }
+paths()    { ( cd "$D" && git show --name-only --format= "${1:-HEAD~1}" | sort | tr '\n' ' ' ); }   # HEAD~1: the code commit; HEAD is `<prd> — record`
 fm()       { grep -m1 "^$2:" "$D/prds/$1/prd.md" | sed "s/^$2: *//"; }
 
 # ── A. collect finished ───────────────────────────────────────────────────────
@@ -139,9 +139,9 @@ echo "A. collect finished"
 fixture a
 OUT="$(run finished)"; RC=$?
 eq  "A exit 0" "$RC" "0"
-eq  "A one commit on top of the fixture" "$(ncommits)" "2"
-eq  "A commit paths equal the footprint union" "$(paths)" "prds/finished/specs/spec01.md src/lib.txt "
-SHA="$( cd "$D" && git rev-parse --short HEAD )"
+eq  "A two commits on top of the fixture — the code, then the record" "$(ncommits)" "3"
+eq  "A commit paths equal the footprint union plus the record" "$(paths)" "prds/finished/prd.md prds/finished/specs/spec01.md src/lib.txt "
+SHA="$( cd "$D" && git rev-parse --short HEAD~1 )"
 eq  "A prd.md carries commit: <sha>" "$(fm finished commit)" "$SHA"
 has "A prd.md carries actual: <n>h" "$(fm finished actual)" "h"
 eq  "A state done" "$(fm finished state)" "done"
@@ -151,7 +151,7 @@ has "A the line carries the persona last" "$(printf '%s\n' "$OUT" | grep '^▸')
 has "A the line says the round file is owed" "$OUT" "round file owed"
 has "A the daemon being down is said, not fatal" "$OUT" "daemon down"
 eq  "A transition row appended" "$(grep -c '"to": "done"' "$D/prds/.transitions.jsonl")" "1"
-MSG="$( cd "$D" && git log -1 --format=%B )"
+MSG="$( cd "$D" && git log -1 --format=%B HEAD~1 )"
 WANT="$(printf 'finished — the lib says hello, and one call closes it\n\nspec01: the lib says hello\n\nprd: prds/finished\n')"
 eq  "A git log -1 --format=%B matches commits.md line for line" "$MSG" "$WANT"
 eq  "A building left alone" "$(fm building state)" "claimed"
@@ -197,7 +197,7 @@ echo stray > "$D/stray.txt"
 OUT="$(run finished --widen stray.txt)"; RC=$?
 eq  "C --widen <path> exits 0" "$RC" "0"
 has "C --widen commits it" "$(paths)" "stray.txt"
-has "C --widen names it in the message" "$( cd "$D" && git log -1 --format=%B )" "widen: stray.txt"
+has "C --widen names it in the message" "$( cd "$D" && git log -1 --format=%B HEAD~1 )" "widen: stray.txt"
 has "C --widen names it on the line" "$(printf '%s\n' "$OUT" | grep '^▸')" "widened stray.txt"
 
 # ── D. no argument ───────────────────────────────────────────────────────────
@@ -250,21 +250,21 @@ fixture h
 ( cd "$D" && git add -A && git commit -q -m "the worker's commit" )
 OUT="$(run finished)"; RC=$?
 eq  "H exit 0" "$RC" "0"
-eq  "H no new commit" "$(ncommits)" "2"
-eq  "H commit: none" "$(fm finished commit)" "none"
+eq  "H two commits — the record lands on a clean tree too" "$(ncommits)" "4"
+eq  "H commit: names the record, never none" "$(fm finished commit)" "$( cd "$D" && git rev-parse --short HEAD~1 )"
 eq  "H done" "$(fm finished state)" "done"
 
 # ── I. what the tool wrote rides ─────────────────────────────────────────────
 echo "I. riders"
 fixture i
 run finished > /dev/null
-eq  "I the record is owed" "$(cat "$D/prds/.claims/riders")" "prds/finished/prd.md"
+eq  "I the record is not owed — it is in its own commit" "$(cat "$D/prds/.claims/riders" 2>/dev/null | grep -c 'prds/finished/prd.md')" "0"
 sed -i '' 's/- \[ \] two/- [x] two/' "$D/prds/building/specs/spec01.md"
 OUT="$(run building)"; RC=$?
 eq  "I the next collect is not stopped by the last one's record" "$RC" "0"
-has "I the record rode" "$(paths)" "prds/finished/prd.md"
-has "I named on the line" "$(printf '%s\n' "$OUT" | grep '^▸')" "rides prds/finished/prd.md"
-eq  "I settled, and building's own record is owed now" "$(cat "$D/prds/.claims/riders")" "prds/building/prd.md"
+lacks "I finished's record is not on building's commit" "$(paths)" "prds/finished/prd.md"
+lacks "I nothing rides on the line" "$(printf '%s\n' "$OUT" | grep '^▸')" "rides "
+eq  "I building's own record is not owed either" "$(cat "$D/prds/.claims/riders" 2>/dev/null | grep -c 'prds/building/prd.md')" "0"
 fixture i2
 sed -i '' 's/^commit: 0000000/commit: 1111111/' "$D/prds/landed/prd.md"    # somebody's edit, no baseline
 OUT="$(run finished)"; RC=$?
@@ -301,7 +301,7 @@ eq  "K --also without --also-note is usage" "$RC" "2"
 OUT="$(run finished --also "$D/prds/workflows/x.md" --also-note "the fixture taught nothing")"; RC=$?
 eq  "K exit 0" "$RC" "0"
 has "K the file is on the commit" "$(paths)" "prds/workflows/x.md"
-has "K named in the message" "$( cd "$D" && git log -1 --format=%B )" "workflow: implement-a-spec — the fixture taught nothing"
+has "K named in the message" "$( cd "$D" && git log -1 --format=%B HEAD~1 )" "workflow: implement-a-spec — the fixture taught nothing"
 
 # ── L. flags ─────────────────────────────────────────────────────────────────
 echo "L. flags"

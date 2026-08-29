@@ -45,10 +45,30 @@ proved no other `claimed` PRD writes that footprint.
   the working file has it, checked for parse and placement before the commit
   — never a patch `git apply` places — and the inherited hunks stay in the
   tree.
-- **`commit:` rides the next collect.** The sha is written after the commit
-  it names, so it cannot be in it. `owe()` lists the path in
-  `prds/.claims/riders`; the next collect on the board adds it and says
-  `rides <path>` on the line.
+- **A hunk with two authors is refused, never committed whole.** Two edits
+  on adjacent lines merge into one `-U0` hunk whose body is in neither the
+  baseline nor the worker's diff, so `collect` exits 1 with
+  `two authors on one hunk: <file>:<line>` and stages nothing;
+  `--widen <file>` takes the file whole, or the worker leaves one untouched
+  line between the edits.
+- **The PRD's own folder is committed whole, and its `done` is in the same commit.**
+  Nothing under `prds/<prd>/` is staged by hunk or stopped as
+  inherited — the record has one writer, the board — and `state: done`,
+  `actual:`, the cleared `claim:` and the posted `## Report` are written
+  before the commit that carries them; `commit:`, the one key that cannot
+  name the commit it is in, lands in a second, one-key commit
+  `<prd> — record` right behind it, so what `collect` writes never rides.
+- **A parent whose children are all `done` is closed by `collect`.** With
+  no spec and no open box of its own it is a container — `scan` lists it
+  under collect, `claim` refuses it with `container: every child done —
+  pearde collect closes it` — and `collect <parent>` sets `done`, `actual:`
+  the sum of its children's, `commit:` the last child's, in one commit
+  `<parent> — done: every child landed` that adds its `prd.md` alone; a
+  parent with specs or boxes of its own is ordinary work.
+- **Board state written between transitions rides the next collect.** An
+  `answer` writes a `prd.md` no collect is about to commit; `owe()` lists
+  the path in `prds/.claims/riders`, and the next collect on the board adds
+  it and says `rides <path>` on the line.
 - **A path the worker wrote outside its footprint is a wrong footprint.**
   Commit it with the rest and say so.
 - **A workflow file a collect edited is added with the rest, and named in the

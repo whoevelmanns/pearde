@@ -1,7 +1,7 @@
 ---
 memo: adjacent-edits-merge-into-one-hunk
 kind: decision
-status: open
+status: decided
 subject: Two workers editing adjacent lines produce one `-U0` hunk, and `collect` cannot tell whose it is
 date: 2026-08-28
 prds:
@@ -13,9 +13,15 @@ prds:
 
 ## Decision
 
-Open. Recorded here rather than as a PRD: it was found by the analyst of a
-derived PRD, and @references/parts/derived.md folds a derived finding on a
-derived PRD into the first rather than filing a third.
+Decided 2026-08-29, built in `collect-keeps-its-word`: **refuse the
+file.** A kept hunk whose sides hold a vanished baseline hunk's lines
+as a contiguous run is a hunk with two authors; `collect` exits 1 with
+`two authors on one hunk: <file>:<line>` before anything is staged,
+and `--widen <file>` or one untouched line between the edits is the
+worker's answer. Line-level matching was not taken: the interleaved
+case is the one no diff can settle. Known residual: a baseline
+insertion whose lines legitimately recur inside the worker's own
+insertion (a lone `}`) is refused too — the cost is one `--widen`.
 
 ## Why
 

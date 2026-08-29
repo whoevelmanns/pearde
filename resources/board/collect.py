@@ -12,15 +12,34 @@ is — the seven steps of @references/parts/loop.md step 6, in order:
   2  every spec's `## Verify and Proof` block    run in `repo`, output kept
      then the board's `gate:`                    against the claim's baseline
   3  the paths: specs' footprints ∪ the PRD's ∪ the PRD dir ∪ `--also`
+     — the PRD's own folder is the board's record: added whole, always —
+       never by hunk, never a stop
      — a dirty path outside it is inherited: listed, never added
      — a dirty path inside it that the claim predates: exit 1, `--widen`
      — a file holding both: only the hunks the claim does not predate,
        staged as the working file with the inherited hunks reversed,
        and the staged blob checked for parse and placement before 4
-  4  one commit per repo, message per @references/parts/commits.md
-  5  `commit:` `actual:` written, `claim:` cleared, `done`
-  6  `POST /report` to the daemon when it is up
+     — a hunk that is in neither the baseline nor the worker's diff —
+       two edits on adjacent lines, merged by `-U0` — is refused:
+       `two authors on one hunk: <file>:<line>`; `--widen` takes the
+       file whole, or the worker leaves one untouched line between
+  4  the record — `actual:` written, `claim:` cleared, `done`, the report
+     posted — then one commit per repo, message per
+     @references/parts/commits.md; everything collect wrote is in it
+  5  `commit:` — the one key that cannot be in the commit it names — in a
+     second, one-key commit `<prd> — record`, right behind
+  6  `POST /report` to the daemon when it is up — before the commit, so
+     `## Report` is in it
   7  the progress line, the transition row
+
+A container — a parent whose every child is `done`, with no spec and no
+open box of its own — has nothing to verify and nothing to commit but its
+record. `dispatchable()` in plan.py is the one word for it (`container:
+every child done — pearde collect closes it` — what `claim` refuses on and
+`scan` lists under collect with), and `close_container()` here sets `done`,
+`actual:` the sum of the children's, `commit:` the last child's, in one
+commit `<parent> — done: every child landed`. A parent with specs or an
+open box of its own is ordinary work, and its boxes decide it.
 
 A step that stops writes nothing after it. The worker's word is never taken
 for the verify: `--trust` is the orchestrator's word, said on the line.
@@ -31,10 +50,11 @@ list, the gate's output — through `snapshot()` here. With no record, a
 file's mtime against the claim's timestamp decides for the whole file, and
 the gate has no baseline to be measured against, so it has to exit 0.
 
-**What the tool wrote rides.** `commit:` is written after the commit it
-names — it cannot be in it — so the record rides the next commit. `owe()`
-lists such a path in `prds/.claims/riders`; the next collect on the board
-adds it and names it on the line.
+**Board state written between transitions rides.** `answer` writes a
+`prd.md` no collect is about to commit; `owe()` lists that path in
+`prds/.claims/riders` and the next collect on the board adds it and names
+it on the line. What collect itself writes never rides — it is in the
+commit it makes.
 
 Reads through plan.py, writes through edit.py. Python 3 stdlib only.
 """
@@ -277,6 +297,48 @@ def hunk_body(h):
     """A hunk without its `@@` header — the header's line numbers move when
     another hunk lands above it, the body does not."""
     return h.split("\n", 1)[1] if "\n" in h else ""
+
+
+def hunk_sides(body):
+    """`([minus], [plus])` — a hunk body's two sides, marker stripped, the
+    `\\ No newline` note dropped. Lists, in order: a merged hunk holds one
+    author's lines and then the other's."""
+    minus, plus = [], []
+    for line in body.split("\n"):
+        if line.startswith("-"):
+            minus.append(line[1:])
+        elif line.startswith("+"):
+            plus.append(line[1:])
+    return minus, plus
+
+
+def sublist(part, whole):
+    """True when `part` is a contiguous run of `whole`, `part` non-empty."""
+    n = len(part)
+    return bool(part) and any(whole[i:i + n] == part
+                              for i in range(len(whole) - n + 1))
+
+
+def two_authors(kept, old_bodies):
+    """The working line of the first kept hunk that swallowed a baseline
+    hunk, or None. `git diff -U0` merges two edits on adjacent lines into
+    one hunk; when one of them was in the claim's baseline, that baseline
+    hunk is gone from the diff and its lines sit inside a kept hunk — a
+    body that matches neither the baseline nor the worker's own edit, so
+    nothing here can say which lines are whose. Line-level splitting is
+    not attempted: the file is refused, and `--widen` or one untouched
+    line between the edits is the worker's answer."""
+    gone = [hunk_sides(b) for b in old_bodies]
+    for h in kept:
+        minus, plus = hunk_sides(hunk_body(h))
+        for om, op in gone:
+            if (op and not sublist(op, plus)) or (om and not sublist(om, minus)):
+                continue
+            if not (op or om):
+                continue
+            m = HUNK_HEAD.match(h)
+            return int(m.group(3)) if m else 0
+    return None
 
 
 HUNK_HEAD = re.compile(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
@@ -620,6 +682,13 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
         old = base["hunks"].get(p, set())
         keep = [h for h in hunks if hunk_body(h) not in old]
         theirs = [h for h in hunks if hunk_body(h) in old]
+        gone = old - {hunk_body(h) for h in theirs}
+        line = two_authors(keep, gone) if keep and gone else None
+        if line is not None:
+            raise Stop(f"{rel}: two authors on one hunk: {p}:{line} — a "
+                       f"baseline hunk merged with the worker's; `--widen "
+                       f"{p}` takes the file whole, or leave one untouched "
+                       f"line between the edits")
         return (keep, theirs) if keep and theirs else ("all" if keep else "")
 
     plan = {}
@@ -634,6 +703,10 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
             if full in widen:
                 p["add"].append(path)
                 p["widened"].append(path)
+            elif root == board_root and inside(path, [prd_rel]):
+                # the PRD's own folder is the board's record — one writer,
+                # committed whole: never by hunk, never a stop
+                p["add"].append(path)
             elif inside(path, union):
                 nh = new_hunks(root, path) if kind == "tracked" else None
                 if nh not in (None, "", "all"):
@@ -673,6 +746,9 @@ def collect_one(board, rel, opts, out=print):
 
     # 1 — finished, off both files
     _, closed, total, ready = planlib.standing(prd)
+    if not ready and container(prd, prds, board):
+        return close_container(board, rel, prd, prds, board_root, opts,
+                               now, out)
     if not ready:
         if prd["state"] not in planlib.HOLDING_STATES:
             raise Stop(f"{rel}: state is `{prd['state']}` — collect closes "
@@ -768,13 +844,19 @@ def collect_one(board, rel, opts, out=print):
                 out("  rides:     " + ", ".join(p["riders"]))
             if p["widened"]:
                 out("  widened:   " + ", ".join(p["widened"]))
+            if root == board_root:
+                out(f"  record:    {prd_rel}/prd.md — done, actual, the "
+                    f"claim cleared, in this commit; commit: in a second, "
+                    f"`{prd['name']} — record`")
         out("  message:\n    " + message.rstrip().replace("\n", "\n    "))
         out(f"{rel}: dry — nothing written")
         return 0
-    shas, said = [], []
+    # stage every repo first: a refusal here has written nothing yet
+    said, staged_roots = [], []
     for root, p in plan.items():
         if not p["add"] and not p["partial"]:
             continue
+        staged_roots.append(root)
         if p["add"]:
             git_out(root, "add", "--", *p["add"])
         # a shared file is staged as the working file with the inherited
@@ -784,19 +866,15 @@ def collect_one(board, rel, opts, out=print):
                   for path, (_, foreign) in p["partial"].items()}
         refusals = placement_refusals(root, p["partial"], staged)
         if refusals:
-            git_out(root, "reset", "-q", "--", *p["add"], *p["partial"])
+            for r_ in staged_roots:
+                git_out(r_, "reset", "-q", "--", *plan[r_]["add"],
+                        *plan[r_]["partial"])
             out(f"{rel}: staged by hunk and refused — nothing committed, "
                 f"the index put back:")
             for x in refusals:
                 out(f"  {x}")
             raise Stop(f"{rel}: {len(refusals)} placement refusal(s) in "
                        f"{root}")
-        r = subprocess.run(["git", "-C", root, "commit", "-q", "-F", "-"],
-                           input=message, capture_output=True, text=True)
-        if r.returncode != 0:
-            raise Stop(f"{rel}: git commit failed in {root}: "
-                       f"{(r.stderr or r.stdout).strip()}")
-        shas.append(git_out(root, "rev-parse", "--short", "HEAD").strip())
         if p["partial"]:
             said.append("by hunk " + ", ".join(p["partial"]))
         if p["riders"]:
@@ -805,28 +883,144 @@ def collect_one(board, rel, opts, out=print):
             said.append("widened " + ", ".join(p["widened"]))
     if inherited:
         said.append(f"inherited {len(inherited)}")
-    settle(board, [x for p in plan.values() for x in p["riders"]])
 
-    # 5 — the record — written after the commit it names, so it rides
+    # the record — every key but `commit:`, and the report, BEFORE the
+    # commit, so the commit carries them; put back whole if the commit fails
+    with open(pmd, encoding="utf-8") as f:
+        before = f.read()
     hrs = (now - since).total_seconds() / 3600.0 if since else None
-    editlib.set_key(pmd, "commit", " ".join(shas) if shas else "none")
     if hrs is not None:
         editlib.set_key(pmd, "actual", fmt_hours(max(hrs, 0.0)))
     editlib.del_key(pmd, "claim")
     editlib.set_key(pmd, "state", "done")
-    owe(board, os.path.relpath(pmd, board_root))
-
-    # 6 — the report to the daemon
+    # 6 — the report to the daemon, which appends `## Report` to prd.md
     text = ("trusted — the verify was not run by collect" if trusted
             else "\n\n".join(report) or "no `## Verify and Proof` block")
     posted = post_report(board, rel, text)
+    git_out(board_root, "add", "--", prd_rel)
+    if board_root not in staged_roots:
+        staged_roots.append(board_root)
+    shas = []
+    for root in staged_roots:
+        r = subprocess.run(["git", "-C", root, "commit", "-q", "-F", "-"],
+                           input=message, capture_output=True, text=True)
+        if r.returncode != 0:
+            editlib.write_atomic(pmd, before)
+            for r_ in staged_roots:
+                git_out(r_, "reset", "-q")
+            raise Stop(f"{rel}: git commit failed in {root} — the record "
+                       f"put back, nothing written: "
+                       f"{(r.stderr or r.stdout).strip()}")
+        shas.append(git_out(root, "rev-parse", "--short", "HEAD").strip())
+    settle(board, [x for p in plan.values() for x in p["riders"]])
+
+    # 5 — `commit:` — the one key that cannot be in the commit it names:
+    # a second, one-key commit right behind, so nothing rides
+    editlib.set_key(pmd, "commit", " ".join(shas))
+    git_out(board_root, "add", "--", os.path.relpath(pmd, board_root))
+    record = subprocess.run(
+        ["git", "-C", board_root, "commit", "-q", "-F", "-"],
+        input=f"{prd['name']} — record\n\nprd: {prd_rel}\n",
+        capture_output=True, text=True)
+    if record.returncode != 0:
+        raise Stop(f"{rel}: the record commit failed in {board_root} — "
+                   f"`commit:` is written and unstaged: "
+                   f"{(record.stderr or record.stdout).strip()}")
+    said.append("record " + git_out(board_root, "rev-parse", "--short",
+                                    "HEAD").strip())
 
     # 7 — the line, the row
     history_row(board, rel, prd["state"], "done", now)
     extra = " · ".join(x for x in [
         "trusted" if trusted else "", "gate red, known" if known else "",
-        f"commit {' '.join(shas)}" if shas else "commit none",
-        *said, posted, "round file owed"] if x)
+        f"commit {' '.join(shas)}", *said, posted, "round file owed"] if x)
+    out(progress_line(board, rel, prd["state"], "done", opts["as"], extra))
+    return 0
+
+
+# ── a container ───────────────────────────────────────────────────────────────
+
+def container(prd, prds, board):
+    """`dispatchable`'s word for it — plan.py's one predicate, the same one
+    `claim` refuses on and `scan` lists under collect with. An `open` PRD
+    only: a held parent is a worker's, and a parked one is a person's."""
+    return (prd["state"] == "open"
+            and (planlib.dispatchable(prd, prds, board) or ""
+                 ).startswith("container:"))
+
+
+def last_child_commit(kids, board_root):
+    """The `commit:` of the child that landed last — the newest of the
+    children's shas by commit date, each read in the repo the child wrote;
+    two in the same second are ordered by how deep in history they sit.
+    `none` when no child's sha resolves."""
+    best = None
+    for c in kids:
+        raw = str(c["fm"].get("commit", "") or "").split()
+        if not raw or raw[0] == "none":
+            continue
+        root = repo_of(c, board_root)
+        r = subprocess.run(["git", "-C", root, "log", "-1", "--format=%ct",
+                            raw[0]], capture_output=True, text=True)
+        if r.returncode != 0 or not r.stdout.strip():
+            continue
+        depth = subprocess.run(["git", "-C", root, "rev-list", "--count",
+                                raw[0]], capture_output=True, text=True)
+        key = (int(r.stdout.strip()), int(depth.stdout.strip() or 0))
+        if best is None or key > best[0]:
+            best = (key, raw[0])
+    return best[1] if best else "none"
+
+
+def close_container(board, rel, prd, prds, board_root, opts, now, out=print):
+    """A parent whose every child is `done`, with no spec and no open box of
+    its own: nothing to verify, nothing to add but its own `prd.md`. `done`,
+    `actual:` the sum of the children's, `commit:` the last child's, in one
+    commit `<parent> — done: every child landed`."""
+    kids = [prds[c] for c in prd["children"] if c in prds]
+    live = [c["rel"] for c in kids if c["state"] != "done"]
+    if not kids or live:
+        raise Stop(f"{rel}: standing() calls it finished, but it holds "
+                   f"{'no child' if not kids else 'a child not done: ' + ', '.join(live)}"
+                   f" — not a container; nothing written")
+    pmd = os.path.join(prd["dir"], "prd.md")
+    prd_rel = os.path.relpath(prd["dir"], board_root)
+    actual = fmt_hours(sum(planlib.hours(c["fm"].get("actual"))
+                           for c in kids))
+    sha = last_child_commit(kids, board_root)
+    message = f"{prd['name']} — done: every child landed\n\nprd: {prd_rel}\n"
+    phrase = "container: every child done — pearde collect closes it"
+    if opts.get("dry"):
+        out(f"{rel}: {phrase}")
+        out(f"  children:  {', '.join(c['rel'] for c in kids)}")
+        out(f"  would add: {prd_rel}/prd.md")
+        out(f"  record:    state: done · actual: {actual} · commit: {sha}")
+        out("  message:\n    " + message.rstrip().replace("\n", "\n    "))
+        out(f"{rel}: dry — nothing written")
+        return 0
+    with open(pmd, encoding="utf-8") as f:
+        before = f.read()
+    editlib.set_key(pmd, "actual", actual)
+    editlib.set_key(pmd, "commit", sha)
+    editlib.del_key(pmd, "claim")
+    editlib.set_key(pmd, "state", "done")
+    posted = post_report(board, rel, f"{phrase}\n\nchildren: "
+                         + ", ".join(c["rel"] for c in kids))
+    git_out(board_root, "add", "--", os.path.relpath(pmd, board_root))
+    r = subprocess.run(["git", "-C", board_root, "commit", "-q", "-F", "-"],
+                       input=message, capture_output=True, text=True)
+    if r.returncode != 0:
+        editlib.write_atomic(pmd, before)
+        git_out(board_root, "reset", "-q", "--",
+                os.path.relpath(pmd, board_root))
+        raise Stop(f"{rel}: git commit failed in {board_root} — the record "
+                   f"put back, nothing written: "
+                   f"{(r.stderr or r.stdout).strip()}")
+    own = git_out(board_root, "rev-parse", "--short", "HEAD").strip()
+    history_row(board, rel, prd["state"], "done", now)
+    extra = " · ".join([f"container, {len(kids)} children",
+                        f"commit {sha}", f"record {own}", posted,
+                        "round file owed"])
     out(progress_line(board, rel, prd["state"], "done", opts["as"], extra))
     return 0
 
@@ -851,6 +1045,11 @@ def cmd_collect(argv, board=None):
     if not rels:
         r = planlib.compute_plan(board, None, warn=False)
         rels = list(r["collect"]) if r else []
+        # a container is finished work too — `scan`'s collect band lists it
+        # beside the held-and-finished; the bare `collect` closes both
+        for x in sorted(r["todo"]) if r else []:
+            if x not in rels and container(r["todo"][x], r["prds"], board):
+                rels.append(x)
         if not rels:
             print("collect: nothing finished — the scan's collect section is "
                   "empty")

@@ -1,7 +1,7 @@
 ---
 memo: the-record-is-always-whole
 kind: decision
-status: open
+status: decided
 subject: collect must never stage a PRD's own folder by hunk, and the state it writes after staging must land in the same commit
 date: 2026-08-29
 prds:
@@ -13,14 +13,15 @@ prds:
 
 ## Decision
 
-Open. Two rules proposed by the master-board session after a collect on
-2026-08-28 (mitosys `97f13b01`, committed `34bcb4f5` by hand afterwards):
-
-1. The by-hunk path never applies under the PRD's own folder. The board's
-   record — `prd.md`, its specs — is committed whole, always.
-2. What `collect` writes after staging — `state: done`, `complexity`,
-   `actual`, `commit`, the posted `## Report` — lands in the same commit,
-   not as a rider on the next one.
+Decided 2026-08-29, built in `collect-keeps-its-word`. (1) The by-hunk
+path never applies under the PRD's own folder: `sort_paths()` adds
+everything under `prds/<prd>/` whole, never stops on it, never
+classifies its hunks — the record has one writer. (2) `state: done`,
+`actual:`, the cleared `claim:` and the posted `## Report` are written
+before the commit and are in it; `commit:` follows in a second,
+one-key commit `<prd> — record`, so no rider list exists for what
+`collect` writes. The second alternative below is what was taken;
+`prds/.claims/riders` remains for `answer`'s writes only.
 
 ## Why
 
