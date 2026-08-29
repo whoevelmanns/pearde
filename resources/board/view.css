@@ -912,3 +912,51 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
 .qq.answered{opacity:.62}
 .qq.answered .qsend{display:none}
 .qq.answered .qdone{display:inline}
+
+/* ── the asks view is two halves ──────────────────────────────────────────
+   Open questions on the left, settled ones on the right. The panel is a
+   column of its own card, the way focus is beside the plan: an answered
+   question is still worth reading, and reading it must not cost the inbox
+   its width. Under 1100px the panel drops under the cards rather than
+   squeezing both. */
+#askwrap{display:grid;grid-template-columns:minmax(0,1fr) 336px;gap:12px;
+  align-items:start}
+@media (max-width:1100px){#askwrap{grid-template-columns:minmax(0,1fr)}}
+#answered{background:var(--content-2);border:.5px solid var(--sep);
+  border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden;
+  max-height:min(78vh,900px);overflow-y:auto}
+#answered .ahd{position:sticky;top:0;z-index:1;display:flex;gap:8px;
+  align-items:center;padding:11px 14px;font-size:11px;font-weight:620;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);
+  background:var(--content-2);border-bottom:.5px solid var(--sep)}
+#answered .ahd .n{margin-left:auto;font-size:11px;letter-spacing:0;
+  color:var(--ink2)}
+#answered .ablank{padding:16px 14px;font-size:12px;line-height:1.55;
+  color:var(--ink3)}
+/* one settled question: which fork, when it was settled, what was decided,
+   and the PRD it belongs to. The whole row is the door to that PRD. */
+#answered .adone{display:block;width:100%;text-align:left;padding:10px 14px;
+  background:none;border:none;border-bottom:.5px solid var(--sep-2);
+  cursor:pointer;color:inherit}
+#answered .adone:last-child{border-bottom:none}
+#answered .adone:hover{background:var(--content)}
+#answered .am{display:flex;gap:8px;align-items:baseline}
+#answered .qid{font:10.5px ui-monospace,SFMono-Regular,monospace;
+  font-weight:620;color:var(--ok)}
+#answered .when{margin-left:auto;font:10.5px ui-monospace,SFMono-Regular,
+  monospace;color:var(--ink3)}
+#answered .aq{margin-top:3px;font-size:12px;font-weight:620;
+  letter-spacing:-.01em;line-height:1.4}
+#answered .at{margin-top:3px;font-size:12px;line-height:1.5;color:var(--ink2);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+  overflow:hidden}
+#answered .adone:hover .at{-webkit-line-clamp:unset}
+#answered .ap{margin-top:5px;font:10.5px ui-monospace,SFMono-Regular,monospace;
+  color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* a question answered here leaves the card where it stands, rather than
+   vanishing under the cursor */
+.qq.retiring{opacity:0;transform:translateX(10px);
+  transition:opacity .24s var(--ease),transform .24s var(--ease)}
+.qs .qnone{margin:0 14px 10px;padding:10px 12px;border-radius:8px;
+  background:var(--content-2);border:.5px solid var(--sep-2);
+  font-size:11.5px;line-height:1.5;color:var(--ink3)}

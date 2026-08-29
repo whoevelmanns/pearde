@@ -181,11 +181,20 @@ const file = served ? arg : path.resolve(arg);
           recWithoutButton: cards.filter(c =>
             c.querySelector(".qq .rec") && c.querySelector(".act.rec")?.hidden).length,
           // every question answers on its own, and one already written back
-          // is marked rather than offered again
-          roundsMissingSend: [...document.querySelectorAll(".qq")].filter(q =>
+          // is not in the inbox at all — it is in the answered panel
+          roundsMissingSend: [...document.querySelectorAll("#asks .qq")].filter(q =>
             !q.classList.contains("answered") && !q.querySelector(".qsend")).length,
-          answeredStillOffering: [...document.querySelectorAll(".qq.answered")]
-            .filter(q => q.querySelector(".qsend:not([disabled])")).length,
+          answeredStillAsking: document.querySelectorAll("#asks .qq.answered")
+            .length,
+          panel: !!document.querySelector("#answered .ahd"),
+          panelRows: document.querySelectorAll("#answered .adone").length,
+          panelUnsorted: (() => {
+            // newest first, and an undated answer sorts under the dated ones
+            const d = [...document.querySelectorAll("#answered .when")]
+              .map(w => w.textContent.trim());
+            return d.filter((x, i) => i && d[i - 1] !== "undated" &&
+              x !== "undated" && d[i - 1] < x).length;
+          })(),
         };
       });
       checks.push(["no ask card failed to read its PRD", a.broken === 0,
@@ -196,8 +205,12 @@ const file = served ? arg : path.resolve(arg);
                    a.recWithoutButton === 0, ""]);
       checks.push(["every open question has its own submit",
                    a.roundsMissingSend === 0, ""]);
-      checks.push(["an answered question is not offered again",
-                   a.answeredStillOffering === 0, ""]);
+      checks.push(["an answered question has left the inbox",
+                   a.answeredStillAsking === 0, ""]);
+      checks.push(["the answered panel built", a.panel,
+                   `${a.panelRows} answered`]);
+      checks.push(["the answered panel is in date order",
+                   a.panelUnsorted === 0, `${a.panelUnsorted} out of order`]);
     }
   }
 

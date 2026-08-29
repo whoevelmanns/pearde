@@ -16,7 +16,7 @@ registered board is listed at `/`. `PEARDE_PORT` moves the port.
 |---------------|------------------------------------------------------------------|
 | **timeline**  | what is in front of us — see below                                |
 | **board**     | what is where — kanban by state; drag a card to write `state:`    |
-| **asks**      | what is waiting on *you* — every `question` and `blocked` PRD. A round in `@references/drill.md`'s format renders as picks: the fork, its three prepared answers as buttons (recommended pre-selected), and an own-answer box per question |
+| **asks**      | what is waiting on *you* — every `question` and `blocked` PRD, and beside them the answered panel. A round in `@references/drill.md`'s format renders as picks: the fork, its three prepared answers as buttons (recommended pre-selected), and an own-answer box per question. An answered question leaves the cards at once and appears in the panel, newest first |
 | **list**      | all of it — sortable, filterable, one row per PRD                 |
 | **analytics** | how this is going — where the work and weight sit, the est/actual records, the machine-wide hours-per-weight fit, weight left over time, and what a transition costs: calls per transition over the last thirty, refusals per session, both off the guard's count (@references/parts/guard.md). Calls are the proxy for tokens, named as such; no guard state at all reads `no guard`, never zero |
 | **memos**     | what the board decided — `prds/memos/`, rendered                  |
@@ -205,12 +205,23 @@ person.
 - Which questions are already answered is read off `## Answers`, not
   remembered by the page — a redraw, a reload and a second reader all agree,
   and nothing is answered twice.
+- An answer is written as `**Q1** *(answered 2026-08-28 14:22)* — <the
+  decision>`. The id opens the line and the decision follows the dash, as
+  before; the stamp is what the answered panel orders by. A line written
+  before the stamp existed still reads — it sorts under the dated ones.
 - **"take the recommended"** picks the analyst's recommendation on every
   question that carries one and sends in the same click. It appears only when
   the round recommends something.
 - The **asks** view is that same round for every waiting PRD at once (⌘⏎
   sends). It renders exactly what the inspector renders — the same picks, the
   same prose, the same buttons — because both build from the same parse.
+- **The answered panel** is the right half of that view: every question the
+  board has settled, newest answer first, each row the question, the decision
+  and the PRD it belongs to — click one to open that PRD. It is read over
+  `GET /answers` out of the PRDs themselves, so it holds answers from PRDs
+  that have long since reopened, not only from the ones still asking. A
+  question answered here leaves its card in the same motion, so the cards
+  hold open forks only and going through a round is a list that empties.
 - `+ PRD` (or `n`) writes a new one.
 - Every write goes through @resources/board/edit.py: one line at a time,
   atomically, frontmatter and body never in the same write.

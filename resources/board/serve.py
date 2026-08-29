@@ -56,6 +56,8 @@ HTTP API, all JSON, all 127.0.0.1-only:
                                    {"text": null} when it is not written
   GET  /report?board=<name>        `prds/report.md`, the board for a person
   GET  /memos?board=<name>         the board's decision records
+  GET  /answers?board=<name>       every question the board has answered,
+                                   newest first
   GET  /adapters                   configured launch targets: [{id, name}] —
                                    resources/board/adapters/*.json, see below
   POST /register {"cwd": path}     add the board found walking up from cwd
@@ -630,6 +632,24 @@ class Handler(BaseHTTPRequestHandler):
                 "file": os.path.join(prd["dir"], "prd.md"),
                 "board": prd.get("board"),
             })
+        if path == "/answers":
+            # what the board has already settled. The asks view takes an
+            # answered question out of the inbox and shows it here instead,
+            # newest first — so going through a round is a list that empties,
+            # and a decision made a week ago is still readable next to it.
+            b = by_name(q.get("board"))
+            if not b:
+                return self.reply(404, {"error": "unknown board"})
+            out = []
+            for rel, prd in planlib.scan(b.path).items():
+                for a in planlib.answers_of(prd):
+                    out.append(dict(a, rel=rel, prd=prd["title"],
+                                    state=prd["state"], board=prd.get("board")))
+            # by date, and a stamped answer sorts above an unstamped one:
+            # undated is older than anything the view has written
+            out.sort(key=lambda a: (a["date"] or "", a["rel"], a["id"]),
+                     reverse=True)
+            return self.reply(200, {"answers": out})
         if path == "/memos":
             b = by_name(q.get("board"))
             if not b:
@@ -683,7 +703,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(204, b"")
                 return self.reply(200, {"seq": b.seq, "boot": BOOT,
                                         "last_error": b.last_error})
-        ROUTES = ("/", "/status", "/data", "/wait", "/prd", "/memos")
+        ROUTES = ("/", "/status", "/data", "/wait", "/prd", "/memos",
+                  "/answers")
         want = None
         if path.startswith("/board/") or path.startswith("/timeline/"):
             want = path.split("/", 2)[2].strip("/")

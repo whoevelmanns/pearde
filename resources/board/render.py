@@ -441,7 +441,10 @@ __CSS__</style>
 <div id="note"></div>
 </section>
 <section data-view="board"><pearde-board id="board"></pearde-board></section>
-<section data-view="asks"><div id="asks"></div></section>
+<section data-view="asks"><div id="askwrap">
+  <div id="asks"></div>
+  <aside id="answered" aria-label="questions already answered"></aside>
+</div></section>
 <section data-view="list">
   <div id="listbar"><input type="search" id="lq" placeholder="filter  /">
     <span class="tokens" id="ltokens"></span>
