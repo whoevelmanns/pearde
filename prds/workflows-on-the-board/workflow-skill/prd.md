@@ -1,9 +1,9 @@
 ---
-state: open
+state: done
 origin: requested
 priority: 50
-complexity: 0
-blast-radius:
+complexity: 14
+blast-radius: mid
 repo: pearde
 needs:
   - workflow-reader
@@ -15,6 +15,10 @@ footprint:
   - references/files.md
   - README.md
   - references/system.md
+  - prds/workflows-on-the-board/workflow-skill/probe
+  - prds/the-board-runs-itself/readme-in-three-rings/probe/verify.sh
+  - prds/the-board-runs-itself/readme-in-three-rings/probe/quickstart.sh
+actual: 1.2h
 ---
 
 # workflow-skill — the door, and every place a skill is registered

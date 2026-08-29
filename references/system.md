@@ -40,6 +40,10 @@ feature is made of, not a reading list.
   `@@language`.
 - **Asking** — per `@@drill`: one round, the whole frontier, each question
   with your recommended answer.
+- **Following** — a job that recurs is a `workflow`: an ordered route of
+  atomics a worker follows, named by `workflow:` on a PRD or a spec, and
+  handed to that worker expanded. A run returns its edits; only the
+  orchestrator writes the library, and only from a run. `@@workflows`.
 - **Deciding** — a call the code will not explain goes in
   `prds/memos/<slug>.md`, never in a PRD. `@@memos` is the format.
 - **Dispatching** — `@@workers` is the brief for an analyst and an
@@ -48,7 +52,7 @@ feature is made of, not a reading list.
   broken install from an absent one.
 
 Handles: `status`, `once`, `add <title>`, `drill <prd>`, `retry <prd>`,
-`unblock <prd>`, `sweep`, `collect`, `run <prd>`, `memo <subject>`, `plan`, `view`,
+`unblock <prd>`, `sweep`, `collect`, `run <prd>`, `memo <subject>`, `workflow [<slug>]`, `plan`, `view`,
 `persona [<id>]`, `persona create <topic>`, `workers=N`, `pipeline=N` —
 `@@handles` is all of them.
 <!-- pearde:end -->

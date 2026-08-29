@@ -8,7 +8,7 @@ arguments, "pearde status" in plain chat. The meanings are fixed.
 **Several of these are also skills of their own**, invocable without the
 board in front of them: `pearde-drill`, `pearde-memo`, `pearde-view`,
 `pearde-report`, `pearde-master`, `pearde-doctor`, `pearde-persona`,
-`pearde-persona-ask`, `pearde-persona-create`, `pearde-scout`. Typed inside a round they are the
+`pearde-persona-ask`, `pearde-persona-create`, `pearde-scout`, `pearde-workflow`. Typed inside a round they are the
 short handles below and behave exactly as this table says. Typed cold they
 are the same feature with no round around it — `@@skills` is the list, and
 each skill file says what it does with no board in scope.
@@ -29,6 +29,12 @@ each skill file says what it does with no board in scope.
 | run one PRD to done          | `run <prd>` — the loop scoped to that PRD's subtree                                                      | — |
 | the state, for a person      | `report` — rewrites `prds/report.md` whole: planned, in work, undecided or failing, in plain words per `@@report` | — |
 | record a decision            | `memo <subject>` — `prds/memos/<slug>.md` from `@references/templates/memo.md`                            | `pearde memo add <subject>` |
+| the workflow library         | `workflow` — `@resources/workflows.py list`: slug · kind · runs · updated · subject, per `@@workflows` | `pearde workflow list` |
+| one, as a worker sees it     | `workflow <slug>` — `@resources/workflows.py brief`: the `## Use when`, then every step with its atomic inlined. `show` when the slug is an atomic — an atomic is shown, not briefed, and `brief` exits 1 on one | `pearde workflow brief <slug>` |
+| a new atomic                 | `workflow add atomic <subject>` — a file from `@references/templates/atomic.md`, slugged as a memo is, at `runs: 0`. An orchestrator write, and only from a job that recurred | — |
+| a new workflow               | `workflow add <subject>` — a file from `@references/templates/workflow.md`; every atomic a step names exists first, or the step sends a worker nowhere | — |
+| attach a workflow to a PRD   | `workflow attach <prd> <slug>` — writes `workflow:` on that `prd.md`. An orchestrator write; the drill writes it on the tree it produces | — |
+| check the library            | `workflow check` — `@resources/workflows.py check`: one problem per line, silent when clean. The `doctor` row alone | `pearde workflow check` |
 | who is working               | `persona` — the active one and why; `persona <id>` switches, for this session only: `export PEARDE_AS=<id>`, the variable every command reads, exported as `engineer` by the install line. Stored on no board file | — |
 | one persona's read on one problem | `ask <id> <question>` — calls that persona, pointed at this session for context, and talks to it until the question is settled. It answers and writes nothing; the session keeps its own persona. The board calls one on its own judgment too, unasked | — |
 | a persona for a new field    | `persona create <topic>` — research the field and its real practitioners, compose one from the best of them, per `@@personas` | — |

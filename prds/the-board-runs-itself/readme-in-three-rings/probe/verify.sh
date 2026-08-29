@@ -67,7 +67,7 @@ RINGS="$(awk '/^## Three rings/{f=1;next} f&&/^## /{exit} f' "$README")"
 has "E core" "$RINGS" "**Core**"; has "E advisors" "$RINGS" "**Advisors**"; has "E tools" "$RINGS" "**Tools**"
 has "E the one-question table moved under core" "$RINGS" "| what the round does next | @references/parts/loop.md |"
 has "E the scope table moved under core" "$RINGS" "| reading the board | "
-eq  "E the one-question table has its ten rows" "$(printf '%s\n' "$RINGS" | grep -c '^| what\|^| which\|^| who \|^| putting')" "10"
+eq  "E the one-question table has its eleven rows" "$(printf '%s\n' "$RINGS" | grep -c '^| what\|^| which\|^| who \|^| putting')" "11"
 for k in loop drill memos workflows personas consult report master doctor guard statusline scout install; do
   has "E the ring ends in @@$k" "$RINGS" "\`@@$k\`"
 done
@@ -83,7 +83,7 @@ echo "F. every claim is true to the code"
 python3 "$ROOT/resources/board/plan.py" example "$S/copy" >/dev/null
 has "F add as printed — no --as, no PEARDE_AS — files it as engineer, so the quickstart row says so" "$(env -u PEARDE_AS python3 "$ROOT/resources/board/transitions.py" add "quickstart probe" --board "$S/copy" 2>&1)" "· as engineer"
 eq  "F the daemon's default port is 8443" "$(grep -c '127.0.0.1:8443' "$README")" "2"
-eq  "F eleven skills" "$(ls "$ROOT/skills"/*.md | wc -l | tr -d ' ')" "11"
+eq  "F twelve skills" "$(ls "$ROOT/skills"/*.md | wc -l | tr -d ' ')" "12"
 has "F init's first line names the language" "$(sed -n '/^def cmd_init/,/^def /p' "$ROOT/resources/board/init.py")" 'language {language} — '
 has "F view opens the browser" "$(sed -n '/^def cmd_view/,/^def /p' "$ROOT/resources/pearde.py")" "webbrowser.open"
 has "F the five bands, in the scan's words" "$(python3 "$ROOT/resources/board/plan.py" scan "$ROOT/resources/board/example/prds" 2>&1)" "gated"

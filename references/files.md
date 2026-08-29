@@ -124,6 +124,7 @@ command, and @references/install.md is the naming rule and the install.
 | @skills/pearde-drill.md | asking until the request is a contract | `@@drill` |
 | @skills/pearde-memo.md | recording a decision, and checking the record | `@@memos` |
 | @skills/pearde-view.md | the timeline, the order, and editing through it | `@@view` |
+| @skills/pearde-workflow.md | how a kind of job is done, and improved on every run | `@@workflows` |
 | @skills/pearde-report.md | the board written for a person, one rolling state | `@@report` |
 | @skills/pearde-master.md | one plan across several repositories | `@@master` |
 | @skills/pearde-doctor.md | a broken install against an absent one | `@@doctor` |

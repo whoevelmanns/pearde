@@ -17,7 +17,7 @@ pearde view
 
 | line | prints |
 |---|---|
-| `install --apply` | `✓ built <skills-dir>/<name>` for the eleven skills, then the two lines the next four need: `alias pearde='python3 <repo>/resources/pearde.py'` and `export PEARDE_AS=engineer` — add both to your shell |
+| `install --apply` | `✓ built <skills-dir>/<name>` for the twelve skills, then the two lines the next four need: `alias pearde='python3 <repo>/resources/pearde.py'` and `export PEARDE_AS=engineer` — add both to your shell |
 | `init --example` | `board example · language English — pearde settings language=<l> changes it`, what it wrote (`settings.md`, `vision.md`, four `.gitignore` names), `serve: started on http://127.0.0.1:8443`, one `doctor` report, then three lines: the page's URL, `pearde add`, `pearde` |
 | `add` | the progress line: `▸ ship-the-quickstart: — → open · asked 2/9 · 14% · … · as engineer` — every state change prints one |
 | `pearde` | the board on one page — `board`, `vision`, `counts`, `progress`, then the five bands in dispatch order: `collect`, `waiting on you`, `in flight`, `ready`, `gated` |
@@ -105,6 +105,7 @@ and each is one file:
 | what a worker's out-of-scope finding becomes | @references/parts/derived.md |
 | who works the session | @references/parts/personas.md |
 | putting one problem to a colleague | @references/parts/consult.md |
+| what a worker follows, and how a run improves it | @references/parts/workflows.md |
 
 Everything else is a scope, read when its handle fires and not before — the
 whole of this table is a book, and a round that opens it reads it again after
@@ -113,7 +114,7 @@ every compaction:
 | stage | scopes |
 |---|---|
 | reading the board | `@@board` · `@@states` · `@@order` · `@@derived` · `@@master` · `@@settings` |
-| doing the work | `@@workers` · `@@specs` · `@@personas` · `@@consult` · `@@drill` · `@@language` |
+| doing the work | `@@workers` · `@@specs` · `@@workflows` · `@@personas` · `@@consult` · `@@drill` · `@@language` |
 | leaving a record | `@@commits` · `@@memos` · `@@progress` · `@@report` |
 | working it by hand | `@@handles` · `@@view` · `@@statusline` · `@@install` · `@@doctor` · `@@guard` |
 

@@ -1,5 +1,5 @@
 ---
-state: open
+state: deferred
 origin: derived
 from: workflows-on-the-board/workflow-reader
 priority: 45
@@ -15,6 +15,16 @@ footprint:
 ---
 
 # check-crosses-member-boundaries — a master board's check reads its members' PRDs
+
+## Deferred 2026-08-28
+
+Parked by the user when @references/parts/derived.md's tripwire fired: three
+derived PRDs live against three requested, which is the board working on
+itself. The deliverable — the `workflows-on-the-board` tree — finishes first,
+and the derived tree comes back as its own round with nothing half-built.
+
+Nothing here is withdrawn. The finding stands as measured; only its place in
+the queue moved.
 
 When this is done, `python3 resources/workflows.py check` run on a master board
 reports a member PRD whose `workflow:` names no workflow, and a master board
@@ -98,6 +108,29 @@ manufacture the drift that does not exist today. It is a shape error rather
 than a dangling slug, and the Contract section names what the key holds
 without saying what a non-slug shape does. That sentence is what this PRD
 writes, and then both readers implement it.
+
+## Two more the readers get wrong, folded here rather than filed
+
+The tripwire was at parity when these were found, so they join the PRD that
+already owns `resources/workflows.py` and `resources/board/plan.py` instead of
+becoming new nodes.
+
+**`brief` glues a paragraph to the last bullet.** `resources/workflows.py:280`
+reduces `## Use when` with `[l for l in use if l.strip()]`, dropping every
+blank line, so a `## Use when` whose bullets are followed by a paragraph
+renders run-on — on the one page a worker actually reads. `reproduced` by the
+`workflow-seed` analyst: a draft of `probe-then-spec` with a trailing paragraph
+rendered glued, and it worked around it by making the citation a bullet, so no
+library file triggers it today. Gets `workflow-reader` wrong, and every future
+workflow whose `## Use when` needs more than a list.
+
+**A spec-level `workflow:` has no scan-line signal.** `plan.py scan` prints
+`wf <slug>` from the PRD's key alone, so `workflow-seed`'s line shows no route
+while all three of its specs carry one. @references/parts/workflows.md
+describes the mark in terms of the PRD's key only, so this may be intended —
+settle it here: either the mark means "the PRD's own key" and says so, or it
+means "a route is attached somewhere here" and reads the specs too. Gets
+`workflow-attach` wrong if the second reading was meant.
 
 ## Files
 
