@@ -15,21 +15,25 @@ is wired by one command instead of a block to paste. Sixteen pieces of the
 board-runs-itself work are landed; every one of the repo's checks is green on
 the result, and the checks themselves now have a runner in the health check.
 
-The workflow routes have been followed forty times; every "what went wrong
-and what to do" row in them was paid for by a real run.
+Two more landed this afternoon, both found by running the tool on itself:
+a piece of work a person set aside comes back with one command, and a
+command given a flag it does not know now refuses and writes nothing —
+found because a "dry run" that did not exist moved a real piece of work.
+Every writing command takes a real dry run now. The workflow routes have
+been followed forty-three times; every "what went wrong and what to do" row
+in them was paid for by a real run.
 
 ## In work
 
-**The page that says what's up** — the other stream's last piece, being
-closed out: the report and the round, rendered where a person looks first.
+**The board asks for itself** — the other stream's last tree, three pieces:
+a question in plain words, a route written at spec time, two questions that
+start an interview. Being built now.
 
 ## Planned
 
-- **The board asks for itself** — three pieces of the other stream, cleared:
-  a question in plain words, a route written at spec time, two questions
-  that start an interview.
-- **The health check's false problem on a valid group of boards** — parked,
-  nobody on it, as decided earlier.
+- **The health check's false problem on a valid group of boards** — un-parked
+  on your condition, now that the deliverable is finished; the other stream
+  takes it next.
 
 ## Undecided or failing
 
