@@ -180,7 +180,7 @@ else
     [ -z "$tk" ] && note "no MAX_THINKING_TOKENS — the other half of the fix, @references/parts/guard.md"
   else
     row guard off "not wired in $GSET"
-    fix "add the hooks block from @references/parts/guard.md, then /hooks or restart"
+    fix "pearde guard on — writes the block of @references/parts/guard.md into $GSET, then /hooks or restart (python3 $SKILL_ROOT/resources/pearde.py guard on)"
   fi
 fi
 

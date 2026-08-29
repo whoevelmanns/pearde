@@ -10,12 +10,13 @@ contract: a `settings.md` naming the five knobs by name, a `vision.md` from
 machine-local names in `.gitignore` when `<dir>` is inside a git repo, the
 daemon up and watching the board when the port can be bound — it says so and
 goes on when it cannot — and one `doctor` report, every line printed. Then
-three lines: the URL, `pearde add "<title>"`, `pearde`. Its first line says
+four lines: `pearde guard on — optional, …` for the hook doctor's guard row
+names, the URL, `pearde add "<title>"`, `pearde`. Its first line says
 the language it defaulted and the command that changes it. `--example`
 copies the example board instead of writing an empty one — the quickstart's.
 
 Idempotent: on a board that already has `settings.md` nothing is written and
-the same three lines close the output. `memos/` and `workflows/` are not
+the same four lines close the output. `memos/` and `workflows/` are not
 made — a folder appears when its first file does.
 
 `settings` writes one key of `prds/settings.md` through edit.py — one
@@ -189,6 +190,7 @@ def cmd_init(argv):
     url = ensure(board)
     if not existing:
         doctor(d)
+    print("pearde guard on — optional, refuses the waste the loop's rules name")
     print(url)
     print('pearde add "<title>"')
     print("pearde")

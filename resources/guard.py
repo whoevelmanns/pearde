@@ -4,6 +4,9 @@
     guard.py pre     PreToolUse  — reads the hook payload on stdin, allows or denies
     guard.py post    PostToolUse — reminds the round to write down what it just moved
     guard.py check   prints what the guard would say about the board it is run in
+    guard.py on [<repo>]      writes the hooks block into <repo>/.claude/settings.json
+    guard.py off [<repo>]     removes exactly what `on` wrote, nothing else
+    guard.py status [<repo>]  doctor's guard row alone — exit 0 ok, 1 off, 2 broken
 
 A sentence in a reference file is advice. This is the same sentence as a
 mechanism: the three ways the 2026-08-27 round burned 318,584 tokens are the
@@ -422,6 +425,195 @@ def check():
           f"  scan  {SCAN}")
 
 
+# ── the command ───────────────────────────────────────────────────────────────
+# `pearde guard on` is the reader asking for the block below in their own
+# settings file — doctor never writes one. `<repo>` defaults to the repo the
+# nearest board is in. The edit keeps every other key and its order, adds
+# only what is missing, and says each line it added; `off` removes exactly
+# those and leaves the env key, an emptied event list dropped and `hooks`
+# itself kept. A file that is not JSON is refused untouched.
+SELF = os.path.realpath(__file__)
+THINK = "8000"
+HOOKS = (("PreToolUse", "Bash|Read", "pre"),
+         ("PreToolUse", "Edit|Write", "pre"),
+         ("PostToolUse", "Edit|Write", "post"))
+ROW = "  %-11s %-7s %s"          # doctor.sh's row(), byte for byte
+
+
+class Refused(Exception):
+    pass
+
+
+def repo_of(args):
+    if args:
+        d = os.path.abspath(args[0])
+        if not os.path.isdir(d):
+            raise Refused(f"{args[0]} is not a directory")
+        return d
+    board = board_of(os.getcwd())
+    if not board:
+        raise Refused("no board above " + os.getcwd()
+                      + " — name the repo: pearde guard on <repo>")
+    return os.path.dirname(board)
+
+
+def settings_of(repo):
+    return os.path.join(repo, ".claude", "settings.json")
+
+
+def read_settings(path):
+    """(data, text) — {} and "" when the file is absent."""
+    try:
+        text = open(path, encoding="utf-8").read()
+    except FileNotFoundError:
+        return {}, ""
+    try:
+        data = json.loads(text)
+    except ValueError as e:
+        raise Refused(f"{path} is not JSON ({e}) — nothing written")
+    if not isinstance(data, dict):
+        raise Refused(f"{path} is not a JSON object — nothing written")
+    return data, text
+
+
+def write_settings(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+def hook_cmd(mode):
+    return f"python3 {SELF} {mode}"
+
+
+def is_guard(hook, mode):
+    return (isinstance(hook, dict)
+            and re.search(r"guard\.py\s+" + mode + r"\b",
+                          str(hook.get("command") or "")) is not None)
+
+
+def entries_of(hooks, event):
+    v = hooks.get(event)
+    if v is None:
+        return []
+    if not isinstance(v, list):
+        raise Refused(f"hooks.{event} is not a list — nothing written")
+    return v
+
+
+def guard_on(args):
+    """writes the hooks block into <repo>/.claude/settings.json, keeping every other key"""
+    path = settings_of(repo_of(args))
+    data, _ = read_settings(path)
+    added = []
+    env = data.get("env")
+    if env is None:
+        env = data["env"] = {}
+    if not isinstance(env, dict):
+        raise Refused("env is not an object — nothing written")
+    if "MAX_THINKING_TOKENS" not in env:
+        env["MAX_THINKING_TOKENS"] = THINK
+        added.append(f'env.MAX_THINKING_TOKENS = "{THINK}"')
+    hooks = data.get("hooks")
+    if hooks is None:
+        hooks = data["hooks"] = {}
+    if not isinstance(hooks, dict):
+        raise Refused("hooks is not an object — nothing written")
+    for event, matcher, mode in HOOKS:
+        entries = entries_of(hooks, event)
+        have = [h for e in entries if isinstance(e, dict)
+                and e.get("matcher") == matcher
+                for h in (e.get("hooks") or []) if is_guard(h, mode)]
+        if have:
+            continue
+        entries.append({"matcher": matcher,
+                        "hooks": [{"type": "command",
+                                   "command": hook_cmd(mode)}]})
+        hooks[event] = entries
+        added.append(f"{event} {matcher} → {hook_cmd(mode)}")
+    if not added:
+        print(f"guard on: {path} — already wired, nothing changed")
+        return 0
+    write_settings(path, data)
+    print(f"guard on: {path}")
+    for a in added:
+        print("  + " + a)
+    print("  a new settings file is read after /hooks or a restart")
+    return 0
+
+
+def guard_off(args):
+    """removes exactly the entries `on` wrote; the env key and every other key stay"""
+    path = settings_of(repo_of(args))
+    data, text = read_settings(path)
+    removed = []
+    hooks = data.get("hooks")
+    if isinstance(hooks, dict):
+        for event, matcher, mode in HOOKS:
+            entries = entries_of(hooks, event)
+            keep = []
+            for e in entries:
+                own = ([h for h in e["hooks"] if is_guard(h, mode)]
+                       if isinstance(e, dict) and e.get("matcher") == matcher
+                       and isinstance(e.get("hooks"), list) else [])
+                if not own:
+                    keep.append(e)
+                    continue
+                removed += [f"{event} {matcher} → {h['command']}" for h in own]
+                rest = [h for h in e["hooks"] if h not in own]
+                if rest:
+                    e["hooks"] = rest
+                    keep.append(e)
+            if len(keep) != len(entries):
+                if keep:
+                    hooks[event] = keep
+                else:
+                    del hooks[event]
+    if not removed:
+        print(f"guard off: {path} — not wired, nothing changed")
+        return 0
+    write_settings(path, data)
+    print(f"guard off: {path}")
+    for r in removed:
+        print("  - " + r)
+    return 0
+
+
+def guard_status(args):
+    """doctor's guard row, alone — ok, off or broken"""
+    import subprocess
+    repo = repo_of(args)
+    path = settings_of(repo)
+    probe = json.dumps({"tool_name": "Bash", "cwd": repo,
+                        "tool_input": {"command": "find prds -name prd.md"}})
+    out = subprocess.run([sys.executable, SELF, "pre"], input=probe,
+                         capture_output=True, text=True).stdout
+    if '"deny"' not in out:
+        print(ROW % ("guard", "broken",
+                     f"{SELF} does not refuse a hand-walked board"))
+        return 2
+    _, text = read_settings(path)
+    if "guard.py" in text:
+        m = re.search(r'MAX_THINKING_TOKENS"\s*:\s*"(\d*)', text)
+        tk = f" · MAX_THINKING_TOKENS={m.group(1)}" if m and m.group(1) else ""
+        print(ROW % ("guard", "ok", f"wired in {path}{tk}"))
+        return 0
+    print(ROW % ("guard", "off", f"not wired in {path}"))
+    print(ROW % ("", "", "fix: pearde guard on"))
+    return 1
+
+
+COMMAND = {"on": guard_on, "off": guard_off, "status": guard_status}
+
+
+def command(verb, args):
+    try:
+        return COMMAND[verb](args)
+    except Refused as e:
+        print(f"pearde guard {verb}: refused — {e}", file=sys.stderr)
+        return 1
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "pre"
     if mode == "check":
@@ -436,6 +628,8 @@ def main():
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] in COMMAND:
+        sys.exit(command(sys.argv[1], sys.argv[2:]))   # a command's error is its own
     try:
         main()
     except Exception:

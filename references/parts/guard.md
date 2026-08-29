@@ -75,7 +75,21 @@ zero — a broken guard must never be able to block a tool call.
 
 ## Wiring it
 
-Project settings in the repo the board lives in, `.claude/settings.json`:
+`pearde guard on [<repo>]` — `<repo>` is the repo the board lives in, by
+default the one above the working directory. It reads
+`<repo>/.claude/settings.json`, creating it when absent, and adds only what
+is missing: `env.MAX_THINKING_TOKENS` when unset, and the three hook entries
+below, each naming this skill's absolute `resources/guard.py`. Every other
+key stays, in its order; an entry already present is skipped, and a second
+`on` says `already wired, nothing changed` and writes nothing; a file that
+is not JSON is refused untouched. It prints the file and each line it added,
+then the one sentence to keep: a new settings file is read after `/hooks` or
+a restart. `pearde guard off` removes exactly those entries and nothing else —
+the env key stays, an event list it emptied is dropped, `hooks` itself
+stays. `pearde guard status` prints `doctor`'s `guard` row alone and exits 0
+for `ok`, 1 for `off`, 2 for `broken`.
+
+What `on` writes, `<pearde>` being this repo's absolute path:
 
 ```json
 {
@@ -99,11 +113,12 @@ Project settings in the repo the board lives in, `.claude/settings.json`:
 }
 ```
 
-`<pearde>` is this repo's absolute path. The `state:` refusal is a mechanism
-exactly where this block is wired and a sentence everywhere else. `doctor`
-reports `guard` as `ok`, `off` or `broken` and prints the file it looked in;
-it does not write the block, for the same reason it does not wire a status line — a settings file is
-the reader's, and this one decides what their tools may refuse. A newly
+The `state:` refusal is a mechanism exactly where this block is wired and a
+sentence everywhere else. `doctor` reports `guard` as `ok`, `off` or `broken`
+and prints the file it looked in, and its `off` fix line is `pearde guard
+on`; it does not write the block itself, for the same reason it does not
+wire a status line — a settings file is the reader's, and this one decides
+what their tools may refuse. `guard on` is the reader asking. A newly
 created `.claude/settings.json` is picked up after `/hooks` or a restart: the
 settings watcher only watches directories that had a settings file when the
 session started.
@@ -118,8 +133,8 @@ of them and a quarter of the ceiling that was being hit.
 
 ## Turning it off
 
-Delete the `hooks` block, or set `disableAllHooks` for a session that needs a
-free hand. The guard holds no state on the board — one JSON file per session
+`pearde guard off`, or set `disableAllHooks` for a session that needs a free
+hand. The guard holds no state on the board — one JSON file per session
 under `resources/board/state/guard/`, which is machine-local like everything
 else in that directory.
 

@@ -79,6 +79,7 @@ FORWARD = {
     "questions": ("questions.py", ["check"], ("check", "list")),
     "index":     ("index.py", ["check"],
                   ("check", "files", "keywords", "scope")),
+    "guard":     ("guard.py", ["status"], ("on", "off", "status")),
     "doctor":    ("doctor.sh", [], ()),
     "install":   ("install.sh", [], ()),
 }
