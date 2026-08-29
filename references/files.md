@@ -19,7 +19,6 @@ whose scope it changed. Nothing else points at it.
 | @index.md | the map — the `@` and `@@` syntaxes, and every scope |
 | @TODO.md | the open loop |
 | @.gitignore | what git leaves alone |
-| @jira_sync.py | mirrors a PRD's state onto its Jira issue, and reads back drift + new tickets — the only reader of that direction |
 
 ## `references/` — read
 
@@ -34,7 +33,6 @@ whose scope it changed. Nothing else points at it.
 | @references/report.md | the board written for a person |
 | @references/drill.md | how to ask |
 | @references/system.md | drop-in instructions block for `AGENTS.md` |
-| @references/jira.md | mirroring a PRD's state onto its Jira issue, and the read-only drift/import-new direction back |
 
 ### `references/parts/` — the workflow, one part per step
 
@@ -125,6 +123,7 @@ command, and @references/install.md is the naming rule and the install.
 | @skills/pearde-persona-ask.md | one problem, one colleague, nothing written | `@@consult` |
 | @skills/pearde-persona-create.md | composing one for a field the roster misses | `@@personas` |
 | @skills/pearde-scout.md | ranked discovery, the route index, and the quality gates | `@@scout` |
+| @skills/pearde-jira.md | mirroring a PRD's state onto its Jira issue, and the read-only drift/import-new direction back | `@@jira` |
 
 ### `resources/scout/` — a self-contained tool
 
@@ -146,3 +145,12 @@ Nothing outside it links in past `@@scout`. Its docs ship with it.
 | @resources/scout/templates/dependabot.yml | dependency updates |
 | @resources/scout/templates/quality.yml | the quality gate workflow |
 | @resources/scout/templates/scout.yml | the sweep in CI |
+
+### `resources/jira/` — a self-contained tool
+
+Nothing outside it links in past `@@jira`. Its docs ship with it.
+
+| anchor | is |
+|---|---|
+| @resources/jira/jira_sync.py | mirrors a PRD's state onto its Jira issue, and reads back drift + new tickets — the only reader of that direction |
+| @resources/jira/README.md | the jira manual — what @skills/pearde-jira.md is a door to |

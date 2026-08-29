@@ -52,7 +52,7 @@ explains the rest.
 | `@@consult` | putting one problem to one persona, mid-round | @references/parts/consult.md · @references/parts/workers.md · @references/personas/INDEX.md |
 | `@@derived` | work the board found, and its tripwire | @references/parts/derived.md · @references/parts/order.md · @references/templates/prd.md |
 | `@@commits` | one PRD, one commit, on the transition that lands it | @references/parts/commits.md · @references/parts/states.md |
-| `@@jira` | mirroring a PRD's state onto its Jira issue, and reading drift/new tickets back | @references/jira.md · @jira_sync.py |
+| `@@jira` | mirroring a PRD's state onto its Jira issue, and reading drift/new tickets back | @skills/pearde-jira.md · @resources/jira/README.md · @resources/jira/jira_sync.py |
 | `@@memos` | recording a decision and checking it | @skills/pearde-memo.md · @references/memo.md · @references/parts/memos.md · @references/templates/memo.md · @resources/memos.py |
 | `@@workflows` | how a kind of job is done, and improved on every run | @references/workflow.md · @references/parts/workflows.md · @references/templates/workflow.md · @references/templates/atomic.md · @resources/workflows.py |
 | `@@report` | the board written for a person, one rolling state | @skills/pearde-report.md · @references/report.md · @references/templates/report.md · @references/parts/handles.md · @references/parts/loop.md |
@@ -64,7 +64,7 @@ explains the rest.
 | `@@progress` | the line printed on every state change | @references/parts/progress.md · @references/parts/states.md |
 | `@@statusline` | the numbers rendered continuously in the terminal | @references/parts/statusline.md · @resources/statusline.sh · @references/install.md |
 | `@@install` | putting every skill where this agent finds it | @references/install.md · @SKILL.md · @resources/install.sh · @resources/guard.py · @references/system.md · @references/parts/doctor.md · @resources/doctor.sh |
-| `@@skills` | the entry points, what each is a door to, and how one is named | @SKILL.md · @skills/pearde.md · @skills/pearde-drill.md · @skills/pearde-memo.md · @skills/pearde-view.md · @skills/pearde-report.md · @skills/pearde-master.md · @skills/pearde-doctor.md · @skills/pearde-persona.md · @skills/pearde-persona-ask.md · @skills/pearde-persona-create.md · @skills/pearde-scout.md · @references/install.md |
+| `@@skills` | the entry points, what each is a door to, and how one is named | @SKILL.md · @skills/pearde.md · @skills/pearde-drill.md · @skills/pearde-memo.md · @skills/pearde-view.md · @skills/pearde-report.md · @skills/pearde-master.md · @skills/pearde-doctor.md · @skills/pearde-persona.md · @skills/pearde-persona-ask.md · @skills/pearde-persona-create.md · @skills/pearde-scout.md · @skills/pearde-jira.md · @references/install.md |
 | `@@doctor` | telling a broken install from an absent one | @skills/pearde-doctor.md · @references/parts/doctor.md · @resources/doctor.sh · @resources/guard.py · @resources/index.py · @resources/questions.py · @references/install.md |
 | `@@master` | one plan across several repos | @skills/pearde-master.md · @references/parts/master.md · @references/settings.md · @references/parts/board.md |
 | `@@settings` | every board-wide knob | @references/settings.md · @references/parts/contract.md |
