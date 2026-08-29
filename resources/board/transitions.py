@@ -134,36 +134,13 @@ def answered_of(prd):
 # would clear it. `transition` picks the gate off the (from, to) edge.
 
 def gate_claim(board, prds, prd):
-    rel = prd["rel"]
-    if planlib.claim_of(prd["fm"]):
-        raise Refused(f"unclaimed: {rel} carries `claim: {prd['fm']['claim']}`")
-    live = [c for c in prd["children"]
-            if prds[c]["state"] != "done"]
-    if live:
-        raise Refused(f"leaf: {rel} has children not done — "
-                      + ", ".join(os.path.basename(c) for c in live))
-    deps = prd["fm"].get("needs", [])
-    for d in (deps if isinstance(deps, list) else [deps]):
-        t = planlib.resolve_need(prds, prd, d)
-        if t is None:
-            raise Refused(f"needs: `{d}` names no PRD on this board")
-        if prds[t]["state"] != "done":
-            raise Refused(f"needs: {t} is `{prds[t]['state']}`, not done")
-    mine = own_footprint(prd)
-    for r, p in prds.items():
-        if p["state"] != "claimed" or r == rel:
-            continue
-        theirs = own_footprint(p)
-        for x in mine:
-            for y in theirs:
-                if x == y or x.startswith(y + "/") or y.startswith(x + "/"):
-                    raise Refused(f"footprint: {r} is claimed and holds "
-                                  f"`{y}`, which clashes with `{x}`")
-    mark = planlib.workflow_marks(board, {rel: prd}).get(rel, "")
-    if mark.endswith("?"):
-        raise Refused(f"workflow: `{mark[:-1]}` names no workflow in "
-                      f"{prd['board_path']}/workflows — fix the slug or "
-                      "remove the key")
+    """`plan.dispatchable` is the gate — the one predicate the scan's ready
+    band reads too, so what `scan` offers is what `claim` takes. The reason
+    arrives with its gate word in front (`unclaimed:`, `leaf:`, `container:`,
+    `needs:`, `footprint:`, `workflow:`) and is raised as it stands."""
+    why = planlib.dispatchable(prd, prds, board)
+    if why:
+        raise Refused(why)
 
 
 def gate_release(board, prds, prd, to):

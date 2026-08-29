@@ -2,8 +2,10 @@
 
 Three axes decide what runs next. None of them is a clock.
 
-1. **Dependency** — `needs:` all `done`, and no footprint overlap with a
-   `claimed` PRD. A hard gate: an unready PRD is not a candidate at all.
+1. **Dependency** — `needs:` all `done`, every child `done` — a parked
+   child holds its parent — and no footprint overlap with a `claimed` PRD.
+   A hard gate: an unready PRD is not a candidate at all. The gates are one
+   function, `plan.dispatchable`; `scan`'s ready band and `claim` read it.
 2. **The vision axis** — asap lanes first, then depth, then `priority`. A
    PRD declaring `axis: asap` in its frontmatter is a deliberate exception —
    the "see it working" ask — and dispatches before everything, by priority.

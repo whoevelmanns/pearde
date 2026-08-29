@@ -1378,6 +1378,72 @@ def overlap(a, b):
                for x in a for y in b)
 
 
+def dispatchable(prd, prds, board=None):
+    """None when `claim` would take this PRD now, else why not — one string,
+    `<gate>: <why>`, the gate word first so `transitions.gate_claim` raises
+    it as it stands and `brief` maps it to a skip word.
+
+    The one place the gates are written. `compute_plan`'s ready band,
+    `cmd_scan`'s `ready` and `gated` sections and `gate_claim` all call it,
+    so the scan cannot list as ready what `claim` refuses — the memo
+    `a-parked-child-holds-the-parent` is the day they disagreed. The gates:
+
+    - unclaimed — it carries a `claim:`.
+    - leaf — a child is not `done`. A parked child is neither done nor
+      coming, so it holds the parent for good: `held by <child> (parked)`.
+    - container — children, every one `done`, and no specs or open box of
+      its own. Finished work `collect` closes, never a thing to dispatch;
+      `claim` on it is the trap `a-container-cannot-reach-done` records.
+    - needs — a `needs:` entry naming nothing, or a PRD not `done`.
+    - footprint — overlaps a `claimed` PRD's.
+    - workflow — `workflow:` names no workflow in any library it can see;
+      `board` is the master's library when there is one.
+
+    The state is not checked here: the callers partition by state first,
+    and a `claimed` PRD is in flight, not refused."""
+    rel = prd["rel"]
+    if claim_of(prd["fm"]):
+        return f"unclaimed: {rel} carries `claim: {prd['fm']['claim']}`"
+    parked = [c for c in prd["children"]
+              if prds[c]["state"] not in LIVE_STATES
+              and prds[c]["state"] != "done"]
+    if parked:
+        return (f"leaf: {rel} held by "
+                + ", ".join(f"{c} (parked)" for c in parked))
+    live = [c for c in prd["children"] if prds[c]["state"] != "done"]
+    if live:
+        return (f"leaf: {rel} has children not done — "
+                + ", ".join(os.path.basename(c) for c in live))
+    sdir = os.path.join(prd["dir"], "specs")
+    specs = (os.path.isdir(sdir)
+             and any(f.endswith(".md") for f in os.listdir(sdir)))
+    if prd["children"] and not specs and not body_has_open_box(prd):
+        return "container: every child done — pearde collect closes it"
+    deps = prd["fm"].get("needs", [])
+    for d in (deps if isinstance(deps, list) else [deps]):
+        t = resolve_need(prds, prd, d)
+        if t is None:
+            return f"needs: `{d}` names no PRD on this board"
+        if prds[t]["state"] != "done":
+            return f"needs: {t} is `{prds[t]['state']}`, not done"
+    _, mine = spec_data(prd)
+    for r, p in prds.items():
+        if p["state"] != "claimed" or r == rel:
+            continue
+        _, theirs = spec_data(p)
+        for x in mine:
+            for y in theirs:
+                if x == y or x.startswith(y + "/") or y.startswith(x + "/"):
+                    return (f"footprint: {r} is claimed and holds `{y}`, "
+                            f"which clashes with `{x}`")
+    mark = workflow_marks(board or prd["board_path"], {rel: prd}).get(rel, "")
+    if mark.endswith("?"):
+        return (f"workflow: `{mark[:-1]}` names no workflow in "
+                f"{prd['board_path']}/workflows — fix the slug or remove "
+                "the key")
+    return None
+
+
 def board_settings(board):
     path = os.path.join(board, "settings.md")
     if os.path.isfile(path):
@@ -1512,6 +1578,14 @@ def compute_plan(board, workers=None, warn=True):
             collect.append(r)
         if total and p["state"] in HOLDING_STATES:
             est[r] = max(est[r] * (1 - frac), est[r] * 0.05)
+    # A container — children every one `done`, nothing of its own — is
+    # finished work `collect` closes, never a thing to dispatch. It joins the
+    # list here, once, so `scan`, `plan` and a bare `collect` read one list.
+    for r, p in todo.items():
+        if (p["state"] in ("open", "specced") and r not in collect
+                and (dispatchable(p, prds, board) or "")
+                .startswith("container:")):
+            collect.append(r)
 
     def prio(r):
         return num(todo[r]["fm"], "priority", r)
@@ -1597,6 +1671,20 @@ def compute_plan(board, workers=None, warn=True):
     nslots = max(workers, 1)
     left = {r: len(edges[r]) for r in todo}
     ready = [r for r in todo if not left[r]]
+    # The ready band is `dispatchable`, the one predicate `claim` reads. A
+    # PRD with no edge left that the gate would still refuse — a parked
+    # child, a stale claim, a dangling workflow — is held to the tail of the
+    # schedule: visible, never offered. A container is collect's, not a
+    # hold; it folds at zero like any weightless PRD.
+    held = {}
+    for r in list(ready):
+        if todo[r]["state"] not in ("open", "specced"):
+            continue
+        why = dispatchable(todo[r], prds, board)
+        if why and not why.startswith("container:"):
+            held[r] = why
+            ready.remove(r)
+    pending = list(held)
     running, schedule, order, t0 = [], {}, [], 0.0
     def take(pool):
         best = min(pool, key=lambda x: axis_rank(x, unblocks))
@@ -1607,7 +1695,7 @@ def compute_plan(board, workers=None, warn=True):
             left[s] -= 1
             if not left[s]:
                 ready.append(s)
-    while ready or running:
+    while ready or running or pending:
         # a container weighs nothing and holds no worker — it folds away the
         # moment its children are done
         while ready:
@@ -1624,6 +1712,14 @@ def compute_plan(board, workers=None, warn=True):
             schedule[r] = {"start": t0, "end": t0 + est[r]}
             order.append(r)
             running.append((schedule[r]["end"], r))
+        if not running and not ready and pending:
+            # nothing left that can run: the held go at the tail, in order,
+            # so what waits on them is scheduled after them, not never
+            for r in pending:
+                schedule[r] = {"start": t0, "end": t0 + est[r]}
+                order.append(r)
+                running.append((schedule[r]["end"], r))
+            pending = []
         if not running:
             continue
         running.sort()
@@ -1632,7 +1728,7 @@ def compute_plan(board, workers=None, warn=True):
     wall = max((s["end"] for s in schedule.values()), default=0.0)
     return {"prds": prds, "todo": todo, "parked": parked, "settings": settings,
             "workers": workers, "needs": needs, "est": est, "feet": feet,
-            "boxes": boxes, "collect": sorted(collect),
+            "boxes": boxes, "collect": sorted(collect), "held": held,
             "after": after, "schedule": schedule, "order": order,
             "unblocks": unblocks, "wall": wall, "avg": avg,
             "prio": {r: prio(r) for r in todo}}
@@ -1868,6 +1964,8 @@ def cmd_scan(board):
     if t["parked"]:
         print("parked: " + ", ".join(sorted(t["parked"])))
 
+    why = {}                              # rel → `dispatchable` reason, below
+
     def line(x):
         p = prds[x]
         c, tt = boxes.get(x, (0, 0))
@@ -1887,6 +1985,10 @@ def cmd_scan(board):
         if after.get(x):
             bits.append("after " + ",".join(os.path.basename(d)
                                             for d in after[x]))
+        if why.get(x) and not needs.get(x) and not after.get(x):
+            # the gate's own words, when no `needs`/`after` bit already
+            # says it — `held by <child> (parked)`, a container, a clash
+            bits.append(why[x])
         if cl:
             bits.append(f"claim {cl['who']}"
                         + (f" since {cl['since']}" if cl["since"] else ""))
@@ -1913,8 +2015,19 @@ def cmd_scan(board):
     flight = [x for x in rest if prds[x]["state"] in ("analyzing", "claimed")
               and x not in yours]
     free = [x for x in rest if x not in flight and x not in yours]
-    ready = [x for x in free if not needs.get(x) and not after.get(x)]
-    gated = [x for x in free if needs.get(x) or after.get(x)]
+    # `dispatchable` is the one predicate `claim` reads: a PRD it refuses is
+    # never listed as ready. A container — children all done, nothing of its
+    # own — is already in `collect`: `compute_plan` put it there, the one list
+    # `scan`, `plan` and a bare `collect` read.
+    why = {x: dispatchable(prds[x], prds, board) for x in free}
+    for x in collect:   # a container's row says why it is here, in its own words
+        w = (dispatchable(prds[x], prds, board)
+             if prds[x]["state"] in ("open", "specced") else None)
+        if (w or "").startswith("container:"):
+            why[x] = w
+    ready = [x for x in free
+             if not why[x] and not needs.get(x) and not after.get(x)]
+    gated = [x for x in free if x not in ready]
     for title, group in (
             (f"collect — {len(collect)} finished, waiting to be closed",
              collect),
@@ -1935,7 +2048,8 @@ def plan_frontier(r):
     """`plan`'s ready set — every PRD nothing gates, in dispatch order. The
     same list `vision --next` prints alone."""
     return [x for x in r["order"]
-            if not r["needs"][x] and not r["after"][x] and r["est"][x] > 0]
+            if not r["needs"][x] and not r["after"][x] and r["est"][x] > 0
+            and x not in r["held"]]
 
 
 def cmd_plan(board, workers):
@@ -1970,6 +2084,7 @@ def cmd_plan(board, workers):
     # gates each entry — not waves that would hold unrelated work hostage to
     # the slowest member of a round.
     frontier = plan_frontier(r)
+    wf = workflow_marks(board, prds)
     if frontier:
         # `ready now` is the dispatch list, and step 5 of @references/parts/
         # loop.md skips a PRD whose `workflow:` names no workflow. The other
@@ -1980,7 +2095,6 @@ def cmd_plan(board, workers):
         # the order is untouched. Only the `?` form prints, because this
         # parenthetical is the register of what holds a PRD back and a slug
         # that resolves holds back nothing.
-        wf = workflow_marks(board, prds)
         print(f"\nready now — {len(frontier)} in parallel, widest door first")
         for x in frontier:
             p = todo[x]
@@ -1992,12 +2106,16 @@ def cmd_plan(board, workers):
             print(f"  · {x} [{p['state']}] p{p['fm'].get('priority', 0)}"
                   f" {fw(est[x])} · unblocks {fw(unblocks[x])}"
                   + (f"  ({'; '.join(tags)})" if tags else ""))
-    gated = [x for x in r["order"] if (needs[x] or after[x]) and est[x] > 0]
+    held = r["held"]
+    gated = [x for x in r["order"]
+             if (needs[x] or after[x] or x in held) and est[x] > 0]
     if gated:
         print("\nthen, as gates clear — dispatch order")
         for x in gated:
             p = todo[x]
             why = []
+            if x in held:
+                why.append(held[x])
             if needs[x]:
                 why.append("needs " + ", ".join(os.path.basename(d)
                                                 for d in needs[x]))
@@ -2007,6 +2125,10 @@ def cmd_plan(board, workers):
                            + " (footprint)")
             if not feet[x]:
                 why.append("unspecced")
+            if wf.get(x, "").endswith("?"):
+                # the mark the ready line carries, on the line the hold
+                # moved it to — a dangling slug is visible in both lists
+                why.append("wf " + wf[x])
             print(f"  · {x} [{p['state']}] p{p['fm'].get('priority', 0)}"
                   f" {fw(est[x])}" + (f"  ({'; '.join(why)})" if why else ""))
     print(f"\n≈ {fw(r['wall'])} wall @ {r['workers']} workers — a staffing"

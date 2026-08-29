@@ -1,23 +1,28 @@
 ---
 memo: a-parked-child-holds-the-parent
 kind: decision
-status: open
+status: decided
 subject: scan's ready band ignores a parked child; claim's gate counts it — one rule has to win
 date: 2026-08-28
 prds:
   - the-board-runs-itself/transitions-are-commands
+  - the-tool-keeps-its-word/one-predicate-for-dispatchable
 ---
 
 # a-parked-child-holds-the-parent — two readers of one rule, disagreeing on the same second
 
 ## Decision
 
-Open. Found by the master-board session on 2026-08-28: `scan` lists
-`@mitosys/p6-rust-core` as `ready`, and `claim @mitosys/p6-rust-core <w>`
-refuses with `leaf: has children not done — p6n-chat-tui`. That child is in a
-parked, user-owned state. `plan.py`'s dispatchable test does not count a
-parked child; `transitions.py`'s `gate_claim` does. Not filed as a PRD: the
-derived tripwire is at parity board-wide and is with the user.
+The gate's reading won: a parked child holds its parent. Both readers call
+one function, `plan.dispatchable` in `plan.py` — `scan`'s ready band,
+`plan`'s frontier and `claim`'s gate — so they cannot disagree again. The
+same function refuses a container (`container:` — children every one `done`,
+no specs and no open box of its own), so `claim` cannot trap one at
+`analyzing`; a container is `collect`'s. The held parent is listed under
+`gated` with `held by <child> (parked)` — visible, never offered. Found by
+the master-board session on 2026-08-28: `scan` listed `@mitosys/p6-rust-core`
+as `ready`, and `claim @mitosys/p6-rust-core <w>` refused with `leaf: has
+children not done — p6n-chat-tui`, a child in a parked, user-owned state.
 
 ## Why
 

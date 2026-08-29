@@ -71,7 +71,7 @@ TABLE_ROW_RE = re.compile(r"^\|\s*`(<[^`]+>)`\s*\|")
 ROLES = ("analyst", "implementer")
 BLOCKS = ("workflow", "every", "analyst", "implementer", "consultant")
 SKIP = {"unclaimed": "held", "needs": "gated", "footprint": "clash",
-        "workflow": "workflow", "leaf": "leaf"}
+        "workflow": "workflow", "leaf": "leaf", "container": "collect"}
 
 
 class Refused(Exception):

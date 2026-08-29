@@ -122,7 +122,7 @@ lacks "check is silent about the empty one"     "$CHK" "empty/prd.md"
 # `scan` is not the only list a round reads. `ready now` in `plan` IS the
 # dispatch list, and step 5 of loop.md skips a dangling PRD — so the mark has
 # to survive into that output or the planner silently contradicts the rule.
-PLANOUT="$(python3 "$PLAN" plan "$B" 2>&1 | sed -n '/ready now/,/^$/p')"
+PLANOUT="$(python3 "$PLAN" plan "$B" 2>&1 | sed -n '/ready now/,/^≈/p')"
 have  "plan's ready now marks a dangling slug" \
       "$(printf '%s\n' "$PLANOUT" | grep ' dangling ')" "wf no-such-route?"
 have  "  … and an atomic the same way" \
