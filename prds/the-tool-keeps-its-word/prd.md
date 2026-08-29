@@ -1,10 +1,12 @@
 ---
-state: open
+state: done
 origin: requested
 priority: 62
 complexity: 0
 blast-radius:
 repo: pearde
+actual: 2.9h
+commit: cfc0906
 ---
 
 # the-tool-keeps-its-word — what the first day of running the board by command found, closed
@@ -33,3 +35,9 @@ leaves; this PRD is done when every child is.
   filled in, in that child's commit.
 - Each child's harness runs on a copy of `resources/board/example`, in a
   temp dir with its own `git init`; never a transition on the real board.
+
+## Report
+
+container: every child done — pearde collect closes it
+
+children: the-tool-keeps-its-word/collect-keeps-its-word, the-tool-keeps-its-word/guard-on-is-one-command, the-tool-keeps-its-word/one-predicate-for-dispatchable
