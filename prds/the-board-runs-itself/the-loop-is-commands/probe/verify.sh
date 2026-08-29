@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
 P="python3 $ROOT/resources/pearde.py"
 GUARD="$ROOT/resources/guard.py"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+export PEARDE_GUARD_STATE="$TMP/guardstate"   # the hook fixtures' session block lands here, not under resources/board/state/
 pass=0; fail=0
 ok()  { pass=$((pass+1)); printf '  ok   %s\n' "$1"; }
 bad() { fail=$((fail+1)); printf '  FAIL %s\n' "$1"; }

@@ -68,6 +68,12 @@ bash @resources/install.sh --remove <skills-dir> # take it back out
 - **Two lines.** `--apply` prints `alias pearde='python3 <repo>/resources/pearde.py'` and `export PEARDE_AS=engineer` — add both to your shell yourself. Nothing here writes a shell file. The alias is the one word; every skill file names the same `python3 @resources/pearde.py <cmd>` line, so the alias and the skills are one surface. The export is who is working: every command that moves a PRD records `· as <id>` on its line from that variable and refuses without it, per @references/parts/personas.md — `add` alone files a new PRD `· as engineer (default)`, so the first minute runs before the export is in place. `persona <id>` re-exports it.
 - **Links, not copies.** One source of truth, so editing this repo updates
   every install at once. A copy drifts, and nothing says it happened.
+  The links run the other way too — a session on any other board reaches
+  this repo's working tree through them — so `@resources/guard.py`, where it
+  is wired, refuses an `Edit` or `Write` through a link from a round whose
+  board is not this repo's, naming the real path and
+  `prds/memos/the-install-is-live-symlinks.md`; @references/parts/guard.md
+  is the row.
 - **Windows** needs Developer Mode or Administrator for a symlink. Without
   it, `ln -s` in Git Bash silently *copies*. Either turn it on
   (`MSYS=winsymlinks:nativestrict`), or clone this repo straight into the

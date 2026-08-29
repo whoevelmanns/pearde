@@ -1,9 +1,8 @@
 ---
-state: analyzing
+state: done
 origin: requested
-claim: analyst-the-skill-tree-is-guarded 2026-08-29 17:42
 priority: 68
-complexity: 0
+complexity: 10
 blast-radius: mid
 repo: pearde
 workflow: probe-then-spec
@@ -12,6 +11,10 @@ footprint:
   - references/parts/guard.md
   - references/install.md
   - prds/memos/the-install-is-live-symlinks.md
+  - resources/doctor.sh
+  - prds/the-tool-keeps-its-word/guard-on-is-one-command/probe/verify.sh
+  - prds/the-board-runs-itself/the-loop-is-commands/probe/verify.sh
+actual: 0.11h
 ---
 
 # the-skill-tree-is-guarded — a round on another board cannot write the skill through the install

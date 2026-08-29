@@ -13,6 +13,10 @@ T="$(mktemp -d)"
 trap 'rm -rf "$T"' EXIT
 export PEARDE_GUARD_STATE="$T/guardstate" PEARDE_PORT=1 PEARDE_AS=probe
 SELF="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$ROOT/resources/guard.py")"
+# this repo's own settings file, byte for byte, before any fixture runs — the
+# guard may be wired here, so E compares bytes rather than asserting absence
+OWN="$ROOT/.claude/settings.json"; SNAP="$T/settings.before"
+{ cat "$OWN" 2>/dev/null || :; } > "$SNAP"
 
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); }
@@ -161,7 +165,7 @@ has "E guard.md keeps the block" "$(cat "$ROOT/references/parts/guard.md")" '"ma
 has "E guard.md: off is the command" "$(cat "$ROOT/references/parts/guard.md")" '`pearde guard off`, or set `disableAllHooks`'
 has "E install.md's guard bullet names the command" "$(cat "$ROOT/references/install.md")" '- `pearde guard on` in the repo the board lives in'
 has "E doctor.sh's fix line names the command" "$(cat "$ROOT/resources/doctor.sh")" 'fix "pearde guard on — writes the block'
-eq  "E this repo's settings file was never written" "$(python3 -c 'import sys,os; p=sys.argv[1]; print(open(p).read().count(sys.argv[2]) if os.path.exists(p) else 0)' "$ROOT/.claude/settings.json" "$SELF")" 0
+eq  "E this repo's settings file is byte for byte what it was before the probe" "$( { cat "$OWN" 2>/dev/null || :; } | cmp -s - "$SNAP" && echo same || echo changed)" same
 
 echo
 echo "$((PASS+FAIL)) checks · $PASS pass · $FAIL fail"

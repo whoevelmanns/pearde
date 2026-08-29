@@ -17,6 +17,7 @@ three things it refuses.
     the manual read three times  → it has not moved; the round file is the note
     a state moved, nothing written → `prds/.round.md` is what survives a compaction
     a `state:` written by hand   → `pearde set` checks the gate; an editor checks nothing
+    the skill written from another board → the install is links into this tree; file a PRD here
 
 It denies only what is provably redundant: a repeat whose inputs have not
 changed since the first run. Everything else passes through untouched, and a
@@ -247,6 +248,52 @@ def manual(path):
     return ""
 
 
+# ── the skill tree ────────────────────────────────────────────────────────────
+# The install is links into this repo (@references/install.md), so a round on
+# any board on the machine that edits the skill edits this working tree —
+# prds/memos/the-install-is-live-symlinks.md counts what that cost. A write
+# under the skill root from a session whose board is another repo's is
+# refused; the same repo, or no board in scope, passes as before.
+SKILL = os.path.realpath(PEARDE)
+MEMO = "prds/memos/the-install-is-live-symlinks.md"
+
+
+def skill_file(path):
+    """The real path of a file in this skill's own tree, reached through any
+    install link or by name — or "". The board under it is not the skill:
+    `prds/` here is where another board files a PRD, which is the way in."""
+    real = os.path.realpath(path)
+    if not real.startswith(SKILL + os.sep):
+        return ""
+    if real.startswith(os.path.join(SKILL, "prds") + os.sep):
+        return ""
+    return real
+
+
+def another_boards_write(inp, cwd):
+    """`Edit|Write` into the skill tree from a round on another board —
+    refused, naming the real path the link resolves to, the memo, and the
+    two ways out. The session's board is the nearest `prds/` above its
+    working directory, as `find_board` reads it; none, or this repo's own,
+    and the write is not this rule's business."""
+    given = str(inp.get("file_path") or "")
+    real = skill_file(given)
+    if not real:
+        return
+    board = board_of(cwd)
+    if not board or os.path.realpath(os.path.dirname(board)) == SKILL:
+        return
+    via = (f"{given} resolves to {real}" if os.path.abspath(given) != real
+           else real)
+    deny(f"A round on another board does not write the skill: {via} — the "
+         f"pearde working tree — and this session's board is {board}. The "
+         f"install is links into that tree — {MEMO} — so the edit would land "
+         "uncommitted among hunks the sessions on that board are staging. "
+         "Two ways out: file a PRD on the skill's own board (`pearde add "
+         f"\"<title>\"` from {SKILL}), or hand the edit to a session "
+         "working it.")
+
+
 def fm_state(text):
     """The `state:` value of a frontmatter block, or None."""
     if not text.startswith("---"):
@@ -321,6 +368,7 @@ def pre(data):
     st = load(session)
     count(session, st, board, tool, data)
     if tool in ("Edit", "Write"):
+        another_boards_write(inp, data.get("cwd"))
         state_by_hand(tool, inp)
         ok()
 
@@ -582,21 +630,40 @@ def guard_off(args):
 def guard_status(args):
     """doctor's guard row, alone — ok, off or broken"""
     import subprocess
+    import tempfile
     repo = repo_of(args)
     path = settings_of(repo)
-    probe = json.dumps({"tool_name": "Bash", "cwd": repo,
-                        "tool_input": {"command": "find prds -name prd.md"}})
-    out = subprocess.run([sys.executable, SELF, "pre"], input=probe,
-                         capture_output=True, text=True).stdout
+    # both probes keep their guard state in a temp dir — a probe carries no
+    # session, and its block would otherwise land as nosession.json in the
+    # real state dir on every status call
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {**os.environ, "PEARDE_GUARD_STATE": os.path.join(tmp, "state")}
+        probe = json.dumps({"tool_name": "Bash", "cwd": repo,
+                            "tool_input": {"command": "find prds -name prd.md"}})
+        out = subprocess.run([sys.executable, SELF, "pre"], input=probe,
+                             capture_output=True, text=True, env=env).stdout
+        if '"deny"' not in out:
+            print(ROW % ("guard", "broken",
+                         f"{SELF} does not refuse a hand-walked board"))
+            return 2
+        # the second rule, proved the same way: an Edit of this file from a
+        # board that is not this repo's — a temp one holding an empty prds/
+        os.makedirs(os.path.join(tmp, "prds"))
+        probe = json.dumps({"tool_name": "Edit", "cwd": tmp,
+                            "tool_input": {"file_path": SELF,
+                                           "old_string": "a", "new_string": "b"}})
+        out = subprocess.run([sys.executable, SELF, "pre"], input=probe,
+                             capture_output=True, text=True, env=env).stdout
     if '"deny"' not in out:
         print(ROW % ("guard", "broken",
-                     f"{SELF} does not refuse a hand-walked board"))
+                     f"{SELF} does not refuse a write into the skill tree "
+                     "from another board"))
         return 2
     _, text = read_settings(path)
     if "guard.py" in text:
         m = re.search(r'MAX_THINKING_TOKENS"\s*:\s*"(\d*)', text)
         tk = f" · MAX_THINKING_TOKENS={m.group(1)}" if m and m.group(1) else ""
-        print(ROW % ("guard", "ok", f"wired in {path}{tk}"))
+        print(ROW % ("guard", "ok", f"wired in {path}{tk} · skill tree guarded"))
         return 0
     print(ROW % ("guard", "off", f"not wired in {path}"))
     print(ROW % ("", "", "fix: pearde guard on"))

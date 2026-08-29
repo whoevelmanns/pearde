@@ -176,7 +176,7 @@ else
     tk=$(grep -o 'MAX_THINKING_TOKENS"[[:space:]]*:[[:space:]]*"[0-9]*' "$GSET" \
          2>/dev/null | grep -o '[0-9]*$' | head -1)
     [ -n "$tk" ] && tk="MAX_THINKING_TOKENS=$tk"
-    row guard ok "wired in $GSET${tk:+ · $tk}"
+    row guard ok "wired in $GSET${tk:+ · $tk} · skill tree guarded"
     [ -z "$tk" ] && note "no MAX_THINKING_TOKENS — the other half of the fix, @references/parts/guard.md"
   else
     row guard off "not wired in $GSET"
