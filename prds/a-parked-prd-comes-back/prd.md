@@ -1,7 +1,8 @@
 ---
-state: claimed
+state: done
 origin: requested
-claim: impl-a-parked-prd-comes-back 2026-08-29 11:03
+actual: 0.5h
+commit: 0035cf0
 priority: 63
 complexity: 7
 blast-radius: mid
