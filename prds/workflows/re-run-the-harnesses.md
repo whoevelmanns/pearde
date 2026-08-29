@@ -2,8 +2,8 @@
 atomic: re-run-the-harnesses
 subject: re-run the recorded harnesses and account for every changed count
 date: 2026-08-28
-updated: 2026-08-28
-runs: 42
+updated: 2026-08-29
+runs: 43
 ---
 
 # re-run-the-harnesses — every number back, or explained
@@ -43,3 +43,4 @@ runs: 42
 | a needle fails on a sentence you kept | the sentence was re-wrapped across a line; the needle is one line | re-wrap so the sentence reads whole on one line and say the rule did not move |
 | a needle names a sentence the contract deleted | the rule now lives in a command | quote the needle, name the command and its line, propose the harness edit — the count is a finding, not yours to repair |
 | a harness has no `cd` and one line runs a transition with no `--board` | it acts on whatever board is above the caller's cwd — the real one, from the repo root | run it from the scratch dir, where `find_board` refuses and the line fails without writing; quote the count and name the line |
+| a state file in `resources/board/state/guard/` you were told not to write moves its mtime during the re-run | a harness in the set calls `doctor.sh` with no `PEARDE_GUARD_STATE`, and `doctor.sh`'s own guard probe carries no session | name the harness by `grep -c doctor.sh` and `grep -c PEARDE_GUARD_STATE`, compare the file's mtime to your start, remove it only if it did not exist before you, and report the writer's line |

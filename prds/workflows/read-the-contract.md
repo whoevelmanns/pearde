@@ -3,7 +3,7 @@ atomic: read-the-contract
 subject: read the PRD, its answers and everything it cites, before the first edit
 date: 2026-08-28
 updated: 2026-08-28
-runs: 42
+runs: 43
 ---
 
 # read-the-contract — the whole contract in the window before anything moves

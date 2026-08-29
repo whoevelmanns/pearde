@@ -3,7 +3,7 @@ atomic: run-the-scoped-verify
 subject: run the unit's own verify command and quote what it printed
 date: 2026-08-28
 updated: 2026-08-29
-runs: 21
+runs: 22
 ---
 
 # run-the-scoped-verify — the unit measured, not the tree
@@ -48,3 +48,4 @@ runs: 21
 | a `grep -c '<needle>'` line in the block prints `0` while the sentence stands in the file | the reference wrapped the sentence across two lines and the needle is one line — the box was written from the answer, not run | re-wrap so the needle reads on one line, inside the footprint; quote the `0` and the `1`; say the rule did not move, and report the spec's box as never run at spec time |
 | a probe line in the block matches the wording of a line another file prints, and that file is a sibling's uncommitted hunk that moved between the baseline and this run | the matcher read the sibling's format, not the rule the box asserts | re-read the sibling file (`git diff --stat`, mtime against the baseline), re-aim the matcher to the rule — the PRD listed in the band, not the words on its row — quote both outputs, and name the box clause the move made stale |
 | a `grep -c` line in the block carries a `^` inside its needle and prints `0` while `sed -n <line>p` shows the text | grep read the `^` as an anchor, not the character the harness's own sed range quotes | re-run it as `grep -cF`, quote both, close the box on the `sed` line, and report the spec's line as a finding |
+| a `memos.py check` line `prds: <slug> is not a PRD on this board` for a box that spells a nested PRD by its basename | the memo checker keys `prds:` on the path under `prds/`, and the spec was written from the answer, not run | write `parent/child` as every other memo does, quote the refusal and the silent re-run, and report the spec's box as never run at spec time |
