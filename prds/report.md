@@ -2,58 +2,44 @@
 
 *2026-08-29, morning*
 
-Workflows are finished. A worker is now handed a written route for the kind of
-job it is doing — five routes over thirteen steps, covering the jobs this
-repo actually repeats — instead of a description of one, and when a run goes
-wrong the fix goes back into the route rather than into somebody's memory.
-Those routes have been followed **twenty-four times** since yesterday, mostly
-by workers on the other stream, and their "what went wrong and what to do"
-tables were written entirely from real failures. Nothing in them was invented.
+The board runs itself, and now it keeps its word about it. Yesterday's
+thirteen pieces landed the commands; today's three closed what the first day
+of running them found: finished work is committed whole with its record in
+the same place, a change two people made to adjacent lines is refused rather
+than committed under one name, a parent whose children have all landed is
+closed by the same one call — and the tree that did this was itself closed by
+that call, the first parent the tool ever finished on its own. A piece of
+work a person set aside now holds its parent back everywhere the board looks,
+not only where one command looked. And the guard that refuses wasted reading
+is wired by one command instead of a block to paste. Sixteen pieces of the
+board-runs-itself work are landed; every one of the repo's checks is green on
+the result, and the checks themselves now have a runner in the health check.
 
-Twenty-eight of thirty-seven pieces are finished.
+The workflow routes have been followed forty times; every "what went wrong
+and what to do" row in them was paid for by a real run.
 
 ## In work
 
-**A single page that says what is going on.** The board's page currently opens
-with the session's own scratch notes — a file the project deliberately does
-not keep, written in the vocabulary of the tool rather than of a person.
-That comes out. In its place: a short piece of writing at the top saying what
-is being worked on and what is next, the board below it, and the analytics
-below that — one page you scroll, instead of seven tabs you have to know your
-way around. A designer is working out where that opening text should come
-from, which is a real question rather than a detail: this page's own summary
-is currently a day and sixteen commits out of date, so whatever fills that
-slot has to stay true on its own.
+**The page that says what's up** — the other stream's last piece, being
+closed out: the report and the round, rendered where a person looks first.
 
 ## Planned
 
-**Three pieces that let the board ask you things properly.** A question put in
-plain words rather than in the tool's; a route written at the moment work is
-specced rather than after; and two questions being enough to start a proper
-interview. They are queued behind the page work because they touch the same
-files.
+- **The board asks for itself** — three pieces of the other stream, cleared:
+  a question in plain words, a route written at spec time, two questions
+  that start an interview.
+- **The health check's false problem on a valid group of boards** — parked,
+  nobody on it, as decided earlier.
 
 ## Undecided or failing
 
-Nothing is waiting on you.
+**One thing waits on you.** A half-finished rename sits uncommitted in two
+files — the progress line's `asked` term becoming `done` — that no session
+working this repo will claim, alongside two row moves in the settings and
+manifest references. Every writer here commits under one git identity, so
+git cannot say whose it is; only the session trailer can, and not every
+commit carries one. Take the rename (it fixes a term that lies about a
+finished parent) or drop it; until then commits step around it.
 
-**One thing is quietly wrong and nobody is on it.** When several projects are
-grouped under one board, the check that validates their routes never looks
-inside the member projects — and run against a member on its own it calls a
-valid route broken. So the health report can go red on a correct project and
-green on a broken group. It is written down in full, with the exact way to
-reproduce it; it is not scheduled.
-
-**And a finished piece cannot be marked finished.** A parent whose children
-have all landed has no way to be closed — the tool requires a piece to have
-been specified and claimed before it can be completed, and a parent has
-nothing of its own to specify. The plan already treats such a parent as
-weightless and finished; only its label disagrees. The consequence is small
-but visible: the count above says twenty-eight of thirty-seven when one of the
-remainder is a finished tree waiting for a word that does not exist yet.
-
-## Set aside
-
-Three small cleanups, parked on your decision yesterday so the main work
-finished first. Two of them were absorbed into other work and are closed; the
-third — the health check above — stays open with nobody on it.
+Nothing else is undecided. Nothing is pushed — the commits are the board's,
+the push is yours.
