@@ -1,5 +1,5 @@
 ---
-state: open
+state: done
 origin: requested
 priority: 50
 complexity: 0
@@ -15,6 +15,8 @@ footprint:
   - README.md
   - SKILL.md
   - prds/workflows
+actual: 4.24h
+commit: 7e5250f
 ---
 
 # workflows-on-the-board — a folder of how-to files a worker is handed, and improves on every run
@@ -138,3 +140,9 @@ Work flows to the leaves; this PRD is done when every child is.
 - @references/parts/loop.md step 6 — where the edits are applied.
 - @references/personas/INDEX.md — the precedent for a registered file kind
   with a fixed format and a `create` path.
+
+## Report
+
+container: every child done — pearde collect closes it
+
+children: workflows-on-the-board/workflow-improve, workflows-on-the-board/workflow-skill, workflows-on-the-board/workflow-format, workflows-on-the-board/workflow-attach, workflows-on-the-board/workflow-seed, workflows-on-the-board/workflow-reader
