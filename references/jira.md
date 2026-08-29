@@ -21,6 +21,17 @@ Either missing: `sync` prints one line to stderr and exits 0. A board with no
 Jira behind it, or a session before the token is exported, is unaffected —
 never treat that line as failure.
 
+**Local addition — per-board override.** The three env vars are global, so
+one machine running pearde against two boards on two different Jira sites
+would have them fight over the same variables. `env()` checks
+`<board>/.jira-credentials.json` first (`{"base_url", "email", "api_token"}`)
+and falls back to the env vars only if that file is absent or incomplete.
+Gitignore it same as `.plan.json`/`.jira-graph-*.json` — never commit it.
+This file did not ship with the skill; it is a local patch, applied
+2026-08-28 for the Chordino board (whwk.atlassian.net) to coexist with
+another board's global env vars (nicando.atlassian.net) — check `env()` in
+`jira_sync.py` still carries it before relying on it after a skill update.
+
 ## The issue key
 
 Read off the PRD directory's own name: a leading `<PROJECT>-<number>`,
@@ -100,6 +111,8 @@ is posted only when the status change alone would not tell the story:
 python3 <skill>/jira_sync.py sync <prd-dir-name> <state> [note...]
 python3 <skill>/jira_sync.py discover <PROJECT-KEY>   # (re)cache the graph
 python3 <skill>/jira_sync.py check [PROJECT-KEY]      # env + graph reachability
+python3 <skill>/jira_sync.py drift                    # read-only: state vs Jira status, one line per mismatch
+python3 <skill>/jira_sync.py import-new               # read-only: Jira tickets with no PRD yet, reports only
 ```
 
 Call `sync` from the orchestrator, after writing the same transition to

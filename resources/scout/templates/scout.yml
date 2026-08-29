@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# scout — the daily sweep, self-running. Every day at 07:47 UTC the bucket
+# queries run, the snapshot TSV is committed if it changed, and the delta
+# history accumulates in scout/snapshots/. The first sweep is the baseline.
+# Every sweep after it measures what gained stars since.
+#
+# The delta is the point: the stargazers API is restricted as of 2026-06-30,
+# so there is no per-repo star timeline for a repo you do not own. This
+# workflow is the replacement — our own history, diffed against itself.
+#
+# Runs on the repo that hosts the scout (here: pearde); the buckets file
+# (scout/buckets.txt) is the knob. Edit that file, not this one.
+# ─────────────────────────────────────────────────────────────────────────────
+name: scout
+
+on:
+  schedule:
+    - cron: '47 7 * * *'   # daily 07:47 UTC — off the :00/:30 marks
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scout-daily
+  cancel-in-progress: true
+
+jobs:
+  sweep:
+    name: sweep
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the sweep
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scout/scout.sh sweep
+
+      - name: Commit the snapshot if it changed
+        run: |
+          if [ -n "$(git status --porcelain scout/)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add scout/
+            git commit -m "scout: daily sweep snapshot"
+            git push
+          else
+            echo "no change — snapshot identical to yesterday"
+          fi

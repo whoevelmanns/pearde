@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# quality — the passive gates, automated. Nothing here needs a human to
+# remember it: every push is scanned, and the weekly schedule catches what
+# only time produces (a new RustSec advisory against a locked dep, a typo
+# that lands in a PRD, a secret that drifts into a fixture).
+#
+#   typos    — 2,000+ markdown files where the prose IS the spec. A typo in a
+#              frontmatter key is a silent behaviour change. Config: _typos.toml
+#   gitleaks — secret scan over full history (fetch-depth: 0). Config:
+#              .gitleaks.toml — the allowlist is fixtures asserting on fake
+#              keys, each with a recorded reason.
+#   deny     — RustSec advisories, hard gate. Config: deny.toml — the ignore
+#              list is the audited unmaintained-transitive set, by ID, with
+#              reasoning. A NEW advisory fails this job.
+#   machete  — unused dependencies, so dead weight is caught as it appears
+#              rather than paid for on every cold build.
+#
+# All four are green on this tree as of 2026-08-25. A red tab here is a real
+# regression, not a backlog.
+# ─────────────────────────────────────────────────────────────────────────────
+name: quality
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '23 7 * * 1'   # weekly, Monday 07:23 UTC — off the :00/:30 marks
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typos:
+    name: typos
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: crate-ci/typos@v1
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deny:
+    name: cargo-deny (advisories)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny@v2
+        with:
+          command: check advisories
+
+  machete:
+    name: cargo-machete (unused deps)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@cargo-machete
+      - run: cargo machete

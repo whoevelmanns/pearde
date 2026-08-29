@@ -1,10 +1,16 @@
 ---
-est:                 # analyst — wall clock for one implementer run, e.g. 2h
+complexity:          # analyst — 1-100, this unit's share of the PRD's weight
+# est:               # OPTIONAL record. Nothing schedules on time; do not
+#                    #   estimate duration. Price COMPUTE cost here instead,
+#                    #   in the units it is spent in, when it changes scope.
+# workflow:          # OPTIONAL — a slug in prds/workflows/, overriding the
+#                    #   PRD's for this unit only. @references/workflow.md
 footprint:           # analyst — every dir/file this spec touches; the
   - <dir/or/file>    #   orchestrator unions a PRD's footprints to avoid
   - <dir/or/file>    #   dispatching overlapping PRDs
 ---
-<!-- Add your own keys freely; nothing outside est and footprint is read. -->
+<!-- Add your own keys freely. Nothing outside complexity, footprint and
+     workflow is read. -->
 
 # specNN — <one-line goal>
 
@@ -18,7 +24,9 @@ PRD, without reading the sibling specs.>
 - [ ] <…>
 
 <!-- The implementer ticks a box [x] only for a check it actually ran, quoting
-     the output in its report.
+     the output in its report — and ticks it WHEN it runs it, not in a batch
+     at the end: these boxes are the only thing on the board that moves while
+     a run is in flight, and the plan is drawn from them.
      Never write a box that asks for a commit or a commit message — the
      orchestrator commits the PRD on the transition that lands it. -->
 

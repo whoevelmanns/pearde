@@ -11,7 +11,8 @@ date: <YYYY-MM-DD> # the day the call was recorded. Written, never stamped
 # superseded_by:   # the slug that replaced this
 ---
 <!-- Unlike a prd.md, a memo's keys are a CLOSED set: an undeclared key is a
-     typo and doctor.sh fails on it. references/memo.md is the format. -->
+     typo and @resources/doctor.sh fails on it. @references/memo.md is the
+     format. -->
 
 # <slug> — <the decision in a phrase>
 

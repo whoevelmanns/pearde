@@ -48,9 +48,10 @@ import urllib.error
 import urllib.request
 from collections import deque
 
-# Frontmatter scan: reuse view/plan.py's `scan`/`board_settings` rather than
-# growing a third parser — same pattern plan.py itself uses to reach memos.py.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "view"))
+# Frontmatter scan: reuse resources/board/plan.py's `scan`/`board_settings`
+# rather than growing a third parser — same pattern plan.py itself uses to
+# reach memos.py.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "board"))
 import plan as planlib  # noqa: E402 — path set immediately above
 
 KEY_RE = re.compile(r"^([A-Za-z]+)-(\d+)(?:-|$)")
@@ -71,7 +72,53 @@ STATE_TARGET = {
 ALWAYS_COMMENT = {"refine", "question", "blocked", "failed"}
 
 
-def env():
+def state_target(board, state):
+    """STATE_TARGET.get(state), with a per-board override for `done` via
+    `jira-done-status` in prds/settings.md — STATE_TARGET is a global
+    constant shared by every board this skill runs on, so changing it
+    outright would retarget `done` for every other board too (e.g. a board
+    whose workflow still expects "Fertig"). A board that inserts a manual
+    QA phase before its real "done" status (here: Chordino's `Test`, done
+    2026-08-28) sets this instead of editing the constant. Same pattern as
+    `selected_status_name()` above."""
+    if state == "done":
+        v = planlib.board_settings(board).get("jira-done-status")
+        if isinstance(v, list):
+            v = v[0] if v else None
+        v = str(v).strip() if v else ""
+        if v:
+            return v
+    return STATE_TARGET.get(state)
+
+
+def _board_creds(board):
+    """Local, per-board override for env() — `<board>/.jira-credentials.json`
+    ({"base_url", "email", "api_token"}), gitignored, never committed. Lets
+    one machine run pearde against more than one Jira site at once (the
+    stock env() below is global, so a second board on a different site would
+    otherwise fight the first for JIRA_BASE_URL/EMAIL/TOKEN). Missing file,
+    or any of the three keys missing/blank, is not an error — falls through
+    to the global env vars exactly as if this function did not exist."""
+    if not board:
+        return None
+    path = os.path.join(board, ".jira-credentials.json")
+    if not os.path.isfile(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    b, e, t = data.get("base_url"), data.get("email"), data.get("api_token")
+    if not (b and e and t):
+        return None
+    return b.rstrip("/"), e, t
+
+
+def env(board=None):
+    local = _board_creds(board)
+    if local is not None:
+        return local
     b, e, t = (os.environ.get("JIRA_BASE_URL"), os.environ.get("JIRA_EMAIL"),
                os.environ.get("JIRA_API_TOKEN"))
     if not (b and e and t):
@@ -164,28 +211,75 @@ def discover_graph(base_url, auth, project):
         return None
     scheme = _request("GET", base_url, auth,
                        f"/rest/api/3/workflowscheme/project?projectId={proj['id']}")
-    if not scheme or not scheme.get("values"):
-        return None
-    wf_name = scheme["values"][0]["workflowScheme"]["defaultWorkflow"]
-    from urllib.parse import quote
-    wf = _request("GET", base_url, auth,
-                  f"/rest/api/3/workflow/search?workflowName={quote(wf_name)}"
-                  f"&expand=transitions,statuses")
-    if not wf or not wf.get("values"):
-        return None
-    w = wf["values"][0]
+    if scheme and scheme.get("values"):
+        wf_name = scheme["values"][0]["workflowScheme"]["defaultWorkflow"]
+        from urllib.parse import quote
+        wf = _request("GET", base_url, auth,
+                      f"/rest/api/3/workflow/search?workflowName={quote(wf_name)}"
+                      f"&expand=transitions,statuses")
+        if not wf or not wf.get("values"):
+            return None
+        w = wf["values"][0]
+        graph = {}
+        for t in w["transitions"]:
+            for f in t.get("from", []):
+                fid = f.get("id") if isinstance(f, dict) else f
+                frm = id_to_name.get(fid)
+                if not frm:
+                    continue
+                to = id_to_name.get(t["to"], t["to"])
+                graph.setdefault(frm, [])
+                if to not in graph[frm]:
+                    graph[frm].append(to)
+        return graph
+
+    # Team-managed ("next-gen"/simplified) project: no workflow scheme at
+    # all — `/workflowscheme/project` legitimately returns {"values": []},
+    # not an error. Its single per-project workflow lives in the newer
+    # Workflows API instead (`GET /rest/api/3/workflows/search`, filtered
+    # locally by `scope.project.id` since the API itself has no project
+    # filter param), with a different transition shape: GLOBAL (no `links`,
+    # reachable from every status in the workflow) or DIRECTED (`links[].
+    # fromStatusReference` names the one status it fires from) — vs.
+    # classic's explicit `from` id list per transition, above.
+    return _discover_graph_nextgen(base_url, auth, proj["id"], id_to_name)
+
+
+def _discover_graph_nextgen(base_url, auth, project_id, id_to_name):
     graph = {}
-    for t in w["transitions"]:
-        for f in t.get("from", []):
-            fid = f.get("id") if isinstance(f, dict) else f
-            frm = id_to_name.get(fid)
-            if not frm:
+    start_at = 0
+    found = False
+    while True:
+        page = _request("GET", base_url, auth,
+                        "/rest/api/3/workflows/search?expand=values.transitions"
+                        f"&maxResults=50&startAt={start_at}")
+        if not page:
+            return graph if found else None
+        for w in page.get("values", []):
+            if w.get("scope", {}).get("project", {}).get("id") != project_id:
                 continue
-            to = id_to_name.get(t["to"], t["to"])
-            graph.setdefault(frm, [])
-            if to not in graph[frm]:
-                graph[frm].append(to)
-    return graph
+            found = True
+            all_names = [id_to_name[s["statusReference"]] for s in w.get("statuses", [])
+                        if s["statusReference"] in id_to_name]
+            for t in w.get("transitions", []):
+                if t.get("type") == "INITIAL":
+                    continue  # the creation transition, not between two existing statuses
+                to = id_to_name.get(t.get("toStatusReference"))
+                if not to:
+                    continue
+                links = t.get("links") or []
+                froms = all_names if not links else [
+                    id_to_name[l["fromStatusReference"]] for l in links
+                    if l.get("fromStatusReference") in id_to_name
+                ]
+                for frm in froms:
+                    graph.setdefault(frm, [])
+                    if to not in graph[frm] and to != frm:
+                        graph[frm].append(to)
+        if page.get("isLast", True):
+            break
+        start_at += len(page.get("values", [])) or page.get("maxResults", 50)
+    return graph if found else None
 
 
 def load_graph(board, base_url, auth, project, refresh=False):
@@ -261,7 +355,7 @@ def advance(base_url, auth, key, graph, target):
 
 
 def sync(board, prd_dir_name, state, note=None):
-    e = env()
+    e = env(board)
     if e is None:
         print("jira_sync: JIRA_BASE_URL/JIRA_EMAIL/JIRA_API_TOKEN not set — skipped",
               file=sys.stderr)
@@ -276,7 +370,7 @@ def sync(board, prd_dir_name, state, note=None):
     project = key.split("-")[0]
     graph = load_graph(board, base_url, auth, project)
 
-    target = STATE_TARGET.get(state)
+    target = state_target(board, state)
     moved, reached, mismatch = [], True, False
 
     if state in ("refine", "question", "blocked"):
@@ -341,7 +435,7 @@ def drift(board):
     matches what its pearde `state` expects. Silent when clean, like
     memos.py check. Never changes a PRD's state — a report only, see
     references/jira.md."""
-    e = env()
+    e = env(board)
     if e is None:
         print("jira_sync: JIRA_BASE_URL/JIRA_EMAIL/JIRA_API_TOKEN not set — skipped",
               file=sys.stderr)
@@ -354,7 +448,7 @@ def drift(board):
         state = p["state"]
         if state in NO_DRIFT_TARGET:
             continue
-        target = STATE_TARGET.get(state)
+        target = state_target(board, state)
         if not target:
             continue
         key = issue_key(p["name"])
@@ -489,7 +583,7 @@ def import_new(board):
     assigned to JIRA_EMAIL's user, but has no PRD on this board yet. Never
     writes under prds/ — see module note above. Silent when nothing is
     found, like drift()."""
-    e = env()
+    e = env(board)
     if e is None:
         print("jira_sync: JIRA_BASE_URL/JIRA_EMAIL/JIRA_API_TOKEN not set — skipped",
               file=sys.stderr)
@@ -569,10 +663,10 @@ def main(argv):
         if len(argv) < 3:
             print(__doc__.strip(), file=sys.stderr)
             return 2
-        e = env()
+        board = find_board(None)
+        e = env(board)
         if e is None:
             sys.exit("jira_sync: JIRA_BASE_URL/JIRA_EMAIL/JIRA_API_TOKEN not set")
-        board = find_board(None)
         graph = load_graph(board, e[0], (e[1], e[2]), argv[2].upper(), refresh=True)
         if graph is None:
             sys.exit(f"jira_sync: could not read the workflow for project {argv[2]}")
@@ -587,13 +681,13 @@ def main(argv):
         import_new(board)
         return 0
     if cmd == "check":
-        e = env()
+        board = find_board(None)
+        e = env(board)
         if e is None:
             print("env: JIRA_BASE_URL/JIRA_EMAIL/JIRA_API_TOKEN — not fully set")
             return 1
         print(f"env: ok ({e[0]}, {e[1]})")
         if len(argv) > 2:
-            board = find_board(None)
             graph = load_graph(board, e[0], (e[1], e[2]), argv[2].upper())
             print(f"workflow graph for {argv[2]}: "
                   f"{len(graph) if graph else 0} statuses"

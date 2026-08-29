@@ -13,7 +13,14 @@ Reader: an agent, cold, without the conversation that produced the document.
 - **One idea per sentence.** A comma joining two thoughts is two sentences.
 - **Imperative.** `Set specced`, not "the state should then be set to specced".
 - **Name the thing.** The file, state, command, field. Never "the relevant
-  config" for `references/templates/prd.md`.
+  config" for `@references/templates/prd.md`.
+- **Address, do not describe a path.** One file is `@<path>` — the real path
+  from the repo root with `@` in front. A whole feature is `@@<keyword>`, the
+  scope defined in `@index.md`. Write `@@statusline`, not "the status line
+  script and the progress part".
+- **Reach for `@@` when the reader needs the scope, `@` when they need the
+  file.** A brief, a handle, an install step says `@@view`; a rule that cites
+  one table says `@references/parts/progress.md`.
 - **No hedging.** No `might`, `probably`, `consider`. A real choice names who
   chooses and when.
 - **No meta.** No "this section explains", no "as mentioned above".
@@ -36,5 +43,7 @@ is a table or a list.
 |---------------|---------------------|---------------------|
 | PRD body      | an analyst, cold    | a contract          |
 | spec body     | an implementer      | a checklist         |
+| atomic        | a worker, mid-step  | a checklist         |
+| workflow      | a worker, cold      | a route             |
 | memo          | a reader months out | decision + argument |
 | worker report | the orchestrator    | verdict + evidence  |
