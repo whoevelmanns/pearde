@@ -2,8 +2,8 @@
 atomic: run-the-scoped-verify
 subject: run the unit's own verify command and quote what it printed
 date: 2026-08-28
-updated: 2026-08-28
-runs: 18
+updated: 2026-08-29
+runs: 19
 ---
 
 # run-the-scoped-verify — the unit measured, not the tree
@@ -45,3 +45,5 @@ runs: 18
 | the block's last command exits 0 but an earlier one did not | the block is many commands and only the last one sets `$?` | run and quote them one at a time |
 | a line in the block runs a command expecting a refusal (`add x` with no `--as`, a gated transition) and the run leaves a new `??` under `prds/` | the refusal was lifted under you — a sibling's uncommitted change made the probe a writer, and it wrote on the live board | `git status --short prds` right after the run; remove only what the run filed, re-point the line at a `python3 resources/board/plan.py example <tmpdir>` copy so it measures the claim rather than the refusal, and report the spec's line as a finding |
 | a box asserts a file's diff is confined to named places, and `git diff` shows one more hunk in a function the spec itself says a sibling PRD is editing | the tree is shared; the box measures this unit's hunks, not the file's | list the hunks by `@@` header, name the sibling's and the untouched lines between, tick on your own hunks and quote the sibling's beside the box |
+| a `grep -c '<needle>'` line in the block prints `0` while the sentence stands in the file | the reference wrapped the sentence across two lines and the needle is one line — the box was written from the answer, not run | re-wrap so the needle reads on one line, inside the footprint; quote the `0` and the `1`; say the rule did not move, and report the spec's box as never run at spec time |
+| a probe line in the block matches the wording of a line another file prints, and that file is a sibling's uncommitted hunk that moved between the baseline and this run | the matcher read the sibling's format, not the rule the box asserts | re-read the sibling file (`git diff --stat`, mtime against the baseline), re-aim the matcher to the rule — the PRD listed in the band, not the words on its row — quote both outputs, and name the box clause the move made stale |
