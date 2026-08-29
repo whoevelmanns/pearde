@@ -3,7 +3,7 @@ atomic: attempt-the-build
 subject: build the contract until it works or hits something undefined
 date: 2026-08-28
 updated: 2026-08-29
-runs: 19
+runs: 20
 ---
 
 # attempt-the-build — the attempt is the analysis
@@ -54,3 +54,5 @@ runs: 19
 | a `sed -n 's/^\(a\|b\)$/\1/p'` extractor captures nothing, or captures `0`, on **darwin** | BSD sed has no `\|` alternation in a basic regex; GNU sed does | `grep -E '^(a|b)'` then `sed 's/^  //'` — portable on both |
 | a fixture board made by `cp -R resources/board/example <d>/prds` resolves to `<d>/prds/.claude` or shows `prds/prds` | `example` is a repo root, not a board — it holds `prds/` and a README | copy `resources/board/example/prds` to `<d>/prds`; doctor from `<d>` hides the nesting, a command run from inside the board does not |
 | an assertion on a path printed by a Python command fails on **darwin** with `/private/var/…` against `/var/…` | `os.getcwd()` returns the real path; `mktemp -d` and bash's `$PWD` keep the symlink | compare against `$(cd "$D" && pwd -P)` — portable on both |
+| `ModuleNotFoundError: No module named 'memos'` from a copied `collect.py` or `plan.py` | the board scripts import from `resources/` beside `board/`, and the copy took `resources/board/*.py` alone | copy `resources/*.py` into `<scratch>/resources/` and `resources/board/*.py` into `<scratch>/resources/board/` — the layout, not just the files |
+| a `lacks` needle for a PRD name fails on a `scan` band that does not list it | another row's `after <name>` or `needs <name>` bit carries the name | match the row token `· <name> ·`, never the bare name |
