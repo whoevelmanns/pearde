@@ -223,7 +223,16 @@ done
 echo
 echo "── the seed writes no tool, agent, hook or vendor name ──────────────────"
 
-HITS=$(grep -rniE '\b(claude|anthropic|openai|copilot|cursor|codex|gpt|llm|chatgpt|agent|hook|vendor|npm|docker|github action)\b' "$LIB" || true)
+# A vendor NAME, not a path that contains one and not a word of English.
+# `workflow-format`'s rule is "No agent, tool, hook or vendor name. Commands
+# and files." — so a path IS allowed, and the first row to name `.claude/` or
+# `github.com/…` tripped a check that could not tell the two apart. `agent`
+# and `hook` are gone from the pattern for the same reason: "a git hook", "the
+# agent that ran it" are ordinary English and a `## Fails when` row will say
+# them. Skipped: anything preceded by `/` or `.`, and anything inside
+# backticks — both are how this library spells a command or a file.
+HITS=$(grep -rniE '(^|[^/.`[:alnum:]-])(claude|anthropic|openai|copilot|cursor|codex|gpt|chatgpt|llm|vendor|npm|docker)([^/.`[:alnum:]-]|$)' "$LIB" \
+       | grep -vE '`[^`]*(claude|anthropic|openai|copilot|cursor|codex|gpt|chatgpt|llm|npm|docker)[^`]*`' || true)
 t "no agent, tool, hook or vendor name anywhere in the library" "" "$HITS"
 
 echo
