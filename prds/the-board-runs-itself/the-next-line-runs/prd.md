@@ -2,7 +2,7 @@
 state: done
 origin: derived
 actual: 0.8h
-commit: bc74b81
+commit: b8ac8ef
 from: the-board-runs-itself/init-asks-nothing
 priority: 58
 complexity: 13

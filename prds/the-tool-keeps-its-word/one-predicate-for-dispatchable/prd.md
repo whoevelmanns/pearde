@@ -2,7 +2,7 @@
 state: done
 origin: requested
 actual: 1.1h
-commit: 7ad3afd
+commit: 3264820
 priority: 64
 complexity: 13
 blast-radius: high
@@ -60,3 +60,7 @@ counts them. Two readers of one rule, disagreeing on the same second.
 - On a copy of the example board with `big/second` set to a parked state (`state: later`): `scan` lists `big` under gated with `held by big/second (parked)`, never under ready; `claim big w` exits 1 with the same reason.
 - For every PRD `scan` lists as ready on the copy, `claim <prd> w --dry` (or `gate_claim`) returns no reason; for every gated one, it returns the reason the scan line shows.
 - `transitions-are-commands/probe/verify.sh` (74) and `the-loop-is-commands/probe/verify.sh` (60) green, or each moved line named; `scan` byte-identical on the untouched example copy.
+
+## Report
+
+DONE · committed

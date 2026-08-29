@@ -2,7 +2,7 @@
 state: done
 origin: requested
 actual: 0.9h
-commit: c95e18d
+commit: 6d47021
 priority: 66
 complexity: 36
 blast-radius: mid

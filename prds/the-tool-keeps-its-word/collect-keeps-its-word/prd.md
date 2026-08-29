@@ -2,7 +2,7 @@
 state: done
 origin: requested
 actual: 1.2h
-commit: a4bbf4f
+commit: cfc0906
 priority: 66
 complexity: 30
 blast-radius: high
@@ -48,6 +48,8 @@ failure first.
    it — `state: done`, `actual` the sum of its children's, `commit:` the
    last child's — with no verify to run and no paths to add but its own
    `prd.md`, in one commit `<parent> — done: every child landed`.
+
+DONE · committed
 
 ## Files
 

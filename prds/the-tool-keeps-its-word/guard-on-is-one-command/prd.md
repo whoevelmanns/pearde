@@ -2,7 +2,7 @@
 state: done
 origin: requested
 actual: 0.6h
-commit: f1e7fae
+commit: e1ef842
 priority: 60
 complexity: 9
 blast-radius: mid
@@ -65,3 +65,7 @@ stands — a command the user types is not doctor.
 - In a temp repo with no `.claude/`: `guard on` creates the file with the three hooks and the env key; `doctor` on a board there reads `guard ok`; `guard on` again changes nothing and says so; `guard off` leaves an empty hooks block and the env key; `guard status` matches doctor's row.
 - In a temp repo whose settings.json already holds other hooks and keys: after `guard on` and `guard off`, the file is byte-identical to before.
 - `bash resources/doctor.sh` on this repo prints `fix: … pearde guard on`.
+
+## Report
+
+DONE 18/18 · commit e1ef842 · probe 78/78

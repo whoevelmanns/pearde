@@ -2,7 +2,7 @@
 state: done
 origin: derived
 actual: 0.9h
-commit: 536ef4f
+commit: caec40f
 from: the-board-runs-itself/collect-is-a-command
 priority: 64
 complexity: 15
