@@ -42,6 +42,7 @@ members:
 | `jira-sync`   | off          | mirror every `state` write onto the matching Jira issue's status. Also needs `JIRA_BASE_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` in the environment — either missing, `jira_sync.py` no-ops. `references/jira.md` |
 | `jira-projects` | leer       | additive Ergänzung zum aus PRD-Ordnernamen abgeleiteten Projekt-Scope für `jira_sync.py import-new` — Liste oder Komma-Scalar, z. B. `AB, HAMA`. `references/jira.md` |
 | `jira-selected-status` | `Selected` | Name des Jira-Status, der als "bereit, nicht begonnen" für `jira_sync.py import-new` gilt — exakter Namensabgleich, nicht `statusCategory`. `references/jira.md` |
+| `jira-done-status` | leer/keiner | pro Board überschreibbarer Zielstatus für `done` — überschreibt `STATE_TARGET` nur für dieses Board, nie global. `references/jira.md` |
 
 A key missing from the live copy reads at its default.
 

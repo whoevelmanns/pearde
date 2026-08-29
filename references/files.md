@@ -19,6 +19,7 @@ whose scope it changed. Nothing else points at it.
 | @index.md | the map — the `@` and `@@` syntaxes, and every scope |
 | @TODO.md | the open loop |
 | @.gitignore | what git leaves alone |
+| @jira_sync.py | mirrors a PRD's state onto its Jira issue, and reads back drift + new tickets — the only reader of that direction |
 
 ## `references/` — read
 
@@ -33,6 +34,7 @@ whose scope it changed. Nothing else points at it.
 | @references/report.md | the board written for a person |
 | @references/drill.md | how to ask |
 | @references/system.md | drop-in instructions block for `AGENTS.md` |
+| @references/jira.md | mirroring a PRD's state onto its Jira issue, and the read-only drift/import-new direction back |
 
 ### `references/parts/` — the workflow, one part per step
 

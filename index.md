@@ -52,6 +52,7 @@ explains the rest.
 | `@@consult` | putting one problem to one persona, mid-round | @references/parts/consult.md · @references/parts/workers.md · @references/personas/INDEX.md |
 | `@@derived` | work the board found, and its tripwire | @references/parts/derived.md · @references/parts/order.md · @references/templates/prd.md |
 | `@@commits` | one PRD, one commit, on the transition that lands it | @references/parts/commits.md · @references/parts/states.md |
+| `@@jira` | mirroring a PRD's state onto its Jira issue, and reading drift/new tickets back | @references/jira.md · @jira_sync.py |
 | `@@memos` | recording a decision and checking it | @skills/pearde-memo.md · @references/memo.md · @references/parts/memos.md · @references/templates/memo.md · @resources/memos.py |
 | `@@workflows` | how a kind of job is done, and improved on every run | @references/workflow.md · @references/parts/workflows.md · @references/templates/workflow.md · @references/templates/atomic.md · @resources/workflows.py |
 | `@@report` | the board written for a person, one rolling state | @skills/pearde-report.md · @references/report.md · @references/templates/report.md · @references/parts/handles.md · @references/parts/loop.md |
