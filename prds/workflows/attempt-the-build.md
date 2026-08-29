@@ -3,7 +3,7 @@ atomic: attempt-the-build
 subject: build the contract until it works or hits something undefined
 date: 2026-08-28
 updated: 2026-08-29
-runs: 22
+runs: 23
 ---
 
 # attempt-the-build — the attempt is the analysis
@@ -32,7 +32,7 @@ runs: 22
 ## Done when
 
 - `bash prds/<prd>/probe/verify.sh` prints a count, and the count is quoted.
-- `find prds -name prd.md` lists only real PRDs — no fixture among them.
+- `git status --short` shows no `?? prds/<slug>/` you did not make — a hand-walked sweep over the board is refused by the guard in a wired repo, and the untracked list answers the same question.
 - `git status --short` shows the probe under the PRD folder and nothing at the
   repo root.
 
