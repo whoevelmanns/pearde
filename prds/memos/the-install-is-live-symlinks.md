@@ -20,7 +20,12 @@ working tree the sessions on this board are staging by hunk. Two days of
 signatures attributed to "a third writer" (row moves in `settings.md` and
 `files.md`, a `.gitignore` dedup, the `asked`→`done` rename across six files)
 were this, and the rename's author was a `dotfiles` session that ended
-before committing.
+before committing. Counted on 2026-08-29 from the `Claude-Session:` trailers
+of every commit since 2026-08-27: **seven sessions** wrote this repo — two
+that talked to each other (16 and 4 commits), the master board's (1), and
+four one-commit strangers, one of which filed a whole PRD tree
+(`the-board-asks-for-itself`, 7a6f6f9) that both sessions on this board
+assumed the other had written.
 
 ## Why
 
