@@ -317,7 +317,7 @@ def shortest_path(graph, start, target):
     return None
 
 
-# ── the sync rules — see references/jira.md for the reasoning ─────────────
+# ── the sync rules — see README.md for the reasoning ─────────────
 
 def _hold_transition(transitions):
     """The one transition (if exactly one) pausing the current phase."""
@@ -422,7 +422,7 @@ def sync(board, prd_dir_name, state, note=None):
 
 # ── drift detection — read-only, Jira as an additional source ─────────────
 # States that never carry a single forced target status: `open` is handled
-# specially by sync() (only ever un-pauses, per references/jira.md — the
+# specially by sync() (only ever un-pauses, per README.md — the
 # STATE_TARGET["open"] entry above is not actually used as a hard target),
 # and refine/question/blocked pause into whichever "... on hold" the current
 # phase offers, which is not one fixed name either. Comparing any of the
@@ -434,7 +434,7 @@ def drift(board):
     """Print one line per tracked PRD whose live Jira status no longer
     matches what its pearde `state` expects. Silent when clean, like
     memos.py check. Never changes a PRD's state — a report only, see
-    references/jira.md."""
+    README.md."""
     e = env(board)
     if e is None:
         print("jira_sync: JIRA_BASE_URL/JIRA_EMAIL/JIRA_API_TOKEN not set — skipped",
@@ -464,7 +464,7 @@ def drift(board):
 # ── ticket import — Jira as a source of new PRDs, report-only ─────────────
 # import_new() never writes under prds/ — same one-writer rule as everything
 # else in this skill: it reports, the orchestrator creates the PRD, exactly
-# like the existing "Refine" loop step. See references/jira.md.
+# like the existing "Refine" loop step. See README.md.
 
 def configured_projects(board):
     """Sorted, deduplicated project keys to scan for new tickets: every

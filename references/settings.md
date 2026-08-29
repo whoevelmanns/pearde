@@ -39,10 +39,10 @@ members:
 | `workflows`   | `workflows/` | where the workflow library lives, relative to `prds/`. Unlike `memos:`, elsewhere is not a foreign system mirrored read-only — it is **the** library, shared by several boards and written by all of them, so it gets the whole check wherever it sits. @references/workflow.md |
 | `members`     | none         | the boards this one merges — `- <path>` or `- <name>: <path>`, relative to `prds/`. Present means **master board**: every member's PRDs join the scan as `@<member>/<rel>`, one plan spans them. @references/parts/master.md |
 | `name`        | inferred     | what the board calls itself — the view's title and `/board/<name>` URL. Inferred from the directory on a plain board, from the member names on a master — a placeholder: the first round meeting an unnamed master asks the user and writes it |
-| `jira-sync`   | off          | mirror every `state` write onto the matching Jira issue's status. Also needs `JIRA_BASE_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` in the environment — either missing, `jira_sync.py` no-ops. `references/jira.md` |
-| `jira-projects` | leer       | additive Ergänzung zum aus PRD-Ordnernamen abgeleiteten Projekt-Scope für `jira_sync.py import-new` — Liste oder Komma-Scalar, z. B. `AB, HAMA`. `references/jira.md` |
-| `jira-selected-status` | `Selected` | Name des Jira-Status, der als "bereit, nicht begonnen" für `jira_sync.py import-new` gilt — exakter Namensabgleich, nicht `statusCategory`. `references/jira.md` |
-| `jira-done-status` | leer/keiner | pro Board überschreibbarer Zielstatus für `done` — überschreibt `STATE_TARGET` nur für dieses Board, nie global. `references/jira.md` |
+| `jira-sync`   | off          | mirror every `state` write onto the matching Jira issue's status. Also needs `JIRA_BASE_URL`/`JIRA_EMAIL`/`JIRA_API_TOKEN` in the environment — either missing, `jira_sync.py` no-ops. `resources/jira/README.md` |
+| `jira-projects` | leer       | additive Ergänzung zum aus PRD-Ordnernamen abgeleiteten Projekt-Scope für `jira_sync.py import-new` — Liste oder Komma-Scalar, z. B. `AB, HAMA`. `resources/jira/README.md` |
+| `jira-selected-status` | `Selected` | Name des Jira-Status, der als "bereit, nicht begonnen" für `jira_sync.py import-new` gilt — exakter Namensabgleich, nicht `statusCategory`. `resources/jira/README.md` |
+| `jira-done-status` | leer/keiner | pro Board überschreibbarer Zielstatus für `done` — überschreibt `STATE_TARGET` nur für dieses Board, nie global. `resources/jira/README.md` |
 
 A key missing from the live copy reads at its default.
 

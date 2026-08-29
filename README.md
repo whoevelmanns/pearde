@@ -60,7 +60,7 @@ send you on. These are the mid-round lookups, and each is one file:
 | what a state means, and what moves it | @references/parts/states.md |
 | what the progress line prints | @references/parts/progress.md |
 | what goes in the commit | @references/parts/commits.md |
-| how a PRD's state mirrors onto Jira, and back | @references/jira.md |
+| how a PRD's state mirrors onto Jira, and back | @resources/jira/README.md |
 | which frontmatter key, and its default | @references/parts/contract.md |
 | what a worker's out-of-scope finding becomes | @references/parts/derived.md |
 | who works the session | @references/parts/personas.md |

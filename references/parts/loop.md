@@ -69,20 +69,7 @@ round file rewritten says so. A refusal names the call that answers instead.
   finished — collect it per step 6, and only then is anything left over a
   leftover. `analyzing` with spec files on disk is an analyst that finished:
   the transition is `specced` with the specs' `complexity` summed, not `open`.
-- `jira-sync: on` and the Jira env vars set: run `@jira_sync.py drift`, then
-  `@jira_sync.py import-new`. `drift`'s lines are noted for the round report —
-  no state change, a mismatch alone is not a verify-worthy reason to move a
-  PRD. For each `import-new` block with no matching PRD: create the
-  directory + `prd.md` (`state: open`, `origin: requested`, title = the
-  Jira summary, body = the reported description plus a back-reference to the
-  ticket key) — grouped as a subdirectory under the reported parent PRD's
-  path when one was reported (mirroring a manually-built epic grouping like
-  `prds/ab-621-…/{ab-628-…, ab-630-…}/`), else flat under `prds/` — no chain
-  of guesses across more than one level. Before creating one, check its
-  reported siblings — a ticket that clearly overlaps an existing sibling PRD
-  (the documented gap in @references/jira.md's ticket→PRD matching) is
-  skipped by hand, not duplicated. Both feed the round report: drifts noted,
-  PRDs newly created.
+- `jira-sync: on` → see `@@jira`.
 
 A worker its infrastructure killed — API error, lost network, full disk — is
 not a failed attempt:
