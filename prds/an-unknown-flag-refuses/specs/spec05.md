@@ -34,7 +34,8 @@ PRD's footprint (see the report's findings).
 - [x] `grep -c 'pearde [a-z]* \[--dry\]' references/parts/handles.md` prints `14`
 - [x] `grep -c '\[--dry\]' references/parts/handles.md` counts the fourteen cells plus the paragraph's one mention — `15`
 - [x] `grep -F 'unknown flag --dyr — release takes: --as, --board, --dry' references/parts/handles.md` matches — the prose carries the line the tool prints
-- [ ] `python3 resources/index.py check` is silent, exit 0, and `one-command` (54) and `the-next-line-runs` (96, once this PRD's commit lands — its line 157 measures `git diff` on `init.py`) hold
+- [x] `python3 resources/index.py check` is silent, exit 0, and `one-command` (54) and `the-next-line-runs` (96, once this PRD's commit lands — its line 157 measures `git diff` on `init.py`) hold
+      — closed by the orchestrator at collect: the-next-line-runs reads `96 checks · 96 pass` in a worktree of 34a2a37
 
 ## Verify and Proof
 
