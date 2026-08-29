@@ -1873,8 +1873,8 @@ def progress_terms(board, prds=None, settings=None):
     return {
         "prds": prds, "live": live, "avg": avg, "counts": counts,
         "parked": parked,
-        "asked": (sum(1 for p in req.values() if p["state"] == "done"),
-                  len(req)),
+        "done": (sum(1 for p in req.values() if p["state"] == "done"),
+                 len(req)),
         "pct": round(100 * done_w / all_w) if all_w else 0,
         "derived": (sum(1 for p in der.values() if p["state"] == "done"),
                     len(der)),
@@ -1955,10 +1955,10 @@ def cmd_scan(board):
     if t["counts"]:
         print("counts: " + " · ".join(f"{s} {n}" for s, n in sorted(
             t["counts"].items(), key=lambda kv: -kv[1])))
-    ad, an = t["asked"]
+    rd, rn = t["done"]
     dd, dn = t["derived"]
     o, n = t["open"]
-    print(f"progress: asked {ad}/{an} · {t['pct']}%"
+    print(f"progress: done {rd}/{rn} · {t['pct']}%"
           + (f" · derived {dd}/{dn}" if dn else "")
           + f" · open {o}/{n} · {t['openpct']}%")
     if t["parked"]:
@@ -2301,12 +2301,41 @@ def cmd_vision(board, flags):
     return 0
 
 
+class Flags:
+    """What one command takes: `valued` are `--name <v>` (or `--name=<v>`),
+    `switches` are bare, `multi` are the valued ones that repeat. `str()` is
+    the list the refusal and `--help` print — one list, so they cannot
+    drift. transitions.py `Args` is the one parser of it; the class is here
+    because that module imports this one, and the two commands below declare
+    at import time."""
+
+    def __init__(self, valued=(), switches=(), multi=()):
+        self.valued, self.switches = tuple(valued), tuple(switches)
+        self.multi = tuple(multi)
+
+    def __str__(self):
+        return (", ".join("--" + k for k in self.valued + self.switches)
+                or "no flags")
+
+
+VISION_FLAGS = Flags(("board",), ("json", "next", "check"))
+EXAMPLE_FLAGS = Flags()
+
+
 def _vision_cli(argv):
-    """`pearde vision [board] [--json|--next|--check]` — argv is everything
-    after the command name, the return is the exit code."""
-    args = [a for a in argv if not a.startswith("--")]
-    return cmd_vision(find_board(args[0] if args else None),
-                      [a for a in argv if a.startswith("--")])
+    """`pearde vision [board] [--board <path>] [--json|--next|--check]` —
+    argv is everything after the command name, the return is the exit code.
+    A flag outside the declaration is refused before the board is read,
+    exit 2, naming the flag and the list."""
+    import transitions as translib       # the parser; it imports this module
+    try:
+        args = translib.Args(argv, VISION_FLAGS, "vision")
+    except translib.FlagRefused as e:
+        print(f"pearde vision: {e}", file=sys.stderr)
+        return 2
+    board = find_board(args.opt.get("board")
+                       or (args.pos[0] if args.pos else None))
+    return cmd_vision(board, ["--" + f for f in args.flags])
 
 
 # ── the example board ─────────────────────────────────────────────────────────
@@ -2320,11 +2349,18 @@ def cmd_example(argv):
     """`pearde example <dir>` — copy the example board to <dir>. Refuses an
     existing non-empty directory; an empty or missing one is filled. Prints
     the board path and the scan to run next. argv is everything after the
-    command name, the return is the exit code."""
-    if len(argv) != 1 or argv[0].startswith("--"):
+    command name, the return is the exit code. It declares no flag, and
+    refuses one before anything is copied, exit 2."""
+    import transitions as translib       # the parser; it imports this module
+    try:
+        args = translib.Args(argv, EXAMPLE_FLAGS, "example")
+    except translib.FlagRefused as e:
+        print(f"pearde example: {e}", file=sys.stderr)
+        return 2
+    if len(args.pos) != 1:
         print("usage: plan.py example <dir>", file=sys.stderr)
         return 2
-    dest = os.path.abspath(argv[0])
+    dest = os.path.abspath(args.pos[0])
     if os.path.isdir(dest) and os.listdir(dest):
         print(f"pearde: {dest} exists and is not empty — pick an empty or "
               "new directory", file=sys.stderr)
@@ -2345,6 +2381,8 @@ def cmd_example(argv):
 
 
 # What the `pearde` dispatcher discovers: {name: callable(argv) -> exit code}.
+_vision_cli.flags = VISION_FLAGS      # what `pearde vision --help` prints
+cmd_example.flags = EXAMPLE_FLAGS
 COMMANDS = {"vision": _vision_cli}
 COMMANDS["example"] = cmd_example
 
