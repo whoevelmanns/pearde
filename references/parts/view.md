@@ -245,9 +245,8 @@ person.
 - A worker's report lands via `POST /report` (`{"board","prd","text"}` →
   `## Report`).
 - `GET /report` serves `prds/report.md` as `{"text": <file or null>}`, read
-  from disk on each call like `/prd`. `GET /round` still serves
-  `prds/.round.md` the same way, and the page does not read it — see the rule
-  above.
+  from disk on each call like `/prd`. `/round` is gone: the page dropped the
+  panel, and a route nothing fetches is a door to nowhere.
 
 Deep links: `#prd=<rel>` opens one PRD, `#view=asks` a view, `#state=blocked`
 a filtered list, `#crit=1` the critical chain, `#collect=1` the finished work
