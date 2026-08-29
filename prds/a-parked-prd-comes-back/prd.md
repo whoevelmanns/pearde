@@ -1,9 +1,9 @@
 ---
-state: analyzing
+state: claimed
 origin: requested
-claim: analyst-a-parked-prd-comes-back 2026-08-29 10:40
+claim: impl-a-parked-prd-comes-back 2026-08-29 11:03
 priority: 63
-complexity: 0
+complexity: 7
 blast-radius: mid
 repo: pearde
 workflow: probe-then-spec
@@ -60,5 +60,5 @@ would carry out the user's instruction.
 ## Verify
 
 - On a copy of the example board: `set big/second later --force`, then `release big/second open` exits 0, the line reads `later → open`, `claim:` absent, one row in `.transitions.jsonl`; `release big/second specced` exits 1 naming the one target.
-- `defer big/second` then `release big/second open` round-trips; `set big/second analyzing --force` then `release big/second open` still refuses as today (not parked).
+- `defer big/second` then `release big/second open` round-trips; `set big/second specced --force` then `release big/second open` still refuses as today (not parked — `analyzing → open` is a live edge and always was; the first draft of this line said `analyzing` and was wrong).
 - `transitions-are-commands/probe/verify.sh` (74) and `one-predicate-for-dispatchable/probe/verify.sh` (53) green, or each moved line named.

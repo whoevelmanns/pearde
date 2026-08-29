@@ -144,6 +144,11 @@ def gate_claim(board, prds, prd):
 
 
 def gate_release(board, prds, prd, to):
+    if to == "open" and parked(prd["state"]):
+        why = planlib.dispatchable(prd, prds, board)
+        if why and why.startswith("container:"):
+            raise Refused(why)    # a parked container: not `open`'s business
+        return
     if to == "question":
         qs = section(prd["body"], "Questions")
         if not qs or not qs.strip():
@@ -191,7 +196,9 @@ def gate_unblock(board, prds, prd):
 
 
 # The table: (from, to) → the command that owns the edge. `defer` owns every
-# live state's edge to `deferred`. A parked state that names a person answers
+# live state's edge to `deferred`, and `release` owns every parked state's
+# edge back to `open` — that one is in `edge_of`, since a parked word is
+# the user's own and not enumerable. A parked state that names a person answers
 # like `question` — it is the same claim without the obligation.
 EDGES = {
     ("open", "analyzing"): "claim",
@@ -210,9 +217,22 @@ for _s in STATES:
         EDGES[(_s, PARKED)] = "defer"
 
 
+def parked(frm):
+    """A state outside the nine — `deferred`, or the user's own word."""
+    return frm not in STATES
+
+
+def way_back(rel, frm):
+    """The refusal every parked transition raises, naming the one way out."""
+    return f"{rel} is `{frm}` (parked) — `release {rel} open` brings it back"
+
+
 def edge_of(frm, to):
-    key = ("question" if frm.lower() in qlib.WAITING else frm, to)
-    return EDGES.get(key)
+    if frm.lower() in qlib.WAITING:
+        return EDGES.get(("question", to))
+    if parked(frm) and to == "open":
+        return "release"          # the way back: `release <prd> open`
+    return EDGES.get((frm, to))
 
 
 # ── the one writer ────────────────────────────────────────────────────────────
@@ -233,6 +253,8 @@ def transition(board, name, to, persona, worker=None, force=False,
         raise Refused(f"{rel} is already `{to}`")
     cmd = edge_of(frm, to)
     if not force:
+        if cmd is None and parked(frm):
+            raise Refused(way_back(rel, frm))
         if cmd is None:
             raise Refused(f"no command moves `{frm}` → `{to}` — the table is "
                           "@references/parts/states.md; `set --force` is the "
@@ -505,6 +527,8 @@ def cmd_claim(board, args, persona):
     rel = resolve(prds, args.pos[0])
     frm = prds[rel]["state"]
     to = {"open": "analyzing", "specced": "claimed"}.get(frm)
+    if to is None and parked(frm):
+        raise Refused(way_back(rel, frm))
     if to is None:
         raise Refused(f"claim: {rel} is `{frm}` — open → analyzing or "
                       "specced → claimed")
@@ -521,7 +545,10 @@ def cmd_release(board, args, persona):
     frm = prds[rel]["state"]
     allowed = {"analyzing": ("refine", "question", "open"),
                "claimed": ("blocked", "failed")}
-    if frm not in allowed or to not in allowed[frm]:
+    if parked(frm):
+        if to != "open":
+            raise Refused(way_back(rel, frm))
+    elif frm not in allowed or to not in allowed[frm]:
         raise Refused(f"release: {rel} is `{frm}` — analyzing → "
                       "refine|question|open, claimed → blocked|failed")
     transition(board, rel, to, persona)
@@ -578,6 +605,8 @@ def cmd_retry(board, args, persona):
     prds = planlib.scan(board)
     rel = resolve(prds, args.pos[0])
     prd = prds[rel]
+    if parked(prd["state"]):
+        raise Refused(way_back(rel, prd["state"]))
     if prd["state"] != "failed":
         raise Refused(f"retry: {rel} is `{prd['state']}`, not failed")
     path = os.path.join(prd["dir"], "prd.md")
@@ -600,6 +629,8 @@ def cmd_unblock(board, args, persona):
         raise Refused("unblock <prd>")
     prds = planlib.scan(board)
     rel = resolve(prds, args.pos[0])
+    if parked(prds[rel]["state"]):
+        raise Refused(way_back(rel, prds[rel]["state"]))
     if prds[rel]["state"] != "blocked":
         raise Refused(f"unblock: {rel} is `{prds[rel]['state']}`, not blocked")
     transition(board, rel, "specced", persona)

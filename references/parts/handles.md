@@ -21,7 +21,7 @@ each skill file says what it does with no board in scope.
 | more implementers            | `workers=5` — written to `prds/settings.md`, persists                                                    | — |
 | deeper spec pipeline         | `pipeline=5` — written to `prds/settings.md`, persists                                                   | — |
 | new PRD                      | `add <title>` — dir + `prd.md` from `@references/templates/prd.md`, `state: open`, `origin: requested`. Runs as printed: with no `--as` and no `PEARDE_AS` it files the PRD `· as engineer (default)`, the one transition that does — a new PRD has no earlier line to rewrite | `pearde add` |
-| park a derived PRD           | `defer <prd>` — `state: deferred`, per @references/parts/derived.md | `pearde defer` |
+| park a derived PRD           | `defer <prd>` — `state: deferred`, per @references/parts/derived.md; `release <prd> open` is its inverse, the one way back from any parked state | `pearde defer` |
 | work out what is wanted      | `drill <prd>` — interview per `@references/drill.md`. With no `<prd>`: the board's own open frontier where there is one, else a new tree | — |
 | retry a failed PRD           | `retry <prd>` — moves `## Failure` into the body as history, sets `open`                                 | `pearde retry` |
 | a blocked PRD's event landed | `unblock <prd>` — re-runs only the open boxes; `done` when they close                                    | `pearde unblock` |

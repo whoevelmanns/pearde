@@ -48,6 +48,7 @@ dispatched, never scheduled by `plan`, out of the progress line and the status
 line, not folded into `open`. Report parked PRDs by name — neither progress
 nor backlog. A parked child holds its parent: it is neither done nor coming,
 so the parent is not dispatchable until that child is `done`.
+`release <prd> open` is the way back — the one target: it clears `claim:` and files the PRD as claimable work; a parked container is `collect`'s, and `release` says so.
 
 **Parked on a person owes a round.** A parked state, or a `mode:`, that names
 a human — `hitl`, `waiting`, `user` — makes `question`'s claim without
