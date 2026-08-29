@@ -56,6 +56,11 @@ Answer format, written under `## Answers`, numbers matching:
 **Q1** — <the picked option's text verbatim, or the user's own words>
 ```
 
+The view writes the same line with the moment it was settled — `**Q1**
+*(answered 2026-08-28 14:22)* — …` — and orders its answered panel by it. The
+stamp is optional when a round is answered at a terminal: the id and the
+decision are the contract, the date only buys a place in that order.
+
 ## The heading is the claim
 
 Neither heading is a slot to leave empty. `## Questions` says a round is
