@@ -13,7 +13,7 @@ const path = require("path");
   page.on("pageerror", e => errors.push(String(e.message).split("\n")[0]));
   await page.goto("file://" + path.resolve(process.argv[2]), { waitUntil: "load" });
   await page.waitForTimeout(500);
-  await page.click('#views button[data-v="analytics"]');
+  await page.click('#views a[data-v="analytics"], #views button[data-v="analytics"]');
   await page.waitForTimeout(200);
   const r = await page.evaluate(() => {
     const charts = [...document.querySelectorAll("#charts .chart")];
