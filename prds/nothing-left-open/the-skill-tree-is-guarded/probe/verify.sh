@@ -90,10 +90,14 @@ out=$(hook Bash "$D/proj" "echo x > $LINK")
 lacks "B1 the Bash hook does not match a shell write through the link — the caveat guard.md states" "$out" '"deny"'
 
 echo "— status and doctor"
-out=$(python3 "$GUARD" status "$ROOT" 2>&1); rc=$?
+# status is read on a copy the probe wires itself — a worktree of HEAD has no
+# settings file, and the words are the rule's, not this checkout's
+WIRED=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$D/proj")
+python3 "$GUARD" on "$WIRED" >/dev/null 2>&1
+out=$(python3 "$GUARD" status "$WIRED" 2>&1); rc=$?
 has  "S1 guard status ok says skill tree guarded" "$out" 'skill tree guarded'
 [ $rc -eq 0 ]; ok "S2 guard status exits 0" $?
-has  "S3 guard status still names the settings file" "$out" "wired in $ROOT/.claude/settings.json"
+has  "S3 guard status still names the settings file" "$out" "wired in $WIRED/.claude/settings.json"
 grep -q 'does not refuse a write into the skill tree' "$GUARD"; ok "S4 status has a broken row for the second rule — the words are earned by a probe" $?
 grep -q 'skill tree guarded' "$ROOT/resources/doctor.sh"; ok "S5 doctor.sh's ok row carries the two words" $?
 [ "$(grep -c 'skill tree guarded' "$ROOT/resources/doctor.sh")" -eq 1 ]; ok "S6 doctor.sh moved one line" $?
