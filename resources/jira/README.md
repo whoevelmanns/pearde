@@ -108,11 +108,11 @@ is posted only when the status change alone would not tell the story:
 ## Calling it
 
 ```sh
-python3 <skill>/jira_sync.py sync <prd-dir-name> <state> [note...]
-python3 <skill>/jira_sync.py discover <PROJECT-KEY>   # (re)cache the graph
-python3 <skill>/jira_sync.py check [PROJECT-KEY]      # env + graph reachability
-python3 <skill>/jira_sync.py drift                    # read-only: state vs Jira status, one line per mismatch
-python3 <skill>/jira_sync.py import-new               # read-only: Jira tickets with no PRD yet, reports only
+python3 <skill>/resources/jira/jira_sync.py sync <prd-dir-name> <state> [note...]
+python3 <skill>/resources/jira/jira_sync.py discover <PROJECT-KEY>   # (re)cache the graph
+python3 <skill>/resources/jira/jira_sync.py check [PROJECT-KEY]      # env + graph reachability
+python3 <skill>/resources/jira/jira_sync.py drift                    # read-only: state vs Jira status, one line per mismatch
+python3 <skill>/resources/jira/jira_sync.py import-new               # read-only: Jira tickets with no PRD yet, reports only
 ```
 
 Call `sync` from the orchestrator, after writing the same transition to

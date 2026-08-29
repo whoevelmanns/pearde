@@ -12,7 +12,7 @@ Opt-in per board: `jira-sync: on` in prds/settings.md, and JIRA_BASE_URL,
 JIRA_EMAIL, JIRA_API_TOKEN in the environment. Any of the three missing is
 not an error — `sync` prints one line to stderr and exits 0, so a board
 without Jira behind it, or a session that has not exported the token yet,
-is unaffected. See references/jira.md for the full design and why the
+is unaffected. See README.md for the full design and why the
 mapping looks like this.
 
 The Jira issue key is read off the front of the PRD directory's own name:
@@ -51,7 +51,7 @@ from collections import deque
 # Frontmatter scan: reuse resources/board/plan.py's `scan`/`board_settings`
 # rather than growing a third parser — same pattern plan.py itself uses to
 # reach memos.py.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "board"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "resources", "board"))
 import plan as planlib  # noqa: E402 — path set immediately above
 
 KEY_RE = re.compile(r"^([A-Za-z]+)-(\d+)(?:-|$)")
