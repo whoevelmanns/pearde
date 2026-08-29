@@ -3,7 +3,7 @@ atomic: capture-the-harness-baseline
 subject: record what every committed harness prints before the tree is touched
 date: 2026-08-28
 updated: 2026-08-29
-runs: 40
+runs: 41
 ---
 
 # capture-the-harness-baseline — the numbers as they were before you
@@ -22,7 +22,7 @@ runs: 40
    --short` beside it: the untracked files a root-level check sees are the
    only way to tell your drop from a neighbour's later. Save each harness's
    whole output to a scratch file, not only its count — when a count moves you
-   need the FAIL line, and the machine may sleep before you can re-run it. Record the mtime and `git diff -U0 | grep -c '^@@'` of every file outside your footprint that a spec says it stands on — a predicate in a sibling's file moves during the run, and the number beside each run is the only way to say which plan.py a count was taken against.
+   need the FAIL line, and the machine may sleep before you can re-run it. Write them under a subdirectory named for this run — the scratch directory is shared across sessions, and a bare `grep FAIL <scratch>/*` sweeps another worker's outputs in with yours. Record the mtime and `git diff -U0 | grep -c '^@@'` of every file outside your footprint that a spec says it stands on — a predicate in a sibling's file moves during the run, and the number beside each run is the only way to say which plan.py a count was taken against.
 3. Record `python3 resources/index.py check` and `bash resources/doctor.sh`
    the same way — **their exit codes as well as their lines** — the lines they print now, plus any line the contract itself
    adds (a new doctor row, a new file the map will name), are the lines you are

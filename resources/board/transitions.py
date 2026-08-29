@@ -18,6 +18,15 @@ the persona, and a default would rewrite it. `add` is the one exception: a
 new PRD has no earlier line to rewrite, so with neither it files the PRD
 `· as engineer (default)` and says so on the line.
 
+Every command declares the flags it takes in `FLAGS`, and `Args` is the one
+parser — here, and in specs.py, collect.py, brief.py and init.py, which
+import it. A flag not declared is refused before any read of the board:
+`unknown flag --dyr — release takes: --as, --board, --dry`, exit 2, nothing
+written. `--dry` on every command that writes prints the line the real run
+would print, prefixed `dry ·`, then `would write:` with every path, and
+writes nothing. `pearde <cmd> --help` prints the same list off the same
+declaration.
+
 Every command checks the gate @references/parts/states.md names, writes
 through edit.py — one frontmatter line at a time, atomically — prints the
 progress line of @references/parts/progress.md with every term computed here,
@@ -77,6 +86,11 @@ INSTALL_LINE = "export PEARDE_AS=engineer"
 class Refused(Exception):
     """A transition the table forbids. The message names the gate and what
     would clear it. Nothing was written."""
+
+
+class FlagRefused(Refused):
+    """A flag the command does not declare, or a valued one with no value.
+    Raised by `Args` before the board is read; `run` exits 2 on it."""
 
 
 def now():
@@ -238,13 +252,15 @@ def edge_of(frm, to):
 # ── the one writer ────────────────────────────────────────────────────────────
 
 def transition(board, name, to, persona, worker=None, force=False,
-               source=None, out=print):
+               source=None, out=print, dry=False):
     """Move one PRD. Returns the progress line it printed.
 
     Every command below calls this, and so does the view's `/edit` — with
     `force` and `source="view"`, because a person at the page is the user
     talking to the board and is not gated. `force` skips the gate and says so
-    on the line; from a shell it is the escape hatch, never the path."""
+    on the line; from a shell it is the escape hatch, never the path.
+    `dry` runs the gate, prints the line the write would print — `dry ·` in
+    front, `would write:` and the paths under it — and writes nothing."""
     prds = planlib.scan(board)
     rel = resolve(prds, name)
     prd = prds[rel]
@@ -274,8 +290,22 @@ def transition(board, name, to, persona, worker=None, force=False,
             gate_unblock(board, prds, prd)
         elif cmd == "retry" and frm != "failed":
             raise Refused(f"retry: {rel} is `{frm}`, not failed")
-    # the gate passed, or was forced: now the writes, one line each
     path = os.path.join(prd["dir"], "prd.md")
+    if dry:
+        p = prds[rel]
+        p["state"] = p["fm"]["state"] = to
+        if cmd == "claim" and worker and not force:
+            p["fm"]["claim"] = f"{worker} {now()}"
+        elif cmd in ("release", "retry") and not force:
+            p["fm"].pop("claim", None)
+        line = owed_line(dry_line(board, prds, rel, frm, to, persona,
+                                  forced=force, source=source))
+        paths = [path, os.path.join(prd["board_path"], TRANSITIONS_FILE)]
+        if cmd == "claim" and not force and planlib.repo_root(board):
+            paths.append(os.path.join(board, ".claims", rel) + os.sep)
+        say_dry(board, line, paths, out)
+        return line
+    # the gate passed, or was forced: now the writes, one line each
     editlib.set_key(path, "state", to)
     if cmd == "claim" and worker and not force:
         editlib.set_key(path, "claim", f"{worker} {now()}")
@@ -299,6 +329,59 @@ def owed_line(line):
     round."""
     head, _, tail = line.rpartition(" · as ")
     return f"{head} · round file owed · as {tail}" if tail else line
+
+
+# ── dry: the line a write would print, on a board that was not written ───────
+# Every term of the progress line is read through `plan.scan`; a dry run
+# moves the state on the scan's dict and holds that dict in `scan`'s place
+# for the one call that prints the line, so the line is the real run's and
+# no file moves. `say_dry` is the shape every `--dry` prints — here, in
+# specs.py, collect.py and init.py: `dry · <line>`, then `would write:`.
+
+def dry_line(board, prds, rel, frm, to, persona, forced=False, source=None):
+    real = planlib.scan
+    planlib.scan = lambda b, _p=prds: _p
+    try:
+        return progress_line(board, rel, frm, to, persona, forced=forced,
+                             source=source)
+    finally:
+        planlib.scan = real
+
+
+def fake_prd(board, local, text, prds):
+    """A record for a `prd.md` that does not exist yet — `add`'s and
+    `refine`'s dry runs — parsed the way `plan._scan_one` parses one, from a
+    file outside the board that is gone when this returns."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as t:
+        tmp = os.path.join(t, "prd.md")
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+        fm, title, body = planlib.parse_prd(tmp)
+    parent = os.path.dirname(local)
+    p = {"rel": local, "local": local, "name": os.path.basename(local),
+         "fm": fm, "title": title or os.path.basename(local), "body": body,
+         "state": fm.get("state", "open"), "dir": os.path.join(board, local),
+         "board": None, "board_path": board,
+         "footer": f"prds/{local}/prd.md", "children": [],
+         "parent": parent if parent in prds else None}
+    prds[local] = p
+    if p["parent"]:
+        prds[parent]["children"].append(local)
+    return p
+
+
+def shown_path(board, path):
+    """A path as `collect --dry` prints one: from the repo the board sits
+    in, else from the board's parent — `prds/<rel>/prd.md`."""
+    root = planlib.repo_root(board) or os.path.dirname(board)
+    rel = os.path.relpath(path, root)
+    return rel + (os.sep if path.endswith(os.sep) else "")
+
+
+def say_dry(board, line, paths, out=print):
+    out(f"dry · {line}")
+    out("  would write: " + " · ".join(shown_path(board, p) for p in paths))
 
 
 def snapshot_claim(board, rel):
@@ -453,7 +536,8 @@ def progress_line(board, rel, frm, to, persona, forced=False, source=None):
 BIG_LINES = 60
 
 
-def add(board, title, persona, priority=0, body="", parent=None, out=print):
+def add(board, title, persona, priority=0, body="", parent=None, out=print,
+        dry=False):
     """A directory and `prd.md` from the template, `open`, `origin:
     requested`. The gate: the slug is free. Returns the new rel. The view's
     `/new` calls this; `cmd_add` is the shell's way in."""
@@ -475,6 +559,14 @@ def add(board, title, persona, priority=0, body="", parent=None, out=print):
     if len(body.strip().splitlines()) > BIG_LINES or \
             body.lower().count("when this is done") > 1:
         out("big — expect a split")     # a warning; it gates nothing
+    rel = os.path.relpath(d, board)
+    if dry:
+        prds = planlib.scan(board)
+        fake_prd(board, rel, text, prds)
+        line = dry_line(board, prds, rel, "—", "open", persona)
+        say_dry(board, line, [os.path.join(d, "prd.md"),
+                              os.path.join(board, TRANSITIONS_FILE)], out)
+        return rel
     os.makedirs(d)
     editlib.write_atomic(os.path.join(d, "prd.md"), text)
     rel = os.path.relpath(d, board)
@@ -490,7 +582,7 @@ def cmd_add(board, args, persona):
         raise Refused("add: --priority takes an integer")
     body = sys.stdin.read() if args.opt.get("body") == "-" else ""
     add(board, " ".join(args.pos), persona, priority, body,
-        args.opt.get("parent"))
+        args.opt.get("parent"), dry=args.dry)
     return 0
 
 
@@ -532,7 +624,7 @@ def cmd_claim(board, args, persona):
     if to is None:
         raise Refused(f"claim: {rel} is `{frm}` — open → analyzing or "
                       "specced → claimed")
-    transition(board, rel, to, persona, worker=args.pos[1])
+    transition(board, rel, to, persona, worker=args.pos[1], dry=args.dry)
     return 0
 
 
@@ -551,7 +643,7 @@ def cmd_release(board, args, persona):
     elif frm not in allowed or to not in allowed[frm]:
         raise Refused(f"release: {rel} is `{frm}` — analyzing → "
                       "refine|question|open, claimed → blocked|failed")
-    transition(board, rel, to, persona)
+    transition(board, rel, to, persona, dry=args.dry)
     return 0
 
 
@@ -573,6 +665,25 @@ def cmd_answer(board, args, persona):
     if qid in answered_of(prd):
         raise Refused(f"answer: {qid} is already answered")
     path = os.path.join(prd["dir"], "prd.md")
+    if args.dry:            # the real run's three outcomes, on a scan that
+        left = [q for q in questions_of(prd)      # holds the answer in memory
+                if q not in answered_of(prd) and q != qid]
+        paths = [path]
+        if planlib.repo_root(board):
+            paths.append(os.path.join(board, ".claims", "riders"))
+        if left:
+            say_dry(board, f"{rel}: {qid} answered · {len(left)} left — "
+                    + ", ".join(left), paths)
+        elif prd["state"] == "question" or prd["state"].lower() in qlib.WAITING:
+            frm = prd["state"]
+            prd["state"] = prd["fm"]["state"] = "open"
+            paths.append(os.path.join(prd["board_path"], TRANSITIONS_FILE))
+            say_dry(board, owed_line(dry_line(board, prds, rel, frm, "open",
+                                              persona)), paths)
+        else:
+            say_dry(board, f"{rel}: {qid} answered · every question answered "
+                    f"· state `{prd['state']}` left as it is", paths)
+        return 0
     editlib.append_section(path, "Answers",
                            f"**{qid}** *(answered {now()})* — {text}")
     owe_path(board, path)
@@ -594,7 +705,7 @@ def cmd_answer(board, args, persona):
 def cmd_defer(board, args, persona):
     if len(args.pos) != 1:
         raise Refused("defer <prd>")
-    transition(board, args.pos[0], PARKED, persona)
+    transition(board, args.pos[0], PARKED, persona, dry=args.dry)
     return 0
 
 
@@ -609,6 +720,9 @@ def cmd_retry(board, args, persona):
         raise Refused(way_back(rel, prd["state"]))
     if prd["state"] != "failed":
         raise Refused(f"retry: {rel} is `{prd['state']}`, not failed")
+    if args.dry:            # the body's `## Failure` → `## History` is on
+        transition(board, rel, "open", persona, dry=True)   # the same file
+        return 0
     path = os.path.join(prd["dir"], "prd.md")
     text = open(path, encoding="utf-8").read()
     _, _, tail = editlib.split_fm(text)
@@ -633,7 +747,7 @@ def cmd_unblock(board, args, persona):
         raise Refused(way_back(rel, prds[rel]["state"]))
     if prds[rel]["state"] != "blocked":
         raise Refused(f"unblock: {rel} is `{prds[rel]['state']}`, not blocked")
-    transition(board, rel, "specced", persona)
+    transition(board, rel, "specced", persona, dry=args.dry)
     return 0
 
 
@@ -642,7 +756,7 @@ def cmd_set(board, args, persona):
         raise Refused("set <prd> <state> [--force]")
     rel, to = args.pos
     transition(board, rel, to, persona, worker=args.opt.get("worker"),
-               force="force" in args.flags)
+               force="force" in args.flags, dry=args.dry)
     return 0
 
 
@@ -713,6 +827,9 @@ def cmd_sweep(board, args, persona):
               f"{why}")
         if not apply or to is None:
             continue
+        if args.dry:        # `## Failure` lands on the prd.md the line names
+            transition(board, rel, to, persona, dry=True)
+            continue
         if to == "failed":
             path = os.path.join(planlib.scan(board)[rel]["dir"], "prd.md")
             editlib.append_section(
@@ -727,22 +844,66 @@ def cmd_sweep(board, args, persona):
 
 # ── the surface ───────────────────────────────────────────────────────────────
 
-class Args:
-    """`--key value` options, `--flag` switches, the rest positional."""
-    VALUED = ("board", "as", "priority", "body", "parent", "worker")
+class Flags:
+    """What one command takes: `valued` are `--name <v>` (or `--name=<v>`),
+    `switches` are bare, `multi` are the valued ones that repeat. `str()` is
+    the list the refusal and `--help` print — one list, so they cannot
+    drift."""
 
-    def __init__(self, argv):
+    def __init__(self, valued=(), switches=(), multi=()):
+        self.valued, self.switches = tuple(valued), tuple(switches)
+        self.multi = tuple(multi)
+
+    def __str__(self):
+        return ", ".join("--" + k for k in self.valued + self.switches)
+
+
+DRY = ("dry",)
+
+# The declaration. `--as` and `--board` are every command's here; `--dry` is
+# every command's that writes — all nine do.
+FLAGS = {
+    "add":     Flags(("as", "board", "priority", "body", "parent"), DRY),
+    "claim":   Flags(("as", "board"), DRY),
+    "release": Flags(("as", "board"), DRY),
+    "answer":  Flags(("as", "board"), DRY),
+    "defer":   Flags(("as", "board"), DRY),
+    "retry":   Flags(("as", "board"), DRY),
+    "unblock": Flags(("as", "board"), DRY),
+    "set":     Flags(("as", "board", "worker"), ("force",) + DRY),
+    "sweep":   Flags(("as", "board"), ("apply",) + DRY),
+}
+
+
+class Args:
+    """`--key value` into `opt`, a declared switch into `flags`, the rest
+    positional; `dry` is the one switch every writer reads. An argument
+    starting with `--` that the declaration does not name raises
+    FlagRefused with the flag and the list — before anything is read."""
+
+    def __init__(self, argv, flags, name):
         self.pos, self.opt, self.flags = [], {}, set()
         it = iter(argv)
         for a in it:
-            if a.startswith("--") and len(a) > 2:
-                k, eq, v = a[2:].partition("=")
-                if k in self.VALUED:
-                    self.opt[k] = v if eq else next(it, "")
-                else:
-                    self.flags.add(k)
-            else:
+            if not (a.startswith("--") and len(a) > 2):
                 self.pos.append(a)
+                continue
+            k, eq, v = a[2:].partition("=")
+            if k in flags.valued:
+                if not eq:
+                    v = next(it, None)
+                    if v is None or v.startswith("--"):
+                        raise FlagRefused(f"--{k} takes a value — {name} "
+                                          f"takes: {flags}")
+                if k in flags.multi:
+                    self.opt.setdefault(k, []).append(v)
+                else:
+                    self.opt[k] = v
+            elif k in flags.switches:
+                self.flags.add(k)
+            else:
+                raise FlagRefused(f"unknown flag {a} — {name} takes: {flags}")
+        self.dry = "dry" in self.flags
 
 
 def persona_default(name):
@@ -758,14 +919,17 @@ def persona_default(name):
 
 
 def run(name, fn, argv):
-    args = Args(argv)
     try:
+        args = Args(argv, FLAGS[name], name)     # before any read
         persona = (args.opt.get("as")
                    or os.environ.get("PEARDE_AS", "")).strip()
         if not persona:
             persona = persona_default(name)
         board = planlib.find_board(args.opt.get("board"))
         return fn(board, args, persona)
+    except FlagRefused as e:
+        print(f"pearde {name}: {e}", file=sys.stderr)
+        return 2
     except Refused as e:
         print(f"pearde {name}: refused — {e}", file=sys.stderr)
         return 1
@@ -776,6 +940,7 @@ def _command(name, fn):
         return run(name, fn, argv)
     call.__doc__ = fn.__doc__
     call.__name__ = name
+    call.flags = FLAGS[name]        # what `pearde <name> --help` prints
     return call
 
 

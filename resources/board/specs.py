@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """pearde specs — the two transitions a spec set decides.
 
-    specs.py specced <prd> [--blast high|mid|low] [--workflow <slug>|none] [--check]
-    specs.py refine  <prd> < report
+    specs.py specced <prd> [--blast high|mid|low] [--workflow <slug>|none] [--check] [--dry]
+    specs.py refine  <prd> [--dry] < report
 
 `specced` reads every `specs/*.md`, refuses naming file and line, refuses a
 set over `split-above` or `specs-above` (`over split-above: 58 > 40 — REFINE
@@ -16,6 +16,10 @@ parent's `## Children`, and sets the parent `open`.
 Both take `--board <path>` (default: walk up from the cwd) and `--as <id>`,
 the persona on the progress line, else `PEARDE_AS` from the environment —
 the same rule as every transition, because the line is the only record of it.
+The flags are declared in `FLAGS` and parsed by transitions.py `Args` — an
+undeclared one is refused with the list, exit 2, before the board is read;
+`--dry` prints the line the write would print, `dry ·` in front, and the
+paths, and writes nothing.
 
 `plan.py` does the reading, `edit.py` the writing, and `transitions.py` prints
 the progress line and records the row in `.history.jsonl` — the same three
@@ -270,6 +274,21 @@ def specced(board, args, persona):
         raise Refused(f"{rel} is `{prd['state']}` — `specced` is set from "
                       f"`{SPECCED_FROM[0]}` (@references/parts/states.md)")
     path = os.path.join(prd["dir"], "prd.md")
+    if args.dry:
+        frm, fm = prd["state"], prd["fm"]
+        prd["state"] = fm["state"] = "specced"
+        fm["complexity"] = str(total)
+        if blast is not None:
+            fm["blast-radius"] = blast
+        if workflow == "none":
+            fm.pop("workflow", None)
+        elif workflow:
+            fm["workflow"] = workflow
+        fm.pop("claim", None)
+        line = trlib.dry_line(board, prds, rel, frm, "specced", persona)
+        trlib.say_dry(board, line, [path, os.path.join(
+            prd["board_path"], trlib.TRANSITIONS_FILE)])
+        return 0
     edit.set_key(path, "complexity", str(total))
     if blast is not None:
         edit.set_key(path, "blast-radius", blast)
@@ -359,6 +378,31 @@ def refine(board, args, persona):
     new = [(c, k, n) for c, k, n in rows if not exists(c)]
     old = [c for c, _, _ in rows if exists(c)]
     parent = os.path.join(prd["dir"], "prd.md")
+    if args.dry:
+        paths = []
+        for c, k, n in new:
+            trlib.fake_prd(board, f"{rel}/{c}", child_prd(prd["fm"], c, k, n),
+                           prds)
+            paths.append(os.path.join(prd["dir"], c, "prd.md"))
+            print(f"dry · {rel}/{c}: open"
+                  + (f" · needs {', '.join(n)}" if n else ""))
+        if new:
+            paths.append(parent)
+            frm, fm = prd["state"], prd["fm"]
+            fm.pop("claim", None)
+            if frm != "open":
+                prd["state"] = fm["state"] = "open"
+                paths.append(os.path.join(prd["board_path"],
+                                          trlib.TRANSITIONS_FILE))
+                trlib.say_dry(board, trlib.dry_line(board, prds, rel, frm,
+                                                    "open", persona), paths)
+            else:
+                trlib.say_dry(board, f"{rel}: {len(new)} children under "
+                              "## Children, claim cleared", paths)
+        if old:
+            raise Refused(f"{len(old)} child(ren) already exist, left as "
+                          f"they are: {', '.join(old)}")
+        return 0
     for c, k, n in new:
         d = os.path.join(prd["dir"], c)
         os.makedirs(d)
@@ -386,31 +430,19 @@ def refine(board, args, persona):
 
 # ── entry ─────────────────────────────────────────────────────────────────────
 
-class Args:
-    """`--name value` into opt, `--check` into flags, the rest positional."""
-    VALUED = ("board", "as", "blast", "workflow")
-
-    def __init__(self, argv):
-        self.pos, self.opt, self.flags = [], {}, set()
-        i = 0
-        while i < len(argv):
-            a = argv[i]
-            if a.startswith("--") and a[2:] in self.VALUED:
-                if i + 1 >= len(argv):
-                    raise Refused(f"{a} takes a value")
-                self.opt[a[2:]] = argv[i + 1]
-                i += 1
-            elif a.startswith("--"):
-                self.flags.add(a[2:])
-            else:
-                self.pos.append(a)
-            i += 1
+# The declaration — transitions.py `Args` is the parser, and `--help` prints
+# the same list.
+FLAGS = {
+    "specced": trlib.Flags(("as", "board", "blast", "workflow"),
+                           ("check",) + trlib.DRY),
+    "refine":  trlib.Flags(("as", "board"), trlib.DRY),
+}
 
 
 def _command(name, fn):
     def call(argv):
         try:
-            args = Args(argv)
+            args = trlib.Args(argv, FLAGS[name], name)   # before any read
             if not args.pos:
                 raise Refused(f"which PRD? — `{name} <prd>`")
             persona = (args.opt.get("as")
@@ -420,11 +452,15 @@ def _command(name, fn):
                               "environment — the line is the only record of it")
             board = plan.find_board(args.opt.get("board"))
             return fn(board, args, persona)
+        except trlib.FlagRefused as e:
+            print(f"pearde {name}: {e}", file=sys.stderr)
+            return 2
         except Refused as e:
             print(f"pearde {name}: refused — {e}", file=sys.stderr)
             return 1
     call.__doc__ = fn.__doc__
     call.__name__ = name
+    call.flags = FLAGS[name]
     return call
 
 

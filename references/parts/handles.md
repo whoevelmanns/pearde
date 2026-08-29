@@ -20,12 +20,12 @@ each skill file says what it does with no board in scope.
 | one round, then stop         | `once`                                                                                                   | — |
 | more implementers            | `workers=5` — written to `prds/settings.md`, persists                                                    | — |
 | deeper spec pipeline         | `pipeline=5` — written to `prds/settings.md`, persists                                                   | — |
-| new PRD                      | `add <title>` — dir + `prd.md` from `@references/templates/prd.md`, `state: open`, `origin: requested`. Runs as printed: with no `--as` and no `PEARDE_AS` it files the PRD `· as engineer (default)`, the one transition that does — a new PRD has no earlier line to rewrite | `pearde add` |
-| park a derived PRD           | `defer <prd>` — `state: deferred`, per @references/parts/derived.md; `release <prd> open` is its inverse, the one way back from any parked state | `pearde defer` |
+| new PRD                      | `add <title>` — dir + `prd.md` from `@references/templates/prd.md`, `state: open`, `origin: requested`. Runs as printed: with no `--as` and no `PEARDE_AS` it files the PRD `· as engineer (default)`, the one transition that does — a new PRD has no earlier line to rewrite | `pearde add [--dry]` |
+| park a derived PRD           | `defer <prd>` — `state: deferred`, per @references/parts/derived.md; `release <prd> open` is its inverse, the one way back from any parked state | `pearde defer [--dry]` |
 | work out what is wanted      | `drill <prd>` — interview per `@references/drill.md`. With no `<prd>`: the board's own open frontier where there is one, else a new tree | — |
-| retry a failed PRD           | `retry <prd>` — moves `## Failure` into the body as history, sets `open`                                 | `pearde retry` |
-| a blocked PRD's event landed | `unblock <prd>` — re-runs only the open boxes; `done` when they close                                    | `pearde unblock` |
-| close what is finished       | `collect` — every PRD whose acceptance boxes are all `[x]`: verify, commit, `done`. Loop step 6, run on its own | `pearde collect` |
+| retry a failed PRD           | `retry <prd>` — moves `## Failure` into the body as history, sets `open`                                 | `pearde retry [--dry]` |
+| a blocked PRD's event landed | `unblock <prd>` — re-runs only the open boxes; `done` when they close                                    | `pearde unblock [--dry]` |
+| close what is finished       | `collect` — every PRD whose acceptance boxes are all `[x]`: verify, commit, `done`. Loop step 6, run on its own | `pearde collect [--dry]` |
 | run one PRD to done          | `run <prd>` — the loop scoped to that PRD's subtree                                                      | — |
 | the state, for a person      | `report` — rewrites `prds/report.md` whole: planned, in work, undecided or failing, in plain words per `@@report` | — |
 | record a decision            | `memo <subject>` — `prds/memos/<slug>.md` from `@references/templates/memo.md`                            | `pearde memo add <subject>` |
@@ -46,20 +46,25 @@ each skill file says what it does with no board in scope.
 | what a master merges         | `master` with no path — `@resources/board/plan.py members`: every member, its path, `MISSING` when not on disk | `pearde members` |
 | re-order after anything moved| `reconcile` — `@resources/board/plan.py reconcile`: schedule recomputed, anchor kept. The live service already does it, on every board | `pearde reconcile` |
 | is this thing wired?         | `doctor` — `@resources/doctor.sh --fix`, per @@doctor; print every line | `pearde doctor --fix` |
-| take a PRD for a worker      | `claim` | `pearde claim` |
-| hand a PRD back with a state | `release` | `pearde release` |
-| answer a question on a PRD   | `answer` | `pearde answer` |
-| force any transition         | `set` | `pearde set` |
-| validate the specs, sum the weight| `specced` | `pearde specced` |
-| children from the analyst's split| `refine` | `pearde refine` |
+| take a PRD for a worker      | `claim` | `pearde claim [--dry]` |
+| hand a PRD back with a state | `release` | `pearde release [--dry]` |
+| answer a question on a PRD   | `answer` | `pearde answer [--dry]` |
+| force any transition         | `set` | `pearde set [--dry]` |
+| validate the specs, sum the weight| `specced` | `pearde specced [--dry]` |
+| children from the analyst's split| `refine` | `pearde refine [--dry]` |
 | print a worker's brief       | `brief <prd> [--role <role>] [--as <id>] [--force]` — `@resources/board/brief.py`: header line, persona line, workflow block, the role's brief from `@references/parts/workers.md` with the placeholders filled; the role follows the state, `--role` overrides. `brief --consult <id> --question "<q>" [--transcript <path>]` is the consultant's | `pearde brief` |
-| sweep the stale claims       | `sweep [--apply]` — every claim silent past `claim-ttl` (@references/settings.md), one line each with what `--apply` does: `analyzing → open`, `claimed → failed` with `## Failure` written; never a claim `prds/.round.md` names, never an analyst whose specs are on disk. Loop step 1, once per session | `pearde sweep` |
-| a board, registered and planned| `init` | `pearde init` |
-| the board's settings         | `settings` | `pearde settings` |
+| sweep the stale claims       | `sweep [--apply]` — every claim silent past `claim-ttl` (@references/settings.md), one line each with what `--apply` does: `analyzing → open`, `claimed → failed` with `## Failure` written; never a claim `prds/.round.md` names, never an analyst whose specs are on disk. Loop step 1, once per session | `pearde sweep [--dry]` |
+| a board, registered and planned| `init` | `pearde init [--dry]` |
+| the board's settings         | `settings` | `pearde settings [--dry]` |
 | the vision and its axis      | `vision` | `pearde vision` |
 
 The Command column is the line @resources/pearde.py answers. A `—` is a
-handle the round answers by hand, with no command behind it.
+handle the round answers by hand, with no command behind it. `[--dry]` marks
+a command that writes: with it, the command prints the line the real run
+would print, `dry ·` in front, then `would write:` and every path, and
+writes nothing. A flag a command does not declare is refused before the
+board is read — `unknown flag --dyr — release takes: --as, --board, --dry`,
+exit 2 — and `pearde <cmd> --help` prints that same list.
 
 - `add` is the user asking, so `origin: requested`. Only the orchestrator
   writes `origin: derived`, and only with `from:` — @references/parts/derived.md

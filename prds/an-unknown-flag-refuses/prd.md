@@ -1,10 +1,10 @@
 ---
-state: analyzing
+state: done
 origin: derived
+actual: 1.6h
 from: a-parked-prd-comes-back
-claim: analyst-an-unknown-flag-refuses 2026-08-29 11:12
 priority: 66
-complexity: 0
+complexity: 36
 blast-radius: high
 repo: pearde
 workflow: probe-then-spec
@@ -16,13 +16,14 @@ footprint:
   - resources/board/init.py
   - resources/pearde.py
   - references/parts/handles.md
+  - prds/the-board-runs-itself/init-asks-nothing/probe/verify.sh
 ---
 
 # an-unknown-flag-refuses — a state-moving command with a flag it does not know writes nothing, and `--dry` is real on every one of them
 
 When this is done, `pearde release <prd> open --dry` prints the transition
 it would make and moves nothing; `pearde release <prd> open --dyr` prints
-`unknown flag --dyr — release takes: --as, --force, --dry` and exits 2 with
+`unknown flag --dyr — release takes: --as, --board, --dry` and exits 2 with
 nothing written; and every other command that moves state or commits does
 the same.
 

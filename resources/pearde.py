@@ -3,7 +3,7 @@
 
     pearde                    the board on one page — the same as `scan`
     pearde <cmd> [args…]      one command; the board argument is optional everywhere
-    pearde <cmd> --help       that command's line, exit 0
+    pearde <cmd> --help       that command's line and the flags it takes, exit 0
     pearde help               one line per command
 
 A dispatcher, not a home. No logic lives here: each name forwards to the
@@ -15,8 +15,10 @@ nearest `prds/` walking up from the working directory.
 Discovery. Every `resources/board/*.py` that exposes
 `COMMANDS = {"<name>": <callable>}` is imported and its names are routed. A
 callable takes the argument list after the name and returns the exit code
-(`None` reads as 0); its docstring's first line is the `help` line. A child
-adds a module; nothing edits this file. A name two modules claim, or a name
+(`None` reads as 0); its docstring's first line is the `help` line, and its
+`flags` attribute — the declaration @resources/board/transitions.py `Args`
+parses — is the `takes:` line under `--help`, so the two cannot drift. A
+child adds a module; nothing edits this file. A name two modules claim, or a name
 this file already forwards, is refused: `help` prints the clash and exits 1,
 and `doctor` reports that under `skills`.
 
@@ -323,9 +325,13 @@ def main(argv):
     for p in problems:
         print(f"pearde: {p}", file=sys.stderr)
     if name in found:
-        if rest[:1] == ["--help"]:
+        if "--help" in rest or rest[:1] == ["-h"]:
+            fn = found[name][1]
             print(fit(f"pearde {name}",
-                      (found[name][1].__doc__ or "").strip().split("\n")[0]))
+                      (fn.__doc__ or "").strip().split("\n")[0]))
+            flags = getattr(fn, "flags", None)
+            if flags:
+                print(f"  takes: {flags}")
             return 0
         rc = found[name][1](rest)
         return 0 if rc is None else int(rc)

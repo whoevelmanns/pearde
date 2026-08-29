@@ -352,26 +352,19 @@ def brief_consult(args, out=print):
 
 # ── the surface ───────────────────────────────────────────────────────────────
 
-class Args:
-    VALUED = ("board", "as", "role", "consult", "question", "transcript")
-
-    def __init__(self, argv):
-        self.pos, self.opt, self.flags = [], {}, set()
-        it = iter(argv)
-        for a in it:
-            if a.startswith("--") and len(a) > 2:
-                k, eq, v = a[2:].partition("=")
-                if k in self.VALUED:
-                    self.opt[k] = v if eq else next(it, "")
-                else:
-                    self.flags.add(k)
-            else:
-                self.pos.append(a)
+# The declaration — transitions.py `Args` is the parser. No `--dry`: brief
+# writes nothing.
+FLAGS = trlib.Flags(("as", "board", "role", "consult", "question",
+                     "transcript"), ("force", "check"))
 
 
 def cmd_brief(argv):
     """the worker's brief for one PRD, or a consultant's — one command's output"""
-    args = Args(argv)
+    try:
+        args = trlib.Args(argv, FLAGS, "brief")     # before any read
+    except trlib.FlagRefused as e:
+        print(f"pearde brief: {e}", file=sys.stderr)
+        return 2
     if "check" in args.flags:
         bad = check()
         if bad:
@@ -388,6 +381,7 @@ def cmd_brief(argv):
         return int(e.code) if isinstance(e.code, int) else 2
 
 
+cmd_brief.flags = FLAGS         # what `pearde brief --help` prints
 COMMANDS = {"brief": cmd_brief}
 
 

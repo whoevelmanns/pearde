@@ -162,7 +162,7 @@ OUT="$( cd "$D" && python3 "$PEARDE" init 2>&1 )"
 eq  "F an existing .gitignore keeps its lines" "$(head -1 "$D/.gitignore")" "node_modules"
 eq  "F ...and gains the four" "$(grep -c '^prds/\.' "$D/.gitignore")" "4"
 OUT="$( cd "$D" && python3 "$PEARDE" init --bogus 2>&1 )"; RC=$?
-eq  "F an unknown flag is refused" "$RC" "1"
+eq  "F an unknown flag is refused" "$RC" "2"
 
 # ── G. the dispatcher ────────────────────────────────────────────────────────
 echo "G. pearde.py discovers init and settings"

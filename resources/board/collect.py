@@ -77,9 +77,12 @@ import transitions as translib  # noqa: E402 — the one printer of the line
 HISTORY_FILE = translib.TRANSITIONS_FILE   # the transition log, never the daemon's burn-down
 CLAIMS_DIR = ".claims"
 RIDERS_FILE = "riders"
-FLAGS = {"--dry", "--fail", "--trust"}
-VALUED = {"--also", "--also-note", "--as", "--board", "--widen",
-          "--snapshot"}
+# The declaration — transitions.py `Args` is the parser, shared with every
+# command pearde.py discovers; an undeclared flag is refused with this list,
+# exit 2, before the board is read.
+FLAGS = translib.Flags(("as", "board", "also", "also-note", "widen",
+                        "snapshot"), ("dry", "fail", "trust"),
+                       multi=("also", "widen"))
 HELD = ("analyzing", "claimed", "blocked")
 
 
@@ -91,25 +94,15 @@ class Stop(Exception):
 # ── argv ──────────────────────────────────────────────────────────────────────
 
 def parse_args(argv):
-    opts = {"prds": [], "also": [], "widen": [], "also_note": "",
-            "as": "engineer", "board": None, "snapshot": None}
-    it = iter(argv)
-    for a in it:
-        if a in FLAGS:
-            opts[a[2:]] = True
-        elif a in VALUED:
-            try:
-                v = next(it)
-            except StopIteration:
-                raise Stop(f"{a} needs a value")
-            if a in ("--also", "--widen"):
-                opts[a[2:]].append(v)
-            else:
-                opts[a[2:].replace("-", "_")] = v
-        elif a.startswith("--"):
-            raise Stop(f"unknown flag {a}")
-        else:
-            opts["prds"].append(a.strip("/"))
+    a = translib.Args(argv, FLAGS, "collect")     # FlagRefused → exit 2
+    opts = {"prds": [x.strip("/") for x in a.pos],
+            "also": a.opt.get("also", []), "widen": a.opt.get("widen", []),
+            "also_note": a.opt.get("also-note", ""),
+            "as": a.opt.get("as", "engineer"), "board": a.opt.get("board"),
+            "snapshot": a.opt.get("snapshot")}
+    for k in ("dry", "fail", "trust"):
+        if k in a.flags:
+            opts[k] = True
     if opts["also"] and not opts["also_note"]:
         raise Stop("--also needs --also-note — the message names what the "
                    "run taught")
@@ -608,6 +601,21 @@ def progress_line(board, rel, frm, to, persona, extra=""):
     return f"{head} · {extra} · as {tail}"
 
 
+def dry_line(board, prds, rel, prd, persona, paths, out=print):
+    """The `dry ·` line every writer prints — the progress line the real
+    run would print, on the scan with this PRD moved to `done`. The commit
+    shas the real line carries do not exist yet, so `commit` and `record`
+    are not on it; `round file owed` is."""
+    frm = prd["state"]
+    prd["state"] = prd["fm"]["state"] = "done"
+    prd["fm"].pop("claim", None)
+    line = translib.dry_line(board, prds, rel, frm, "done", persona)
+    head, _, tail = line.rpartition(" · as ")
+    translib.say_dry(board, f"{head} · round file owed · as {tail}",
+                     paths + [os.path.join(prd["board_path"], HISTORY_FILE)],
+                     out)
+
+
 def history_row(board, rel, frm, to, now):
     row = {"t": now.strftime("%Y-%m-%d %H:%M"), "prd": rel, "from": frm,
            "to": to}
@@ -849,6 +857,7 @@ def collect_one(board, rel, opts, out=print):
                     f"claim cleared, in this commit; commit: in a second, "
                     f"`{prd['name']} — record`")
         out("  message:\n    " + message.rstrip().replace("\n", "\n    "))
+        dry_line(board, prds, rel, prd, opts["as"], [pmd], out)
         out(f"{rel}: dry — nothing written")
         return 0
     # stage every repo first: a refusal here has written nothing yet
@@ -996,6 +1005,7 @@ def close_container(board, rel, prd, prds, board_root, opts, now, out=print):
         out(f"  would add: {prd_rel}/prd.md")
         out(f"  record:    state: done · actual: {actual} · commit: {sha}")
         out("  message:\n    " + message.rstrip().replace("\n", "\n    "))
+        dry_line(board, prds, rel, prd, opts["as"], [pmd], out)
         out(f"{rel}: dry — nothing written")
         return 0
     with open(pmd, encoding="utf-8") as f:
@@ -1030,7 +1040,7 @@ def cmd_collect(argv, board=None):
     was collected, 1 when any stopped, 2 on usage."""
     try:
         opts = parse_args(argv)
-    except Stop as e:
+    except (Stop, translib.FlagRefused) as e:
         print(f"collect: {e}", file=sys.stderr)
         return 2
     board = planlib.find_board(opts["board"] or board)
@@ -1064,6 +1074,7 @@ def cmd_collect(argv, board=None):
     return worst
 
 
+cmd_collect.flags = FLAGS       # what `pearde collect --help` prints
 COMMANDS = {"collect": cmd_collect}
 
 
