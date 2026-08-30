@@ -158,6 +158,18 @@ function heldFor(t) {
 }
 
 let tasks = [], byRel = new Map(), ALL = [], allByRel = new Map(), HIST = [];
+const STARTING = new Set();  // prd rel → a Start click this page is waiting on
+let ADAPTERS = [];  // [{id, name}] — which launch targets the daemon has configured
+// A mousedown on the Start button still lets the browser promote the .card
+// ancestor as the HTML5 drag source — `draggable="false"` on the button only
+// opts the button itself out, it does not stop Blink's hit-test from walking
+// up to the nearest draggable=true ancestor and dragging THAT instead. This
+// flag is the actual guard: set true for the duration of a mousedown that
+// started on .start, checked (and cleared) in the card's own dragstart, and
+// cleared unconditionally on any mouseup so a later, real drag elsewhere on
+// the card is never left blocked by a stale flag from an earlier click.
+let startBtnDown = false;
+document.addEventListener("mouseup", () => { startBtnDown = false; }, true);
 function hydrate() {
   CPM = DATA.cpm;
   CAL = DATA.calib;
@@ -170,6 +182,12 @@ function hydrate() {
   ALL = DATA.all || [];
   allByRel = new Map(ALL.map(r => [r.rel, r]));
   HIST = DATA.history || [];
+  // a Start click's wait is over once the round it launched has actually
+  // claimed the PRD — gone from the board, or moved off `open` — so a later
+  // retry that reopens the same PRD is not still held by the old click
+  for (const rel of STARTING)
+    if (!allByRel.has(rel) || allByRel.get(rel).state !== "open")
+      STARTING.delete(rel);
 }
 hydrate();
 
@@ -2385,6 +2403,53 @@ $("dgo").onclick = saveDrawer;
 $("drevert").onclick = () => { dDirty = false; drawBody();
                                $("dmsg").textContent = "reverted"; };
 
+/* The Start button, on an `open` card. There is no session already running
+   this board — clicking launches one: `POST /run` has the daemon spawn the
+   chosen adapter's command (its own agent, its own prompt template — see
+   resources/board/adapters/*.json), detached, in the repo root. It does
+   not write `state:` itself; that round writes its own the moment it picks
+   the PRD up, and the live swap already running on this page shows the card
+   move on its own within about a second. STARTING only guards the gap
+   between the click and that write — the daemon's own /run has the same
+   guard server-side, so a second tab clicking the same card is refused too. */
+async function startPrd(rel, adapterId) {
+  if (!SERVED || STARTING.has(rel)) return;
+  STARTING.add(rel); drawBoard();
+  try {
+    const r = await fetch(API + "/run", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({board: BOARD_KEY, prd: rel, adapter: adapterId})});
+    const out = await r.json();
+    if (!r.ok || out.error) throw new Error(out.error || "failed to start");
+    toast("Started — " + rel.split("/").pop());
+  } catch (e) {
+    toast("Not started — " + e.message, true);
+    STARTING.delete(rel); drawBoard();
+    return;
+  }
+  // left in STARTING until the state itself moves off `open` — a click that
+  // launched successfully should not offer a second one before the round has
+  // even had the chance to claim it
+}
+
+/* Which launch targets the daemon has configured — read once at boot, not
+   re-polled: adapters are a machine-wide config file set, not board data,
+   and changing one is rare enough that a page reload (which a code change
+   to this very file already triggers) is an acceptable way to pick it up.
+   Empty on a plain fetch failure or an unserved page — the Start button's
+   own `ADAPTERS.length > 0` check then simply never renders it, same as
+   today's behavior on an unserved static export. */
+async function loadAdapters() {
+  if (!SERVED) return;
+  try {
+    const r = await fetch(API + "/adapters");
+    ADAPTERS = r.ok ? await r.json() : [];
+  } catch {
+    ADAPTERS = [];
+  }
+  if (ADAPTERS.length) drawBoard();
+}
+
 async function save(rel, payload) {
   if (!SERVED) return {error: "no daemon — this file is read-only"};
   try {
@@ -2497,16 +2562,42 @@ class PeardeBoard extends LitElement {
 
   card(r) {
     const t = byRel.get(r.rel);
+    const starting = STARTING.has(r.rel);
     return html`<div class="card" draggable=${this.served} data-rel=${r.rel}
       @click=${() => { const x2 = taskFor(r.rel); if (x2) openDrawer(x2); }}
-      @dragstart=${e => { e.dataTransfer.setData("text/plain", r.rel);
+      @dragstart=${e => { if (startBtnDown) { e.preventDefault(); return; }
+                          e.dataTransfer.setData("text/plain", r.rel);
                           e.currentTarget.classList.add("drag"); }}
       @dragend=${e => e.currentTarget.classList.remove("drag")}
       ><div class="t">${t && t.critical ? html`<span class="star">★ </span>` : ""
       }${r.title || r.name}</div><div class="m">${
         r.board ? html`<span class="chip">${r.board}</span>` : ""
       }<span>p${r.prio}</span>${
-        r.weight ? html`<span>${fmtW(r.weight)}</span>` : ""}</div></div>`;
+        r.weight ? html`<span>${fmtW(r.weight)}</span>` : ""}${
+        this.served && r.state === "open" && ADAPTERS.length === 1 ? html`<button class="start"
+          draggable="false" ?disabled=${starting}
+          title="run this PRD's round now, with ${ADAPTERS[0].name}"
+          @mousedown=${e => { startBtnDown = true; e.stopPropagation(); }}
+          @click=${e => { e.stopPropagation(); startPrd(r.rel, ADAPTERS[0].id); }}
+          >${starting ? "starting…" : "▶ start"}</button>` : ""
+      }${
+        // 2+ adapters configured: the button becomes a native <select> — one
+        // click opens it, picking an option fires the same startPrd() the
+        // single-adapter button does. No custom popup: a <select> is already
+        // keyboard-navigable and dismisses itself, and mousedown/click still
+        // need the same startBtnDown guard as the button (see its own
+        // comment above) since it sits in the same draggable card.
+        this.served && r.state === "open" && ADAPTERS.length > 1 ? html`<select class="start"
+          ?disabled=${starting}
+          title="run this PRD's round now — pick which agent"
+          @mousedown=${e => { startBtnDown = true; e.stopPropagation(); }}
+          @click=${e => e.stopPropagation()}
+          @change=${e => { e.stopPropagation(); const id = e.target.value;
+                            e.target.value = ""; if (id) startPrd(r.rel, id); }}
+          ><option value="">${starting ? "starting…" : "▶ start…"}</option>${
+            ADAPTERS.map(a => html`<option value=${a.id}>${a.name}</option>`)
+          }</select>` : ""
+      }</div></div>`;
   }
 
   column(st, rowsIn) {
@@ -3169,3 +3260,4 @@ setInterval(() => {
   if (mode === "dates" || tasks.some(t => t.held)) draw();
 }, 60000);
 if (SERVED) setInterval(refresh, 90000);   // a floor under the live loop
+loadAdapters();

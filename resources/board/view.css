@@ -551,6 +551,11 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
   font-size:11px;font-variant-numeric:tabular-nums;align-items:center}
 .card .m .chip{background:var(--fill);border-radius:var(--r-xs);padding:0 5px}
 .card .star{color:var(--ink)}
+.card .m .start{margin-left:auto;background:var(--accent);color:var(--accent-ink);
+  border:none;border-radius:var(--r-xs);padding:2px 7px;font:600 10px/1.5
+  -apple-system,system-ui,sans-serif;cursor:pointer}
+.card .m .start:hover{opacity:.86}
+.card .m .start:disabled{opacity:.5;cursor:default}
 
 /* ── list ───────────────────────────────────────────────────────────────── */
 #listbar{display:flex;gap:8px;align-items:center;margin:0 2px 10px;
