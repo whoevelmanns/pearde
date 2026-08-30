@@ -39,3 +39,19 @@ contracts	topic:design-by-contract stars:>300
 formal	topic:formal-methods stars:>1000
 tla	topic:tla-plus stars:>200
 fuzzing	topic:fuzzing stars:>2000
+
+# The support model — a small model that knows one tree and rides beside a
+# frontier LLM. Added 2026-08-28 for `model`; see findings.md "give a general
+# LLM knowledge of one tree it never saw". Never swept yet: the first sweep
+# that includes these is a baseline, not a measurement.
+# `smallmodel` was `topic:small-language-model stars:>800` on the 08-28 sweep
+# and returned ONE row — too narrow to be a measurement. Split into the two
+# topics that are actually populated, and corrected the same day.
+smallmodel	topic:slm stars:>500
+ondevice	topic:on-device-ai stars:>500
+localllm	topic:local-llm stars:>1000
+distill	topic:knowledge-distillation stars:>1000
+finetune	topic:fine-tuning stars:>2000
+evals	topic:llm-evaluation stars:>2000
+rag	topic:rag stars:>3000
+memory	topic:llm-memory stars:>1000

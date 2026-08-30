@@ -27,6 +27,7 @@ Anything that has no answer yet goes to [Open](#open) — a queue, not a gap.
 | star momentum for a repo we do not own | our own snapshots (`scout.sh delta`) | github api · ossinsight · star-history | 2026-08-26 | strong |
 | a page as text an agent can hold | `r.jina.ai` | one route only | 2026-08-26 | weak |
 | one widget API → terminal + web + native desktop | no single framework; `ratatui`+`ratzilla` (Rust) or `Textual`+`textual-web` (Python), each terminal-native and reusing the app on Win/Linux/macOS | gh stars · crates/pypi downloads · last-push cadence | 2026-08-27 | strong (as a rejection) |
+| train and run a small model inside a Rust harness | `candle` | crates recent-dl · gh stars+state · scorecard · osv | 2026-08-28 | strong |
 
 ## Findings
 
@@ -160,6 +161,54 @@ capability checks for the Python one — neither needed inventing.
 or a new project entering the `gh` sweep claiming all three surfaces from one
 widget tree — none found in this pass.
 
+### train and run a small model inside a Rust harness
+
+**Pick** `candle`. **Beats** `ort`, `tch`, `burn`, `mistral.rs`,
+`llama-cpp-2`. Confirms the choice `model` already made rather than changing
+it — the point of measuring was that it had never been measured.
+
+| runtime | crates recent | crates all-time | gh ★ | last push | open issues | scorecard | osv |
+|---|---|---|---|---|---|---|---|
+| `ort` (ONNX Runtime) | 6,417,581 | 16,840,565 | 2,477 | 0d | 2 | — | clean |
+| `candle-core` | 2,607,833 | 7,417,363 | 20,964 | 4d | 890 | — | clean |
+| `tch` (libtorch) | 1,552,628 | 6,737,595 | 5,480 | 4d | 248 | 3.2 | clean |
+| `llama-cpp-2` | 583,877 | 1,144,115 | 639 | 0d | 51 | — | clean |
+| `burn-core` | 385,958 | 1,290,008 | 15,826 | 0d | 302 | — | clean |
+| `mistralrs-core` | 151,600 | 199,746 | 7,632 | 0d | 384 | — | clean |
+
+**Why** the axes disagree loudly, and the disagreement is the finding. `ort`
+leads installs by 2.5× over `candle` on an eighth of the stars — the signature
+of a library embedded inside other people's tools rather than built on
+directly. It is also **inference-only**: an ONNX Runtime wrapper cannot run
+`apply_gradient`, which is half of this tree's `Node` trait, so its install
+lead is measuring a job we are not doing. `tch` can train and has the deepest
+all-time installs of the trainers, and loses on the thing the numbers do not
+show: it links libtorch, which is a C++ toolchain and a multi-gigabyte artifact
+inside a tree whose whole packaging discipline is a single Rust binary. `burn`
+is the real rival — comparable stars, pushed daily, a genuinely better backend
+story via CubeCL — and loses only on installs, 6.8× behind `candle`, which for
+a framework you build *on* is the axis that matters. `mistral.rs` and
+`llama-cpp-2` are serving runtimes for models someone else trained; they answer
+a different job (see Open).
+
+**Overturned by** the training half moving off-device, which deletes every
+reason `candle` beat `ort`; or `burn` closing the install gap while holding its
+cadence, at which point CubeCL's multi-backend story is the stronger position
+and the only cost is a port.
+
+**Route gotcha** `route.sh crates` is a *fuzzy* search ranked by downloads, so a
+short query name is swamped by unrelated crates that outrank it — `tch`, `ort`,
+`burn` and `tokenizers` each returned pages of noise before the crate itself.
+Query a distinctive substring (`onnxruntime` finds `ort`; `burn-core` finds
+`burn`) and read the description column to confirm identity. A "not found" from
+this route usually means the query was too short.
+
+**Hygiene axis is thin here and says so.** Five of the six have no OpenSSF
+scorecard at all; only `tch` is in the dataset, at 3.2, with `Code-Review` and
+`Token-Permissions` both 0. That is not evidence `candle` is safer — it is
+evidence the ML-in-Rust corner is largely outside the hygiene ecosystem, and
+the `deny.toml` gate is carrying that risk alone.
+
 ## Open
 
 Jobs asked, not yet measured. A row leaves this table only as a finding above.
@@ -171,6 +220,10 @@ Jobs asked, not yet measured. A row leaves this table only as a finding above.
 | embedding model for local retrieval | `models` downloads, licence, dimensions, RAM | `models` ranks by downloads, which is the weakest axis in this file |
 | TUI framework, Rust | `gh` stars · `crates` recent downloads · `depsdev` cadence | picked once, lived with for years |
 | MCP servers worth wiring in | `mcp` census · `gh` stars · `scorecard` | the registry is self-serve, so it is unfiltered by construction |
+| give a general LLM knowledge of one tree it never saw | gap vs a general-model arm on a human-authored question set · retrieval baseline on the same set | the whole thesis of `model`'s support role; the RAG arm is the control it must beat, and it is currently unmeasured |
+| structured vs unstructured model on a few-MB corpus | held-out accuracy at equal params and equal compute | `encode-the-bias-we-have` is decided on an argument, with no reading behind it |
+| serving runtime for a small model beside a harness | `crates` recent-dl · `docker` pulls · startup latency · resident memory | a different job from training, and `mistral.rs` / `llama-cpp-2` were rejected above only for training, not for this |
+| detecting that a trained model has gone stale against its source tree | corpus-hash drift · answer disagreement with current files | named as the killing risk in `the-support-model-knows-the-harness` and nothing measures it |
 
 ## Maintenance
 
