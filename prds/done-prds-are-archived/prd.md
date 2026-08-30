@@ -52,6 +52,17 @@ flow `retry` uses when it reaches into the archive.
 - `@references/parts/view.md` — the six views and the `⌘1–6` switcher the
   archive tab joins; the seams/replace mechanism, if the tab is built as one.
 
+## Delivery — deviates from @references/parts/commits.md
+
+- This PRD's code lands on its own branch, `done-prds-are-archived`, never
+  committed to `main` directly — unlike every other PRD on this board.
+- No push, no PR, until the user has reviewed and accepted the work.
+- After acceptance: the orchestrator pushes the branch and opens a PR against
+  `main`. `commits.md`'s "never push" is the default for the board; this PRD
+  is the named exception.
+- The PRD file itself (this file, its specs) stays on `main` as always — only
+  the code this PRD produces moves through the branch and the PR.
+
 ## Questions
 
 ### Q1: Where does an archived PRD live?
