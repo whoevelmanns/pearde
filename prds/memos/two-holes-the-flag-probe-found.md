@@ -1,7 +1,7 @@
 ---
 memo: two-holes-the-flag-probe-found
 kind: note
-status: open
+status: decided
 subject: collect defaults the persona silently where every transition refuses, and `set --force` leaves a stale `claim:`
 date: 2026-08-29
 prds:

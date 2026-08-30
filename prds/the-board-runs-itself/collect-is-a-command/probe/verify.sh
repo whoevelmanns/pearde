@@ -129,7 +129,7 @@ work() {
   echo hello > "$D/src/lib.txt"
   sed -i '' 's/- \[ \] `src/- [x] `src/' "$D/prds/finished/specs/spec01.md"
 }
-run() { ( cd "$D" && python3 "$COLLECT" --board "$D/prds" "$@" ) 2>&1; }
+run() { ( cd "$D" && PEARDE_AS=engineer python3 "$COLLECT" --board "$D/prds" "$@" ) 2>&1; }
 ncommits() { ( cd "$D" && git rev-list --count HEAD ); }
 paths()    { ( cd "$D" && git show --name-only --format= "${1:-HEAD~1}" | sort | tr '\n' ' ' ); }   # HEAD~1: the code commit; HEAD is `<prd> — record`
 fm()       { grep -m1 "^$2:" "$D/prds/$1/prd.md" | sed "s/^$2: *//"; }
@@ -419,7 +419,7 @@ has "R ## Report is in prd.md" "$(cat "$D/prds/finished/prd.md")" "## Report"
 has "R ## Report holds the verify's exit" "$(sed -n '/^## Report/,$p' "$D/prds/finished/prd.md")" "spec01: exit 0"
 eq  "R done" "$(fm finished state)" "done"
 has "R the daemon knows the fixture" "$(python3 "$SRV/board/serve.py" status 2>&1)" "$D/prds"
-python3 "$SRV/board/serve.py" stop >/dev/null 2>&1
+PEARDE_PORT="$SPARE" python3 "$SRV/board/serve.py" stop >/dev/null 2>&1
 export PEARDE_PORT=1
 eq  "R the real registry is untouched" "$( [ -f "$REG" ] && cksum < "$REG" )" "$REG_BEFORE"
 eq  "R the copy's registry never learned the fixture" "$(tr -d '[:space:]' < "$SRV/board/state/serve.json" 2>/dev/null)" "[]"

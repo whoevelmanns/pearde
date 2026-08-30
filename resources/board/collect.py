@@ -95,11 +95,15 @@ class Stop(Exception):
 
 def parse_args(argv):
     a = translib.Args(argv, FLAGS, "collect")     # FlagRefused → exit 2
+    # the persona the way every transition resolves it — `--as`, else
+    # PEARDE_AS, else the one refusal transitions.py raises: collect's line
+    # is the record of who acted, and a default would write it unasked
+    persona = (a.opt.get("as") or os.environ.get("PEARDE_AS", "")).strip()
     opts = {"prds": [x.strip("/") for x in a.pos],
             "also": a.opt.get("also", []), "widen": a.opt.get("widen", []),
             "also_note": a.opt.get("also-note", ""),
-            "as": a.opt.get("as", "engineer"), "board": a.opt.get("board"),
-            "snapshot": a.opt.get("snapshot")}
+            "as": persona or translib.persona_default("collect"),
+            "board": a.opt.get("board"), "snapshot": a.opt.get("snapshot")}
     for k in ("dry", "fail", "trust"):
         if k in a.flags:
             opts[k] = True
@@ -231,13 +235,82 @@ def run(cmd, cwd, script=None):
     return r.returncode, r.stdout + r.stderr
 
 
-def git_out(root, *args, input=None):
+# ── the private index ─────────────────────────────────────────────────────────
+# The checkout's index is shared by every session in it, and `git commit`
+# commits the whole index — so a landing carried whatever a sibling had
+# staged. collect builds its commits in an index of its own: `read-tree HEAD`
+# into a scratch file, its own `add` / `update-index` there, `write-tree`,
+# `commit-tree`, and `update-ref <ref> <new> <expected-old>` — refused when a
+# sibling moved HEAD in between. The one write to the shared index is
+# path-scoped, after the ref moved: `reset -q -- <the paths committed>`, so
+# their entries read HEAD's blob — left stale, a sibling's next plain
+# `git commit` would carry the old blob and revert the landing.
+INDEX = {}                      # root → the scratch index while one is open
+BASE = {}                       # root → the HEAD that index was read from
+
+
+def git_out(root, *args, input=None, shared=False):
+    env = None
+    if root in INDEX and not shared:
+        env = dict(os.environ, GIT_INDEX_FILE=INDEX[root])
     r = subprocess.run(("git", "-C", root) + args, capture_output=True,
-                       text=True, input=input)
+                       text=True, input=input, env=env)
     if r.returncode != 0:
         raise Stop(f"git {args[0]} failed in {root}: "
                    f"{(r.stderr or r.stdout).strip()}")
     return r.stdout
+
+
+class private_index:
+    """`with private_index(roots):` — every `git_out` on those roots reads
+    and writes a scratch index seeded from HEAD, dropped on exit."""
+
+    def __init__(self, roots):
+        self.roots, self.dir = list(roots), None
+
+    def __enter__(self):
+        self.dir = tempfile.mkdtemp(prefix="pearde-index-")
+        for i, root in enumerate(self.roots):
+            INDEX[root] = os.path.join(self.dir, f"index-{i}")
+            BASE[root] = git_out(root, "rev-parse", "HEAD").strip()
+            git_out(root, "read-tree", BASE[root])
+        return self
+
+    def __exit__(self, *exc):
+        for root in self.roots:
+            INDEX.pop(root, None)
+            BASE.pop(root, None)
+        shutil.rmtree(self.dir, ignore_errors=True)
+        return False
+
+
+def commit_private(root, message):
+    """The private index as one commit on the current branch: write-tree,
+    commit-tree on the HEAD the index was read from, update-ref expecting
+    that same HEAD — one a sibling moved meanwhile is a Stop, nothing
+    written, since the tree was built without their commit. Returns the
+    short sha; the next commit in the same index follows this one."""
+    old = BASE[root]
+    tree = git_out(root, "write-tree").strip()
+    new = git_out(root, "commit-tree", tree, "-p", old, input=message).strip()
+    r = subprocess.run(["git", "-C", root, "symbolic-ref", "-q", "HEAD"],
+                       capture_output=True, text=True)
+    ref = r.stdout.strip() if r.returncode == 0 else "HEAD"
+    r = subprocess.run(["git", "-C", root, "update-ref", ref, new, old],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        raise Stop(f"HEAD moved under collect in {root} — another session "
+                   f"committed; nothing written, run collect again: "
+                   f"{(r.stderr or r.stdout).strip()}")
+    BASE[root] = new
+    return new[:7]
+
+
+def settle_shared(root, paths):
+    """After the ref moved: the shared index's entries for the paths just
+    committed now read HEAD's blob — the one path-scoped write to it."""
+    if paths:
+        git_out(root, "reset", "-q", "--", *paths, shared=True)
 
 
 def dirty_paths(root):
@@ -860,9 +933,14 @@ def collect_one(board, rel, opts, out=print):
         dry_line(board, prds, rel, prd, opts["as"], [pmd], out)
         out(f"{rel}: dry — nothing written")
         return 0
-    # stage every repo first: a refusal here has written nothing yet
+    # stage every repo first, each in an index of its own: a refusal here
+    # has written nothing anywhere
     said, staged_roots = [], []
-    for root, p in plan.items():
+    roots = [r_ for r_, p in plan.items() if p["add"] or p["partial"]]
+    if board_root not in roots:
+        roots.append(board_root)
+    with private_index(roots):
+      for root, p in plan.items():
         if not p["add"] and not p["partial"]:
             continue
         staged_roots.append(root)
@@ -875,11 +953,8 @@ def collect_one(board, rel, opts, out=print):
                   for path, (_, foreign) in p["partial"].items()}
         refusals = placement_refusals(root, p["partial"], staged)
         if refusals:
-            for r_ in staged_roots:
-                git_out(r_, "reset", "-q", "--", *plan[r_]["add"],
-                        *plan[r_]["partial"])
             out(f"{rel}: staged by hunk and refused — nothing committed, "
-                f"the index put back:")
+                f"nothing staged:")
             for x in refusals:
                 out(f"  {x}")
             raise Stop(f"{rel}: {len(refusals)} placement refusal(s) in "
@@ -890,53 +965,51 @@ def collect_one(board, rel, opts, out=print):
             said.append("rides " + ", ".join(p["riders"]))
         if p["widened"]:
             said.append("widened " + ", ".join(p["widened"]))
-    if inherited:
+      if inherited:
         said.append(f"inherited {len(inherited)}")
 
-    # the record — every key but `commit:`, and the report, BEFORE the
-    # commit, so the commit carries them; put back whole if the commit fails
-    with open(pmd, encoding="utf-8") as f:
+      # the record — every key but `commit:`, and the report, BEFORE the
+      # commit, so the commit carries them; put back whole if the commit fails
+      with open(pmd, encoding="utf-8") as f:
         before = f.read()
-    hrs = (now - since).total_seconds() / 3600.0 if since else None
-    if hrs is not None:
+      hrs = (now - since).total_seconds() / 3600.0 if since else None
+      if hrs is not None:
         editlib.set_key(pmd, "actual", fmt_hours(max(hrs, 0.0)))
-    editlib.del_key(pmd, "claim")
-    editlib.set_key(pmd, "state", "done")
-    # 6 — the report to the daemon, which appends `## Report` to prd.md
-    text = ("trusted — the verify was not run by collect" if trusted
-            else "\n\n".join(report) or "no `## Verify and Proof` block")
-    posted = post_report(board, rel, text)
-    git_out(board_root, "add", "--", prd_rel)
-    if board_root not in staged_roots:
+      editlib.del_key(pmd, "claim")
+      editlib.set_key(pmd, "state", "done")
+      # 6 — the report to the daemon, which appends `## Report` to prd.md
+      text = ("trusted — the verify was not run by collect" if trusted
+              else "\n\n".join(report) or "no `## Verify and Proof` block")
+      posted = post_report(board, rel, text)
+      git_out(board_root, "add", "--", prd_rel)
+      if board_root not in staged_roots:
         staged_roots.append(board_root)
-    shas = []
-    for root in staged_roots:
-        r = subprocess.run(["git", "-C", root, "commit", "-q", "-F", "-"],
-                           input=message, capture_output=True, text=True)
-        if r.returncode != 0:
+      committed = {r_: list(plan[r_]["add"]) + list(plan[r_]["partial"])
+                   for r_ in staged_roots}
+      committed[board_root].append(prd_rel)
+      shas = []
+      for root in staged_roots:
+        try:
+            shas.append(commit_private(root, message))
+        except Stop as e:
             editlib.write_atomic(pmd, before)
-            for r_ in staged_roots:
-                git_out(r_, "reset", "-q")
             raise Stop(f"{rel}: git commit failed in {root} — the record "
-                       f"put back, nothing written: "
-                       f"{(r.stderr or r.stdout).strip()}")
-        shas.append(git_out(root, "rev-parse", "--short", "HEAD").strip())
-    settle(board, [x for p in plan.values() for x in p["riders"]])
+                       f"put back, nothing written: {e}")
+        settle_shared(root, committed[root])
+      settle(board, [x for p in plan.values() for x in p["riders"]])
 
-    # 5 — `commit:` — the one key that cannot be in the commit it names:
-    # a second, one-key commit right behind, so nothing rides
-    editlib.set_key(pmd, "commit", " ".join(shas))
-    git_out(board_root, "add", "--", os.path.relpath(pmd, board_root))
-    record = subprocess.run(
-        ["git", "-C", board_root, "commit", "-q", "-F", "-"],
-        input=f"{prd['name']} — record\n\nprd: {prd_rel}\n",
-        capture_output=True, text=True)
-    if record.returncode != 0:
+      # 5 — `commit:` — the one key that cannot be in the commit it names:
+      # a second, one-key commit right behind, so nothing rides
+      editlib.set_key(pmd, "commit", " ".join(shas))
+      pmd_rel = os.path.relpath(pmd, board_root)
+      git_out(board_root, "add", "--", pmd_rel)
+      try:
+        said.append("record " + commit_private(
+            board_root, f"{prd['name']} — record\n\nprd: {prd_rel}\n"))
+      except Stop as e:
         raise Stop(f"{rel}: the record commit failed in {board_root} — "
-                   f"`commit:` is written and unstaged: "
-                   f"{(record.stderr or record.stdout).strip()}")
-    said.append("record " + git_out(board_root, "rev-parse", "--short",
-                                    "HEAD").strip())
+                   f"`commit:` is written and unstaged: {e}")
+      settle_shared(board_root, [pmd_rel])
 
     # 7 — the line, the row
     history_row(board, rel, prd["state"], "done", now)
@@ -1016,17 +1089,16 @@ def close_container(board, rel, prd, prds, board_root, opts, now, out=print):
     editlib.set_key(pmd, "state", "done")
     posted = post_report(board, rel, f"{phrase}\n\nchildren: "
                          + ", ".join(c["rel"] for c in kids))
-    git_out(board_root, "add", "--", os.path.relpath(pmd, board_root))
-    r = subprocess.run(["git", "-C", board_root, "commit", "-q", "-F", "-"],
-                       input=message, capture_output=True, text=True)
-    if r.returncode != 0:
-        editlib.write_atomic(pmd, before)
-        git_out(board_root, "reset", "-q", "--",
-                os.path.relpath(pmd, board_root))
-        raise Stop(f"{rel}: git commit failed in {board_root} — the record "
-                   f"put back, nothing written: "
-                   f"{(r.stderr or r.stdout).strip()}")
-    own = git_out(board_root, "rev-parse", "--short", "HEAD").strip()
+    pmd_rel = os.path.relpath(pmd, board_root)
+    with private_index([board_root]):
+        git_out(board_root, "add", "--", pmd_rel)
+        try:
+            own = commit_private(board_root, message)
+        except Stop as e:
+            editlib.write_atomic(pmd, before)
+            raise Stop(f"{rel}: git commit failed in {board_root} — the "
+                       f"record put back, nothing written: {e}")
+        settle_shared(board_root, [pmd_rel])
     history_row(board, rel, prd["state"], "done", now)
     extra = " · ".join([f"container, {len(kids)} children",
                         f"commit {sha}", f"record {own}", posted,
@@ -1043,6 +1115,9 @@ def cmd_collect(argv, board=None):
     except (Stop, translib.FlagRefused) as e:
         print(f"collect: {e}", file=sys.stderr)
         return 2
+    except translib.Refused as e:       # no persona named — exit 1, nothing read
+        print(f"collect: refused — {e}", file=sys.stderr)
+        return 1
     board = planlib.find_board(opts["board"] or board)
     if opts["snapshot"]:
         try:

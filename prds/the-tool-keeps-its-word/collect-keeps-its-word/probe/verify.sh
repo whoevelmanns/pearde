@@ -38,7 +38,7 @@ for f in $(git -C "$ROOT" ls-tree -r --name-only "$PINNED" resources/ | grep '^r
 done
 
 run_old()     { ( cd "$D" && python3 "$OLD/board/collect.py" --board "$D/prds" "$@" ) 2>&1; }
-run()         { ( cd "$D" && python3 "$COLLECT" --board "$D/prds" "$@" ) 2>&1; }
+run()         { ( cd "$D" && PEARDE_AS=engineer python3 "$COLLECT" --board "$D/prds" "$@" ) 2>&1; }
 scan_collect(){ ( cd "$D" && python3 "$ROOT/resources/board/plan.py" scan "$D/prds" 2>/dev/null | sed -n '/^collect/,/^$/p' ); }
 snap()        { run --snapshot "${1:-finished}" > /dev/null; }
 ncommits()    { ( cd "$D" && git rev-list --count HEAD ); }
@@ -318,7 +318,7 @@ has "D report posted" "$(printf '%s\n' "$OUT" | grep '^▸')" "report posted"
 has "D ## Report is in HEAD~1" "$(at HEAD~1 prds/finished/prd.md)" "## Report"
 has "D ...holding the verify's exit" "$(at HEAD~1 prds/finished/prd.md | sed -n '/^## Report/,$p')" "spec01: exit 0"
 eq  "D the folder is clean" "$( cd "$D" && git status --porcelain -- prds/finished )" ""
-python3 "$SRV/board/serve.py" stop >/dev/null 2>&1
+PEARDE_PORT="$SPARE" python3 "$SRV/board/serve.py" stop >/dev/null 2>&1
 export PEARDE_PORT=1
 eq  "D the real registry is untouched" "$( [ -f "$REG" ] && cksum < "$REG" )" "$REG_BEFORE"
 
