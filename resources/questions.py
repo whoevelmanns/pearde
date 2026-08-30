@@ -330,18 +330,39 @@ def check(board):
                                "way to pick")
                 bad.extend(plain(rel, n, q, slugs))
 
+        # A CLOSED PRD'S RECORDED ANSWER IS HISTORY AND IS LEFT ALONE. The
+        # drill's own rule, and the reason this branch is guarded: the six
+        # `## Answers`-without-`## Questions` sections on this board's closed
+        # decision nodes hold real calls — fzf, tinty, odin, shift-select —
+        # taken in conversation and written down afterwards. Reporting them
+        # asks an author either to invent the fork that was never typed, or
+        # to delete the decision. Both are worse than the flag.
+        #
+        # An OPEN node with the same shape is still reported: there the
+        # missing round is a live gap, not a record.
+        closed = state.lower() in CLOSED
         for head, text in ans:
             if not text.strip():
                 bad.append(f"{rel}: `{head}` with nothing under it — "
                            "unanswered reads the same as unasked")
-            elif not any(t.strip() for _h, t in qs):
+            elif not any(t.strip() for _h, t in qs) and not closed:
                 bad.append(f"{rel}: `{head}` with no `## Questions` above it — "
                            "an answer to a question nobody wrote down")
 
-        waiting = state.lower() in WAITING or mode.lower() in WAITING
-        said = f"state `{state}`" if state.lower() in WAITING \
-            else f"mode `{mode}`"
-        if waiting and state.lower() in CLOSED:
+        # `mode:` IS A PROPERTY OF THE WORK, NOT A POSITION IN A QUEUE. The
+        # template defines it as `afk | hitl (needs the human: naming, taste,
+        # money)`, and on a closed node `hitl` stays a TRUE statement: that
+        # work did need a human. Reading it as a state made every finished
+        # hitl node a defect for having been honest about itself — eight of
+        # them on one board — and the only way to green them was to delete
+        # the true label.
+        #
+        # `state:` is still read as a state, because it is one: a PRD parked
+        # in `question` while closed really is a contradiction.
+        waiting_state = state.lower() in WAITING
+        waiting = waiting_state or (mode.lower() in WAITING and not closed)
+        said = f"state `{state}`" if waiting_state else f"mode `{mode}`"
+        if waiting and closed:
             bad.append(f"{rel}: state `{state}` and {said} — a closed PRD that "
                        "still says it is waiting on you; the label outlived "
                        "the work")
