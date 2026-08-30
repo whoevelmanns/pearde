@@ -13,10 +13,16 @@ A board with years of `done` PRDs mixed into `prds/` keeps `scan` reading
 every one of them on every round, and a person opening the tree wades through
 finished work to find what is live.
 
-When this is done: a `done` PRD moves out of the working tree into an archive
-location, on the same commit that sets it `done`. `scan` reads only the
-active tree — counts, sections and the progress line never include an
-archived PRD. History is intact through git; nothing is deleted.
+When this is done: a `done` PRD older than a configurable threshold moves out
+of the working tree into `prds/.archive/`, swept by a separate command that
+runs automatically once per round. `scan` reads only the active tree — counts,
+sections and the progress line never include an archived PRD. History is
+intact through git; nothing is deleted.
+
+A new **archive** tab in the view (@references/parts/view.md) lists every
+archived PRD — name, when it archived, when it was `done`. Picking one moves
+its directory back to the working tree after a confirmation step, the same
+flow `retry` uses when it reaches into the archive.
 
 ## Constraints — what must NOT change
 
@@ -29,6 +35,11 @@ archived PRD. History is intact through git; nothing is deleted.
   PRD is not a gone PRD.
 - `retry` on an archived PRD (@references/parts/handles.md) must still work:
   moving it back to the working tree and reopening it.
+- The archive tab lists, never edits — the only write it triggers is the move
+  back, behind the same confirmation Q4 decided. No other field is editable
+  from that tab.
+- `⌘1–6` and the six existing views (@references/parts/view.md) are
+  unchanged; the archive tab is a seventh, added to the same switcher.
 
 ## Pointers
 
@@ -38,6 +49,8 @@ archived PRD. History is intact through git; nothing is deleted.
 - `@references/parts/commits.md` — what a transition's commit carries.
 - `@references/parts/order.md` — how `plan` and the view order PRDs; an
   archived PRD must not appear on the timeline.
+- `@references/parts/view.md` — the six views and the `⌘1–6` switcher the
+  archive tab joins; the seams/replace mechanism, if the tab is built as one.
 
 ## Questions
 
