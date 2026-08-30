@@ -123,7 +123,7 @@ H0=$(hist)
 OUT=$(run specced big/second --blast mid --workflow "$WF" 2>/dev/null); rc=$?
 check "big/second with 8 and 12 → exit 0"         "[ $rc = 0 ]"
 check "…one progress line"                        "[ \$(wc -l <<<\"\$OUT\") = 1 ]"
-check "…▸ big/second: analyzing → specced"        "grep -q '^▸ big/second: analyzing → specced · asked' <<<\"\$OUT\""
+check "…▸ big/second: analyzing → specced"        "grep -q '^▸ big/second: analyzing → specced · done' <<<\"\$OUT\""
 check "…as engineer last"                         "grep -q ' · as engineer\$' <<<\"\$OUT\""
 check "…ready/blocked/workers terms"              "grep -q ' · ready [0-9]* · blocked [0-9]*.* @1 workers' <<<\"\$OUT\""
 check "state: specced"                            "grep -q '^state: specced' $B/big/second/prd.md"

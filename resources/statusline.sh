@@ -2,7 +2,7 @@
 # pearde statusbar. Wire it as the global status line — @references/install.md.
 #
 # Renders line 1:  <dir> <branch> <*dirty ↑ahead ↓behind> · <model>  — always
-#         line 2:  ▸pearde<⊞b> <ad>/<an> <ap>% · +<dn>d · open <o> <q>% · <persona> · ▸board
+#         line 2:  ▸pearde<⊞b> <rd>/<rn> <rp>% · +<dn>d · open <o> <q>% · <persona> · ▸board
 #
 # Every term on line 2 is defined in @references/parts/progress.md. `⊞b` is the
 # board count, on a master board only — the board plus its members.
@@ -18,7 +18,8 @@
 # absent when no daemon is running. PRD_STATUS_LINK=off renders the label
 # without the escape, for a terminal that shows them raw.
 #
-# It reads three frontmatter keys — `state`, `est`, `origin` — and matches them
+# It reads four frontmatter keys — `state`, `complexity`, `origin`, and `est`
+# as the weight's last fallback — and matches them
 # by name at any indentation. Nested under a parent map reads the same as top
 # level. Every other key is a user extension: never anchor these patterns to
 # column 0.
@@ -101,13 +102,20 @@ if [ -n "$BOARD" ]; then
 fi
 
 if [ -n "$BOARD" ]; then
-  STATS=$(find "${SCAN[@]}" -type f -name prd.md -print0 2>/dev/null | xargs -0 awk '
-    FNR==1 { ph[FILENAME]=0; st[FILENAME]="?"; es[FILENAME]=""; og[FILENAME]="requested" }
+  # `weight-default` from settings.md — the average when no PRD is scored
+  WD=$(awk 'p>=2{exit} /^---[ \t]*$/{p++; next} p==1 && $1=="weight-default:" {v=$2; sub(/#.*/,"",v); print v+0; exit}' "$BOARD/settings.md" 2>/dev/null)
+  STATS=$(find "${SCAN[@]}" -type f \( -name prd.md -o -path '*/specs/*.md' \) -print0 2>/dev/null | xargs -0 awk -v WD="${WD:-0}" '
+    FNR==1 { ph[FILENAME]=0; spec=(FILENAME ~ /\/specs\/[^\/]*\.md$/)
+             if (!spec) { st[FILENAME]="?"; cx[FILENAME]=0; es[FILENAME]=""; og[FILENAME]="requested" } }
     {
       if (ph[FILENAME]>=2) next
       if ($0 ~ /^---[ \t]*$/) { ph[FILENAME]++; next }
       if (ph[FILENAME]==1) {
-        if ($1=="state:") { s=$2; sub(/#.*/,"",s); st[FILENAME]=s }
+        if ($1=="complexity:") { c=$2; sub(/#.*/,"",c); c=c+0
+          if (spec) { d=FILENAME; sub(/\/specs\/[^\/]*\.md$/,"/prd.md",d); sp[d]+=c }
+          else cx[FILENAME]=c }
+        else if (spec) next
+        else if ($1=="state:") { s=$2; sub(/#.*/,"",s); st[FILENAME]=s }
         else if ($1=="est:") { e=$2; sub(/#.*/,"",e); es[FILENAME]=e }
         else if ($1=="origin:") { o=$2; sub(/#.*/,"",o); og[FILENAME]=o }
       }
@@ -126,25 +134,34 @@ if [ -n "$BOARD" ]; then
            || s=="specced" || s=="claimed" || s=="blocked" || s=="failed" \
            || s=="done")
     }
+    # one weight, the one plan.py weight_of uses: `complexity`, else the
+    # specs'"'"' sum, else `est`, else the average of every scored PRD —
+    # `weight-default` when none is scored. @references/parts/progress.md
+    function weight(f,  h) {
+      if (cx[f]>0) return cx[f]
+      if (sp[f]>0) return sp[f]
+      h=hrs(es[f]); if (h>0) return h
+      return avg
+    }
     END {
       # an+ad are the DELIVERABLE — origin: requested. dn is reported beside
       # it and never folded in: one combined percentage cannot answer "how far
       # along are we". See @references/parts/derived.md.
-      n=0; open=0; known=0; ksum=0; an=0; ad=0; dn=0
+      n=0; open=0; scored=0; csum=0; an=0; ad=0; dn=0
+      for (f in st) if (cx[f]>0) { scored++; csum+=cx[f] }
+      avg = (scored>0) ? csum/scored : ((WD>0) ? WD : 50)
       for (f in st) {
         if (!live(st[f])) { delete st[f]; continue }
         n++
         if (st[f]=="open") open++
         if (og[f]=="derived") dn++
         else { an++; if (st[f]=="done") ad++ }
-        h=hrs(es[f]); if (h>=0) { known++; ksum+=h }
       }
       if (n==0) { print "0 0 0 0 0 0" ; exit }
-      avg = (known>0) ? ksum/known : 4
       atot=0; adtot=0
       for (f in st) {
         if (og[f]=="derived") continue
-        h=hrs(es[f]); if (h<0) h=avg
+        h=weight(f)
         atot+=h
         if (st[f]=="done") adtot+=h
       }

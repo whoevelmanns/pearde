@@ -95,7 +95,7 @@ folder therefore adds it to the board. Measured by the `workflow-attach`
 analyst with a fixture at
 `prds/workflows-on-the-board/workflow-attach/probe/fixture-scratch/prd.md`,
 created and removed: the board went from 13 PRDs to 14 and the progress line
-from `asked 5/10 · 51%` to `asked 5/11 · 47%`.
+from `done 5/10 · 51%` to `done 5/11 · 47%`.
 
 So the location rule this PRD writes is necessary but not sufficient. The brief
 has to say the other half too: **fixtures go in a temp dir at run time, never

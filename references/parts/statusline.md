@@ -9,12 +9,12 @@ link to the board:
 
 ```
 <dir> <branch> *<dirty> ↑<ahead> ↓<behind> · <model>
-▸pearde <ad>/<an> <ap>% · +<dn>d · open <o> <q>% · <persona> · ▸board
+▸pearde <rd>/<rn> <rp>% · +<dn>d · open <o> <q>% · <persona> · ▸board
 ```
 
 - Two rows — sharing one pushes the board off a narrow terminal. No board in
   scope, no second row.
-- `<ad>/<an> <ap>%` is requested work only. `+<dn>d` is the derived count,
+- `<rd>/<rn> <rp>%` is requested work only. `+<dn>d` is the derived count,
   suppressed at zero — its job is to stop a derived tree growing unseen.
 - `*<dirty>` is uncommitted entries. `↑`/`↓` is commits against upstream. No
   upstream reads `no-upstream`, not `↑0`.

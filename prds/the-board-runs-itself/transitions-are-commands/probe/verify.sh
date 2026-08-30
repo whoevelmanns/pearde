@@ -71,7 +71,7 @@ check "state is claimed" "$([ "$(state next)" = claimed ]; echo $?)"
 check "claim: impl-1 <now> written" "$(grep -q '^claim: impl-1 20[0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-9][0-9]:[0-9][0-9]$' "$B/next/prd.md"; echo $?)"
 NUM="$(cd "$D" && git diff --numstat prds/next/prd.md | cut -f1,2)"
 check "the diff is two lines written: state changed, claim added (numstat 2 1)" "$([ "$NUM" = "$(printf '2\t1')" ]; echo $?)" "$NUM"
-check "the line opens with the transition" "$([[ "$OUT" == "▸ next: specced → claimed · asked "* ]]; echo $?)" "$OUT"
+check "the line opens with the transition" "$([[ "$OUT" == "▸ next: specced → claimed · done "* ]]; echo $?)" "$OUT"
 check "as <persona> is last" "$([[ "$OUT" == *" · as engineer" ]]; echo $?)" "$OUT"
 check "@<w> workers from settings" "$([[ "$OUT" == *" @2 workers · "* ]]; echo $?)" "$OUT"
 
