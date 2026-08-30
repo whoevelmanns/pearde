@@ -372,19 +372,14 @@ label.lab{color:var(--ink2);font-size:12px}
   opacity:0;pointer-events:none;transition:opacity var(--dur-fast) ease}
 #vrread.on{opacity:1}
 
-/* ── one page, seven sections ─────────────────────────────────────────────
-   Nothing here is hidden. The bar above is anchors, and an anchor that hides
-   what it points at is not a link.
-
-   Status sections scroll open; the three archives — the table of every PRD,
-   the decision records, and the report in full — keep their anchor and their
-   heading and fold their body. Measured, the archives are 2900px of a 5900px
-   page: a reader looking for what is happening would scroll through 28% of
-   the page in memo text to reach the bottom. The PRD's rule is kept — the bar
-   never hides a section, and every one of them is present, headed and
-   reachable — what folds is the body, by the reader's choice, and an anchor
-   into one opens it.                                                        */
-section[data-view]{display:block;margin:0 0 30px;scroll-margin-top:64px}
+/* ── seven views, one at a time ────────────────────────────────────────────
+   The bar is tabs again: one section visible, the rest display:none. The
+   draws still run for every section on the first paint — a hidden section
+   builds its DOM eagerly, so switching to it is instant and the fold is
+   presentation, not a lazy load. The active section is `.on`; setView toggles
+   it, and the URL's #view= names it.                                        */
+section[data-view]{display:none;margin:0;scroll-margin-top:64px}
+section[data-view].on{display:block}
 h2.sect{font-size:11px;font-weight:620;letter-spacing:.07em;
   text-transform:uppercase;color:var(--ink3);margin:0 0 9px;padding-top:5px;
   border-top:.5px solid var(--sep-2)}
@@ -556,7 +551,7 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
   align-items:flex-start}
 .col{flex:0 0 262px;background:var(--content);border:.5px solid var(--sep);
   border-radius:var(--r-lg);display:flex;flex-direction:column;
-  max-height:calc(100vh - 250px);box-shadow:var(--shadow);
+  max-height:calc(100vh - 155px);box-shadow:var(--shadow);
   transition:box-shadow var(--dur-fast) ease,border-color var(--dur-fast) ease,
     flex-basis var(--dur) var(--ease),opacity var(--dur-fast) ease}
 .col.over{border-color:var(--ink3);

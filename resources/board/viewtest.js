@@ -152,36 +152,39 @@ const file = served ? arg : path.resolve(arg);
     ["the inspector exists", r.drawer, ""],
   ];
 
-  // ── one page, seven sections ───────────────────────────────────────────
+  // ── seven views, one at a time ──────────────────────────────────────────
   // The three things this page is, asserted rather than eyeballed: the
-  // sections are in the PRD's order, every one of them has drawn before
-  // anything was clicked, and the page does not scroll sideways on a phone.
+  // sections are in the PRD's order, exactly one is visible on load, every
+  // one of them has drawn before anything was clicked, and the page does not
+  // scroll sideways on a phone.
   const page1 = await page.evaluate(() => {
     const secs = [...document.querySelectorAll("section[data-view]")];
-    const h = e => Math.round(e.getBoundingClientRect().height);
-    const head = s => s.querySelector("h2.sect, details.fold > summary");
     return {
       order: secs.map(s => s.dataset.view),
-      hidden: secs.filter(s => getComputedStyle(s).display === "none")
-                  .map(s => s.dataset.view),
-      // a section that never drew is an empty frame: its own height is its
-      // heading and nothing else. This is the check that would have caught
-      // the one-draw-per-repaint dispatcher.
-      undrawn: secs.filter(s => h(s) <= h(head(s) || s) + 4)
+      // one section visible on load — the timeline — the rest display:none
+      visible: secs.filter(s => getComputedStyle(s).display !== "none")
                    .map(s => s.dataset.view),
-      // and the stronger form: the content is in the DOM even while a fold
-      // is shut, so the fold is presentation and the draw is eager
+      // a section that never drew is an empty frame: its content is missing
+      // from the DOM. Hidden sections measure 0, so this checks the DOM, not
+      // the box — the check that would have caught the one-draw-per-repaint
+      // dispatcher.
       emptyHosts: secs.filter(s => {
         const host = s.querySelector(
           "pearde-board,pearde-list,pearde-memos,pearde-report,#asks,#tiles");
         return host && host.querySelectorAll("*").length === 0;
       }).map(s => s.dataset.view),
+      // the timeline's own content — the legend is DOM, the canvas is
+      // checked separately above
+      timelineDrew: (() => {
+        const t = document.querySelector('section[data-view="timeline"]');
+        return !!t && !!t.querySelector("#legend *");
+      })(),
       whatsup: !!document.querySelector("pearde-whatsup"),
       whatsupAbovePlan: (() => {
         const w = document.querySelector("pearde-whatsup");
-        const t = document.querySelector('section[data-view="timeline"]');
-        return !!w && !!t && (w.compareDocumentPosition(t) &
-                              Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+        const stage = document.querySelector('section[data-view="timeline"] #stage');
+        return !!w && !!stage && (w.compareDocumentPosition(stage) &
+                                  Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
       })(),
       tcontrolsInside: !!document.querySelector(
         'section[data-view="timeline"] #tcontrols'),
@@ -193,13 +196,14 @@ const file = served ? arg : path.resolve(arg);
                  "report"];
   checks.push(["the sections are in the PRD's order",
                page1.order.join(",") === ORDER.join(","), page1.order.join(" ")]);
-  checks.push(["no section is hidden", page1.hidden.length === 0,
-               page1.hidden.join(" ")]);
+  checks.push(["exactly one section is visible on load",
+               page1.visible.length === 1 && page1.visible[0] === "timeline",
+               page1.visible.join(" ")]);
   checks.push(["every section drew on first load, no click",
-               page1.undrawn.length === 0,
-               page1.undrawn.length ? "empty frames: " + page1.undrawn.join(" ") : ""]);
-  checks.push(["...and a folded section has already drawn its body",
-               page1.emptyHosts.length === 0, page1.emptyHosts.join(" ")]);
+               page1.emptyHosts.length === 0,
+               page1.emptyHosts.length ? "empty frames: " + page1.emptyHosts.join(" ") : ""]);
+  checks.push(["the timeline's legend drew",
+               page1.timelineDrew, ""]);
   checks.push(["the prose section is the first thing above the plan",
                page1.whatsup && page1.whatsupAbovePlan, ""]);
   checks.push(["the plan's toolbar is inside the plan's section",
@@ -233,11 +237,23 @@ const file = served ? arg : path.resolve(arg);
     await page.click(`#views a[data-v="${v}"]`).catch(e => errors.push(`${v}: ${e.message}`));
     await page.waitForTimeout(120);
     const shown = await page.evaluate(n => {
-      const s = document.querySelector(`section[data-view="${n}"]`);
-      return !!s && getComputedStyle(s).display !== "none";
+      const secs = [...document.querySelectorAll("section[data-view]")];
+      const visible = secs.filter(s => getComputedStyle(s).display !== "none")
+                          .map(s => s.dataset.view);
+      return visible.length === 1 && visible[0] === n;
     }, v);
-    checks.push([`section "${v}" jumps clean`, errors.length === before && shown,
-                 errors.slice(before).join(" | ") || (shown ? "" : "section not shown")]);
+    checks.push([`section "${v}" is the one shown`, errors.length === before && shown,
+                 errors.slice(before).join(" | ") || (shown ? "" : "not the only section shown")]);
+    // the board is a kanban: it must fit the viewport, not scroll the page.
+    // The columns scroll inside themselves; the view does not.
+    if (v === "board") {
+      const fits = await page.evaluate(() => {
+        const sh = document.documentElement.scrollHeight;
+        return sh <= window.innerHeight + 1;
+      });
+      checks.push(["the board view fits the viewport", fits,
+                   fits ? "" : "the page scrolls on the board view"]);
+    }
     // asks reads each PRD over the wire and renders its round as picks. A card
     // that could not read, or a parsed round showing no options, is the view
     // degrading quietly — which is exactly what it used to do.

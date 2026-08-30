@@ -12,10 +12,11 @@ a second of any file changing it swaps the new payload in **where it stands**:
 the rows move, and scroll, zoom, selection and half-typed text do not. Every
 registered board is listed at `/`. `PEARDE_PORT` moves the port.
 
-**One page, read top to bottom.** There are no tabs. The page opens with what
-is up, then the plan, then the sections below in this order, and the bar in the
-header is anchors that jump to one — it never hides a section, and an anchor
-landing on a folded one opens it. ⌘1–7 jump the same way.
+**Seven views, one at a time.** The bar in the header is tabs: one section
+visible, the rest hidden, and the URL names it — `#view=board` is the board.
+The page opens on the plan; ⌘1–7 switch the same way. The now strip sits
+above whichever view is open; the prose section opens the plan. A tab landing
+on a folded one opens it.
 
 | # | section       | answers                                                        |
 |---|---------------|------------------------------------------------------------------|
@@ -30,12 +31,11 @@ landing on a folded one opens it. ⌘1–7 jump the same way.
 
 **Three of those fold.** `list`, `memos` and `report` are archives, not
 status: measured on a 41-PRD board they are 4038px of a 7065px page. Each
-keeps its anchor and its heading in the flow and renders collapsed behind a
-summary that says what is inside — `41 PRDs · every state, every weight`,
-`13 on record · newest: …` — and opens on a click or on its anchor. What
-folds is the body, by the reader's choice; nothing is hidden by the bar.
-**Every section draws on the first paint**, folded or not, so nothing on
-this page is waiting for a click to exist.
+renders collapsed behind a summary that says what is inside — `41 PRDs ·
+every state, every weight`, `13 on record · newest: …` — and opens on a click
+or on the tab that lands on it. What folds is the body, by the reader's
+choice. **Every section draws on the first paint**, folded or hidden, so
+nothing on this page is waiting for a click to exist.
 
 **The now strip is the first thing under the title**, on every view: three
 doors — `to collect N` · `waiting on you N` · `in flight N` — the top three

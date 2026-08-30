@@ -7,7 +7,37 @@ import { LitElement, html, css } from "lit";
    views.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-let DATA = __PAYLOAD__;
+/* ── re-entrancy ──────────────────────────────────────────────────────────
+   A live page re-imports this module in place when the view's code moves —
+   the service imports `view.js` again, over the copy already mounted, in the
+   same document. So the second copy must dispose everything the first copy
+   attached, or the two double up. The signal below is per instance: the new
+   import aborts the old one's signal first, which cancels every listener the
+   old copy registered through it. `window.__pearde_ivs` is the same registry
+   for the clock loops. Custom elements cannot be redefined — the browser
+   keeps the first class and its template until a real reload — so the copies
+   that came after only ever mount the DOM, and a template made stale by a
+   view change waits for the page to be reloaded to catch up. */
+if (window.__pearde_sig) window.__pearde_sig.abort();
+window.__pearde_sig = new AbortController();
+const SIG = window.__pearde_sig.signal;
+for (const iv of (window.__pearde_ivs || [])) clearInterval(iv);
+window.__pearde_ivs = [];
+/* every listener goes through here, so a later copy of this module can abort
+   the copy before it: one signal, threaded into all of them (a listener's
+   own options merge in behind it). */
+const bind = (t, e, f, o) => t.addEventListener(e, f,
+  Object.assign({ signal: SIG }, o || {}));
+
+/* The payload reaches this module on window, in both modes. `plan.py gantt`
+   renders a one-file page whose head script sets the same globals; the live
+   service's shell and a re-importing page set them just before loading the
+   module. Both are classic scripts, so both run before this deferred module —
+   `window.__PAYLOAD__` is always there, and a view re-importing mid-page finds
+   the fresh data the service put there. (The renderer once wrote the token
+   `__PAYLOAD__` into this file with a blind string replace; it cannot any
+   more, so the token must not appear here at all.) */
+let DATA = window.__PAYLOAD__;
 let CPM = DATA.cpm;
 
 /* States are ink weights, not hues. `ring` draws the mark hollow: a PRD in
@@ -137,7 +167,7 @@ function inkOn(fill) {
    finished and waiting to be taken. It gets its own hue on the chart — the
    same green focus uses, so the bar and the row are one fact. */
 const colOf = t => t.collect && !HOT[t.state] ? T.ok : T[stTok(t.state)];
-matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+bind(matchMedia("(prefers-color-scheme: dark)"), "change", () => {
   readTokens(); inkCache.clear(); draw(); drawMini(); drawAll();
 });
 
@@ -202,7 +232,7 @@ let ADAPTERS = [];  // [{id, name}] — which launch targets the daemon has conf
 // cleared unconditionally on any mouseup so a later, real drag elsewhere on
 // the card is never left blocked by a stale flag from an earlier click.
 let startBtnDown = false;
-document.addEventListener("mouseup", () => { startBtnDown = false; }, true);
+bind(document, "mouseup", () => { startBtnDown = false; }, {capture: true});
 function hydrate() {
   CPM = DATA.cpm;
   CAL = DATA.calib;
@@ -513,7 +543,7 @@ function btn(label, dest, cls) {
   return '<button class="act ' + (cls || "") + '" data-go="' +
     esc(JSON.stringify(dest)) + '">' + label + "</button>";
 }
-document.addEventListener("click", e => {
+bind(document, "click", e => {
   const el = e.target.closest("[data-go]");
   if (!el) return;
   e.preventDefault();
@@ -1306,7 +1336,7 @@ function commitPan() {
 }
 
 let drag = null;
-scroll.addEventListener("mousemove", ev => {
+bind(scroll, "mousemove", ev => {
   if (drag) return;
   const moving = track(at(ev));
   const h = at(ev);              // re-read: the list may have moved under it
@@ -1317,14 +1347,14 @@ scroll.addEventListener("mousemove", ev => {
   if (h.row && h.row.kind === "task" && !moving) showTip(ev, h.row.t);
   else tip.style.display = "none";
 });
-scroll.addEventListener("mouseleave", () => {
+bind(scroll, "mouseleave", () => {
   tip.style.display = "none";
   unpreview();
   trackY = null;
   cancelAnimationFrame(trackAnim); trackAnim = 0;
   if (hover !== -1) { hover = -1; schedule(); }
 });
-scroll.addEventListener("mousedown", ev => {
+bind(scroll, "mousedown", ev => {
   if (ev.button) return;
   const h = at(ev);
   if (h.zone === "grip") {
@@ -1340,7 +1370,7 @@ scroll.addEventListener("mousedown", ev => {
   ev.preventDefault();
   tip.style.display = "none";
 });
-addEventListener("mousemove", ev => {
+bind(window, "mousemove", ev => {
   if (!drag) return;
   if (drag.kind === "grip") {
     LEFT = Math.max(150, Math.min(560, drag.from + ev.clientX - drag.x));
@@ -1356,7 +1386,7 @@ addEventListener("mousemove", ev => {
     scroll.scrollTop = drag.sy - (ev.clientY - drag.y);
   }
 });
-addEventListener("mouseup", ev => {
+bind(window, "mouseup", ev => {
   if (!drag) return;
   const d = drag; drag = null;
   scroll.style.cursor = "default";
@@ -1378,19 +1408,19 @@ addEventListener("mouseup", ev => {
     selected = h.row.t; draw(); openDrawer(h.row.t);
   }
 });
-scroll.addEventListener("scroll", () => {
+bind(scroll, "scroll", () => {
   // a borrowed window is not a window the tree may re-fold itself against
   if (panHome === null && !panAnim) retree();
   schedule();
 }, {passive:true});
-scroll.addEventListener("wheel", ev => {
+bind(scroll, "wheel", ev => {
   if (ev.ctrlKey || ev.metaKey) {
     ev.preventDefault();
     setZoom(ppu * (ev.deltaY < 0 ? 1.12 : 1 / 1.12),
       ev.clientX - plot.getBoundingClientRect().left - LEFT);
   }
 }, {passive:false});
-scroll.addEventListener("dblclick", ev => {
+bind(scroll, "dblclick", ev => {
   const h = at(ev);
   if (h.zone === "grip") { LEFT = 260; tw.clear(); place(); }
   else if (h.row && h.row.kind === "task") focusTask(h.row.t);
@@ -1443,7 +1473,7 @@ function showTip(e, t) {
   tip.style.top = Math.min(e.clientY + 16, innerHeight - h - 8) + "px";
 }
 
-mini.addEventListener("mousedown", e => {
+bind(mini, "mousedown", e => {
   const W = mini.clientWidth || 1;
   const jump = ev => panTo(M.lo +
     (ev.clientX - mini.getBoundingClientRect().left) / W * span());
@@ -1451,7 +1481,7 @@ mini.addEventListener("mousedown", e => {
   const move = ev => jump(ev);
   const up = () => { removeEventListener("mousemove", move);
                      removeEventListener("mouseup", up); };
-  addEventListener("mousemove", move); addEventListener("mouseup", up);
+  bind(window, "mousemove", move); bind(window, "mouseup", up);
 });
 
 function panTo(u, smooth) {
@@ -1558,7 +1588,7 @@ function setRows(next, say) {
 }
 
 let dragV = 0, dragY = 0, dragFine = false;
-rail.addEventListener("pointerdown", ev => {
+bind(rail, "pointerdown", ev => {
   if (ev.button) return;
   ev.preventDefault();
   const cap = ev.target.closest(".cap");
@@ -1574,7 +1604,7 @@ rail.addEventListener("pointerdown", ev => {
   rail.classList.add("drag");
   rail.setPointerCapture(ev.pointerId);
 });
-rail.addEventListener("pointermove", ev => {
+bind(rail, "pointermove", ev => {
   if (!rail.classList.contains("drag")) return;
   // shift picked up or let go mid-drag rebases, or the thumb would jump back
   if (ev.shiftKey !== dragFine) {
@@ -1589,17 +1619,17 @@ const dragEnd = ev => {
   rail.classList.remove("drag");
   try { rail.releasePointerCapture(ev.pointerId); } catch (e) {}
 };
-rail.addEventListener("pointerup", dragEnd);
-rail.addEventListener("pointercancel", dragEnd);
-rail.addEventListener("wheel", ev => {
+bind(rail, "pointerup", dragEnd);
+bind(rail, "pointercancel", dragEnd);
+bind(rail, "wheel", ev => {
   ev.preventDefault();
   setRows(vscale + Math.sign(ev.deltaY) * 3, "hold");
 }, {passive:false});
-rail.addEventListener("dblclick", ev => ev.preventDefault());
+bind(rail, "dblclick", ev => ev.preventDefault());
 /* the readout on hover as well as on drag: the control says what the rows are
    at before you touch it, which is the whole reason a stranger reaches for it */
-rail.addEventListener("pointerenter", () => flashRail(1));
-rail.addEventListener("pointerleave", () => {
+bind(rail, "pointerenter", () => flashRail(1));
+bind(rail, "pointerleave", () => {
   if (!rail.classList.contains("drag")) {
     clearTimeout(readHide); vrRead.classList.remove("on");
   }
@@ -1608,13 +1638,13 @@ rail.addEventListener("pointerleave", () => {
    keyboard; the plot's own ↑↓ selection must not also fire under the hand */
 const RAIL_KEYS = {ArrowUp:-2, ArrowRight:-2, ArrowDown:2, ArrowLeft:2,
                    PageUp:-10, PageDown:10, Home:-100, End:100};
-vrThumb.addEventListener("keydown", ev => {
+bind(vrThumb, "keydown", ev => {
   rail.classList.remove("pf");
   if (!(ev.key in RAIL_KEYS)) return;
   ev.preventDefault(); ev.stopPropagation();
   setRows(vscale + RAIL_KEYS[ev.key], 1);
 });
-vrThumb.addEventListener("blur", () => {
+bind(vrThumb, "blur", () => {
   rail.classList.remove("pf"); vrRead.classList.remove("on");
 });
 paintRail();
@@ -1820,7 +1850,8 @@ class PeardeFrontier extends LitElement {
           : html`<span class="n in">in sync</span>`}</div>`)}</div>` : ""}`;
   }
 }
-customElements.define("pearde-frontier", PeardeFrontier);
+if (!customElements.get("pearde-frontier"))
+  customElements.define("pearde-frontier", PeardeFrontier);
 
 function drawSide() {
   const el = $("land");
@@ -1930,7 +1961,7 @@ $("picks").onclick = e => {
   if (b.dataset.b === BOARD_KEY) return closePicks();
   location.href = API + "/board/" + encodeURIComponent(b.dataset.b);
 };
-document.addEventListener("click", e => {
+bind(document, "click", e => {
   if (picksOpen && !e.target.closest("#picks, #pick")) closePicks();
 });
 
@@ -1939,7 +1970,7 @@ $("onlycollect").onclick = () => {
 };
 
 let rt = 0;
-addEventListener("resize", () => {
+bind(window, "resize", () => {
   clearTimeout(rt);
   rt = setTimeout(() => { fitFrame(); resize(); retree(); place(); movePill(); },
                   60);
@@ -1979,7 +2010,7 @@ function move(delta) {
   if ($("drawer").classList.contains("open")) openDrawer(selected);
 }
 
-addEventListener("keydown", e => {
+bind(window, "keydown", e => {
   // ⌘1..⌘6 — the way a Mac app switches tabs
   if ((e.metaKey || e.ctrlKey) && e.key >= "1" && e.key <= "7") {
     const b = $("views").querySelectorAll("a")[+e.key - 1];
@@ -2147,6 +2178,8 @@ const API = window.__BASE || "";
 const SERVED = !!BOARD_KEY;
 const STATE_LIST = Object.keys(STATES).concat(["done"]);
 let dTask = null, dData = null, dDirty = false;
+// a re-imported view's handed-over inspector body; see openDrawer's tail
+let _pending = null;
 // the live page updates itself on every board change. It must not do that
 // while someone is halfway through typing into this panel, and a board's own
 // script may hold it too — see `pearde.onHold`.
@@ -2291,7 +2324,7 @@ function wireQuestions(root, qs, send, retire) {
   // typing an own answer is picking it — nobody types a sentence they do not
   // mean, and forcing the radio first loses the first keystroke
   for (const ta of root.querySelectorAll(".qq .opt.own textarea"))
-    ta.addEventListener("input", () => {
+    bind(ta, "input", () => {
       const r = ta.closest(".opt").querySelector("input");
       if (ta.value.trim()) r.checked = true;
     });
@@ -2389,11 +2422,25 @@ async function openDrawer(t) {
   if (!SERVED) return;
   try {
     dData = await fetchPrd(t.rel, true);
-    if (dTask !== t) return;                    // the reader moved on
+    if (dTask !== t) { _pending = null; return; }  // the reader moved on
     $("dmsg").textContent = "";
     drawBody();
   } catch (e) {
     $("dmsg").textContent = "could not load the PRD";
+  }
+  // a re-imported view hands its half-typed body across: the fetch's final
+  // drawBody just replaced the textarea, so the saved text goes in now, over
+  // whatever the server had. The marker is read once and cleared.
+  if (_pending) {
+    const bt = $("dbodytext");
+    if (bt) {
+      bt.value = _pending.body;
+      if (_pending.dirty) {
+        dDirty = true;
+        $("dmsg").textContent = "unsaved";
+      }
+    }
+    _pending = null;
   }
 }
 
@@ -2723,11 +2770,10 @@ function toast(msg, bad) {
 }
 
 /* Every section draws, on the first paint, whether or not anyone has been
-   near it. This is the whole of what made the page a set of tabs: the old
-   dispatcher ran exactly one draw per repaint, so a stacked page rendered six
-   empty frames — measured at `board` 86px, `list` 177px, `memos` 118px
-   against 692, 1265 and 1661 once each was forced. Three of these fetch; they
-   are all localhost and they all run once. */
+   near it. The bar is tabs, but the draws are eager: a hidden section builds
+   its DOM on load, so switching to it is instant and the fold is
+   presentation, not a lazy load. Three of these fetch; they are all localhost
+   and they all run once. */
 function drawAll() {
   if (!replaced.has("board")) drawBoard();
   if (!replaced.has("list")) drawList();
@@ -2738,32 +2784,27 @@ function drawAll() {
   resize(); retree(); place();
 }
 
-/* `setView` no longer hides anything — there is nothing to hide. It marks the
-   bar, opens the section's fold if it has one, and scrolls it under the
-   sticky header. An anchor that lands on a folded archive opens it: a reader
-   who asked for the memos wants the memos, and the PRD's rule is that the bar
-   never hides a section. */
-function setView(v, scrollTo) {
+/* The bar is tabs: one section visible, the rest display:none. setView marks
+   the bar, opens the section's fold if it has one, and shows the section. The
+   timeline's canvas was hidden with the rest — switching to it re-measures
+   and re-places so the gantt comes back at full size. */
+function setView(v) {
   const sect = document.querySelector('section[data-view="' + v + '"]');
   if (!sect) { v = "timeline"; }
   view = v;
   for (const a of $("views").querySelectorAll("a"))
     a.classList.toggle("on", a.dataset.v === v);
   movePill();
+  for (const s of document.querySelectorAll("section[data-view]"))
+    s.classList.toggle("on", s.dataset.view === v);
   const el = document.querySelector('section[data-view="' + v + '"]');
   if (el) {
     const fold = el.querySelector("details.fold");
     if (fold) fold.open = true;
-    if (scrollTo !== false) {
-      const top = el.getBoundingClientRect().top + window.scrollY -
-                  ($("titlebar").offsetHeight + 10);
-      scrollTo_(Math.max(0, top));
-    }
   }
+  if (v === "timeline") { resize(); place(); }
+  window.scrollTo(0, 0);
   syncHash();
-}
-function scrollTo_(top) {
-  window.scrollTo(reduced ? {top} : {top, behavior: "smooth"});
 }
 for (const a of $("views").querySelectorAll("a"))
   a.onclick = e => { e.preventDefault(); setView(a.dataset.v); };
@@ -2865,7 +2906,8 @@ class PeardeBoard extends LitElement {
     return out;
   }
 }
-customElements.define("pearde-board", PeardeBoard);
+if (!customElements.get("pearde-board"))
+  customElements.define("pearde-board", PeardeBoard);
 
 function drawBoard() {
   const el = $("board");
@@ -2951,7 +2993,7 @@ async function drawAsks() {
     send.onclick = () => fire();
     const re = card.querySelector(".reopen");
     if (re) re.onclick = () => fire("reopen");
-    box.addEventListener("keydown", e => {
+    bind(box, "keydown", e => {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") fire();
     });
     // the question text itself, read live out of the PRD. A round in
@@ -3159,7 +3201,8 @@ class PeardeList extends LitElement {
       rowsOut.map(tr)}</tbody></table>`;
   }
 }
-customElements.define("pearde-list", PeardeList);
+if (!customElements.get("pearde-list"))
+  customElements.define("pearde-list", PeardeList);
 
 function drawList() {
   const rowsOut = listRows().sort((p, q) => {
@@ -3212,7 +3255,8 @@ class PeardeMemos extends LitElement {
       <pre>${(m.body || "").slice(0, 3000)}</pre></div>`);
   }
 }
-customElements.define("pearde-memos", PeardeMemos);
+if (!customElements.get("pearde-memos"))
+  customElements.define("pearde-memos", PeardeMemos);
 
 async function drawMemos() {
   const el = $("memos");
@@ -3262,7 +3306,8 @@ class PeardeNow extends LitElement {
         (silent ? ` — ${silent} silent past claim-ttl` : ""), silent ? "quiet" : "")}`;
   }
 }
-customElements.define("pearde-now", PeardeNow);
+if (!customElements.get("pearde-now"))
+  customElements.define("pearde-now", PeardeNow);
 function drawNow() {
   if (replaced.has("now")) return;
   const el = $("now"); if (el) el.data = DATA;
@@ -3285,7 +3330,7 @@ function drawNow() {
    once sat sixteen commits behind one that read current. Past a day the line
    says `stale` in words and carries the class, because a state carried by
    colour alone is a state nothing can read. */
-const REPORT_MTIME = __REPORTMTIME__;
+const REPORT_MTIME = window.__REPORTMTIME__;
 const DAY_S = 86400;
 
 function ago(secs) {
@@ -3366,7 +3411,8 @@ class PeardeWhatsup extends LitElement {
       </div>`;
   }
 }
-customElements.define("pearde-whatsup", PeardeWhatsup);
+if (!customElements.get("pearde-whatsup"))
+  customElements.define("pearde-whatsup", PeardeWhatsup);
 
 async function drawWhatsup() {
   if (replaced.has("whatsup")) return;
@@ -3429,7 +3475,8 @@ class PeardeReport extends LitElement {
     return html`<article class="prose">${md(this.text)}</article>`;
   }
 }
-customElements.define("pearde-report", PeardeReport);
+if (!customElements.get("pearde-report"))
+  customElements.define("pearde-report", PeardeReport);
 async function drawReport() {
   const el = $("report"); if (!el) return;
   el.served = SERVED;
@@ -3802,6 +3849,21 @@ window.pearde = {
   onHold(f) { HOLDS.push(f); },
 };
 
+// serve.py calls this just before it re-imports a moved `view.js`: the
+// scroll and a half-typed inspector of the copy going away are handed to the
+// copy coming in. No hold here — the point is that the text survives.
+window.__pearde_save = () => {
+  const s = { x: scroll.scrollLeft, y: scroll.scrollTop };
+  if ($("drawer").classList.contains("open") && dTask) {
+    const ta = $("dbodytext");
+    s.open = true;
+    s.prd = dTask.rel;
+    s.body = ta ? ta.value : (dData ? dData.body : "");
+    s.dirty = dDirty;
+  }
+  window.__pearde_restore = s;
+};
+
 /* ── the URL is the view ──────────────────────────────────────────────────
    Where you are is a link you can send: which view, which filter, which PRD.
    Every door writes it; a reload lands in the same place.                  */
@@ -3841,7 +3903,7 @@ function readHash() {
   }
   if (Object.keys(d).length) go(d);
 }
-addEventListener("hashchange", () => { if (!hashLock) readHash(); });
+bind(window, "hashchange", () => { if (!hashLock) readHash(); });
 
 /* ── boot ──────────────────────────────────────────────────────────────── */
 if (!SERVED) $("pick").classList.add("solo");
@@ -3854,14 +3916,33 @@ setMode("vision");
 drawHeader();
 drawAll();           // every section, on the first paint — not one per click
 readHash();
+// The view's own code may have moved under this page: read what the copy
+// before it saved — the scroll, and the drawer with its half-typed body —
+// and put it back over the fresh payload the service just set on window.
+// Each copy tracks its own clocks and listeners, so this one starts clean;
+// only the user's place survives. `_pending` is consumed by the drawer's
+// last drawBody once the fresh PRD text lands.
+(async () => {
+  const st = window.__pearde_restore;
+  delete window.__pearde_restore;
+  if (!st) return;
+  scroll.scrollLeft = st.x; scroll.scrollTop = st.y;
+  if (!st.open || !st.prd) return;
+  const t = byRel.get(st.prd);
+  if (!t) return;
+  _pending = { body: st.body || "", dirty: !!st.dirty };
+  if (dTask !== t) openDrawer(t);
+})();
 // the clock ticks for two reasons: the calendar's now-line, and how long a
 // worker has been holding a PRD. Both are read off Date.now(), so both go
-// stale between board changes if nothing repaints.
-setInterval(() => {
+// stale between board changes if nothing repaints. Every interval is
+// registered so a later copy of this module clears them all on its way in.
+window.__pearde_ivs.push(setInterval(() => {
   if (mode === "dates" || tasks.some(t => t.held)) draw();
   // and a third: how old the report is, which is counted from a baked mtime
   // and would otherwise read "just now" for the whole life of the page
   const w = $("whatsup"); if (w) w.tick = Date.now();
-}, 60000);
-if (SERVED) setInterval(refresh, 90000);   // a floor under the live loop
+}, 60000));
+if (SERVED) window.__pearde_ivs.push(setInterval(refresh, 90000));
+   // a floor under the live loop
 loadAdapters();

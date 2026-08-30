@@ -300,17 +300,53 @@ def untag(text, tag):
 def render(payload, board=None):
     p = enrich(payload)
     data = json.dumps(p, sort_keys=True).replace("</", "<\\/")
-    # the assets first: `let DATA = __PAYLOAD__` lives inside view.js
+    # the payload and the report's mtime go in as globals in a classic script,
+    # which runs before the module below (classic scripts run during parse,
+    # modules are deferred) — the view reads both off window in every mode
+    globs = ('<script>window.__PAYLOAD__ = ' + data + ';'
+             + 'window.__REPORTMTIME__ = ' + json.dumps(report_age(board))
+             + ';</script>')
     html = (TEMPLATE
             .replace("__LIT__", lit_map())
             .replace("__CSS__", asset("view.css"))
             .replace("__JS__", asset("view.js"))
             .replace("__TITLE__", p["board"])
-            .replace("__REPORTMTIME__", json.dumps(report_age(board)))
-            .replace("__PAYLOAD__", data))
+            .replace("</head>", globs + "</head>"))
     # the board's own last, so a user rule wins the cascade and a user script
     # sees a built page. A module, so it can `import ... from "lit"` the way
     # the page itself does.
+    css, js = user_asset(board, USER_CSS), user_asset(board, USER_JS)
+    tail = ((f"<style>\n{untag(css, 'style')}\n</style>\n" if css else "")
+            + (f'<script type="module">\n{untag(js, "script")}\n</script>\n'
+               if js else ""))
+    return html.replace("</body>", tail + "</body>") if tail else html
+
+
+def render_shell(payload, board=None, base="", vstamp=""):
+    """The live service's page — the same shell, with the view linked as files
+    rather than inlined, so an open page can re-import `view.js` where it
+    stands when the view's code moves. `render()` stays the one-file output
+    for `plan.py gantt`; this is only what `/board/<name>` serves.
+
+    The payload and the report's mtime are baked as globals in a classic
+    script ahead of the module, and `view.js` reads them off `window` when it
+    is loaded as a file — the identical data, one hand-off, no fetch on boot.
+    The `?v=` stamp on each asset busts the browser's cache when one moves."""
+    p = enrich(payload)
+    data = json.dumps(p, sort_keys=True).replace("</", "<\\/")
+    globs = ('<script>window.__PAYLOAD__ = ' + data + ';'
+             + 'window.__REPORTMTIME__ = ' + json.dumps(report_age(board))
+             + ';</script>')
+    html = (TEMPLATE
+            .replace("<style>\n__CSS__</style>",
+                     f'<link rel="stylesheet" href="{base}/view.css'
+                     f'?v={vstamp}">')
+            .replace('<script type="module">\n__JS__</script>',
+                     f'<script type="module" src="{base}/view.js?v={vstamp}">'
+                     f"</script>")
+            .replace("__LIT__", lit_map())
+            .replace("__TITLE__", p["board"])
+            .replace("</head>", globs + "</head>"))
     css, js = user_asset(board, USER_CSS), user_asset(board, USER_JS)
     tail = ((f"<style>\n{untag(css, 'style')}\n</style>\n" if css else "")
             + (f'<script type="module">\n{untag(js, "script")}\n</script>\n'
@@ -382,22 +418,22 @@ __CSS__</style>
   </div>
   <nav id="views" aria-label="sections of this page">
     <span id="segpill" aria-hidden="true"></span>
-    <a href="#s-timeline" data-v="timeline" class="on">plan</a
-    ><a href="#s-board" data-v="board">board</a
-    ><a href="#s-analytics" data-v="analytics">analytics</a
-    ><a href="#s-asks" data-v="asks">asks<span class="badge" id="askbadge"></span></a
-    ><a href="#s-list" data-v="list">list</a
-    ><a href="#s-memos" data-v="memos">memos</a
-    ><a href="#s-report" data-v="report">report</a>
+    <a href="#view=timeline" data-v="timeline" class="on">plan</a
+    ><a href="#view=board" data-v="board">board</a
+    ><a href="#view=analytics" data-v="analytics">analytics</a
+    ><a href="#view=asks" data-v="asks">asks<span class="badge" id="askbadge"></span></a
+    ><a href="#view=list" data-v="list">list</a
+    ><a href="#view=memos" data-v="memos">memos</a
+    ><a href="#view=report" data-v="report">report</a>
   </nav>
   <div class="right">
     <button id="newprd" class="primary" title="write a PRD (N)">＋ PRD</button>
   </div>
 </header>
 <pearde-now id="now" aria-label="what the board wants now"></pearde-now>
-<pearde-whatsup id="whatsup" aria-label="what's up"></pearde-whatsup>
 <div class="seam" id="seam-toolbar"></div>
 <section data-view="timeline" id="s-timeline" class="on">
+<pearde-whatsup id="whatsup" aria-label="what's up"></pearde-whatsup>
 <h2 class="sect">the plan</h2>
 <div id="purpose"></div>
 <div class="bar-controls" id="tcontrols">
