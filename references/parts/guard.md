@@ -12,7 +12,7 @@ is the same three rules where ignoring them is not possible.
 
 | the call | what it says |
 |---|---|
-| a board walked by hand — `find … prd.md`, `grep -r state:`, `ls prds/*/prd.md` | step 1 is `plan.py scan`, and it already answers this |
+| a board walked by hand — `find … prd.md`, `grep -r state:`, `ls prds/*/prd.md` | step 1 is `plan.py scan`, and it already answers this. A walk carried as data — inside a heredoc body or a quoted string a script or an editor is given — is not a walk and passes; the string a walker itself or `sh -c` runs is |
 | a board-reading command run twice with nothing changed since | the output is byte-for-byte what you have; cite it from `prds/.round.md` |
 | a third read of the same file, unchanged since the first | what you needed from it belongs in the round file |
 | a third read of a **reference** file — this manual, through any install link | the manual does not move while a round runs. @references/parts/loop.md and @references/parts/round.md are exempt, because a compacted round has to be able to re-read the steps |

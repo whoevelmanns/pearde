@@ -60,6 +60,55 @@ WALKS = (
     re.compile(r"\bls\b[^|;&]*\bprds/[^|;&]*\*"),
 )
 
+# A walk carried as data is not a walk. The shell never runs a heredoc body
+# or the inside of a quoted string — a script piped to python, a fixture, a
+# refusal quoted into a memo. It does run the string a walker itself takes
+# (`grep -r 'state:'`) and the one `sh -c` is given. `data_free` returns the
+# command with the data blanked, and the WALKS rules match on that.
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n(.*?)\n\2[ \t]*(?=\n|$)",
+                     re.S)
+RUNS_ITS_STRING = {"find", "grep", "rg", "ls", "sh", "bash", "zsh", "eval"}
+
+
+def data_free(cmd):
+    """`cmd` with heredoc bodies and quoted strings blanked, except a string
+    given to a command that runs it."""
+    cmd = HEREDOC.sub(lambda m: m.group(0)[:m.start(3) - m.start(0)]
+                      + "\n" + m.group(2), cmd)
+    out, i, n, word = [], 0, len(cmd), ""
+    at_start = True
+    while i < n:
+        c = cmd[i]
+        if c in "|;&\n":
+            at_start, word = True, ""
+            out.append(c); i += 1
+            continue
+        if c in "'\"":
+            j = i + 1
+            while j < n and cmd[j] != c:
+                j += 2 if (c == '"' and cmd[j] == "\\") else 1
+            keep = word in RUNS_ITS_STRING
+            out.append(cmd[i:j + 1] if keep else " ")
+            i = j + 1
+            continue
+        if at_start and not c.isspace():
+            m = re.match(r"[\w./-]+", cmd[i:])
+            tok = m.group(0) if m else c
+            if m and cmd[i + len(tok):i + len(tok) + 1] == "=":
+                m = re.match(r"\S+", cmd[i:])      # `X=1` — a prefix, whole
+                out.append(m.group(0)); i += len(m.group(0))
+                continue
+            word = os.path.basename(tok)
+            if word in ("sudo", "env", "command", "time", "exec", "nice"):
+                word = ""          # a prefix — the next word is the command
+            else:
+                at_start = False
+            out.append(tok); i += len(tok)
+            continue
+        out.append(c); i += 1
+    return "".join(out)
+
+
 # Commands that only look. A repeat of one of these over an unchanged board
 # returns the bytes it returned last time, which is the whole argument for
 # refusing it.
@@ -374,7 +423,7 @@ def pre(data):
 
     if tool == "Bash":
         cmd = str(inp.get("command") or "")
-        if any(w.search(cmd) for w in WALKS):
+        if any(w.search(data_free(cmd)) for w in WALKS):
             deny("The board is not walked by hand — loop step 1 is one call:\n"
                  f"    {SCAN}\n"
                  "It returns every state, gate, claim and acceptance count on "
