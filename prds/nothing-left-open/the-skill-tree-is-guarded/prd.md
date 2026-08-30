@@ -15,7 +15,7 @@ footprint:
   - prds/the-tool-keeps-its-word/guard-on-is-one-command/probe/verify.sh
   - prds/the-board-runs-itself/the-loop-is-commands/probe/verify.sh
 actual: 0.11h
-commit: 89d12ae
+commit: 7dfdcfd
 ---
 
 # the-skill-tree-is-guarded — a round on another board cannot write the skill through the install

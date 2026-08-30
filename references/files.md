@@ -106,9 +106,9 @@ whose scope it changed. Nothing else points at it.
 | @resources/board/edit.py | the writers — one line at a time |
 | @resources/board/collect.py | `collect` — verify, commit the footprint, `done`, one call |
 | @resources/board/brief.py | `brief` — a worker's or a consultant's brief, one command's output; the text is the marker blocks of workers.md, this fills them and holds no copy |
+| @resources/board/transitions.py | the eight transition commands — the one writer of `state:` |
 | @resources/board/specs.py | `specced` and `refine` — the two transitions a spec set decides |
 | @resources/board/init.py | `init` and `settings` — a board after one command, no question; one key of settings.md |
-| @resources/board/transitions.py | the eight transition commands — the one writer of `state:` |
 | @resources/board/example/ | the example board — eight PRDs, one per band; copied by `plan.py example`, never run in place |
 
 ## `skills/` — one file per skill
@@ -124,7 +124,6 @@ command, and @references/install.md is the naming rule and the install.
 | @skills/pearde-drill.md | asking until the request is a contract | `@@drill` |
 | @skills/pearde-memo.md | recording a decision, and checking the record | `@@memos` |
 | @skills/pearde-view.md | the timeline, the order, and editing through it | `@@view` |
-| @skills/pearde-workflow.md | how a kind of job is done, and improved on every run | `@@workflows` |
 | @skills/pearde-report.md | the board written for a person, one rolling state | `@@report` |
 | @skills/pearde-master.md | one plan across several repositories | `@@master` |
 | @skills/pearde-doctor.md | a broken install against an absent one | `@@doctor` |
@@ -132,6 +131,7 @@ command, and @references/install.md is the naming rule and the install.
 | @skills/pearde-persona-ask.md | one problem, one colleague, nothing written | `@@consult` |
 | @skills/pearde-persona-create.md | composing one for a field the roster misses | `@@personas` |
 | @skills/pearde-scout.md | ranked discovery, the route index, and the quality gates | `@@scout` |
+| @skills/pearde-workflow.md | how a kind of job is done, and improved on every run | `@@workflows` |
 
 ### `resources/scout/` — a self-contained tool
 
