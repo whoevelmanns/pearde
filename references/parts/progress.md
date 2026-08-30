@@ -53,4 +53,7 @@ showing the persona before it.
 
 The same numbers rendered continuously in the terminal are
 @references/parts/statusline.md — a different reader, and nothing the loop
-needs.
+needs. It carries one term this line does not: where there is room here for
+`derived <dd>/<dn>`, the status line renders `+<dr>d`, the derived PRDs not
+yet `done`. Same rule — report both or neither — resolved for a row that can
+hold one number.

@@ -2,7 +2,7 @@
 # pearde statusbar. Wire it as the global status line — @references/install.md.
 #
 # Renders line 1:  <dir> <branch> <*dirty ↑ahead ↓behind> · <model>  — always
-#         line 2:  ▸pearde<⊞b> <rd>/<rn> <rp>% · +<dn>d · open <o> <q>% · <persona> · ▸board
+#         line 2:  ▸pearde<⊞b> <rd>/<rn> <rp>% · +<dr>d · open <o> <q>% · <persona> · ▸board
 #
 # Every term on line 2 is defined in @references/parts/progress.md. `⊞b` is the
 # board count, on a master board only — the board plus its members.
@@ -144,17 +144,26 @@ if [ -n "$BOARD" ]; then
       return avg
     }
     END {
-      # an+ad are the DELIVERABLE — origin: requested. dn is reported beside
+      # an+ad are the DELIVERABLE — origin: requested. dr is reported beside
       # it and never folded in: one combined percentage cannot answer "how far
       # along are we". See @references/parts/derived.md.
-      n=0; open=0; scored=0; csum=0; an=0; ad=0; dn=0
+      #
+      # dr counts the derived PRDs that are NOT done — the backlog, not the
+      # tree. It was the whole tree until 2026-08-30, which made it a number
+      # that could only ever go up: a board with 95 of 99 derived PRDs closed
+      # rendered `+99d`, read as 99 things outstanding, and the one question
+      # this term exists to answer — is a derived tree growing unseen — cannot
+      # be answered by a total that never comes down. Both halves are on the
+      # progress line as `derived <dd>/<dn>`; the status line has room for one
+      # and takes the one that moves.
+      n=0; open=0; scored=0; csum=0; an=0; ad=0; dr=0
       for (f in st) if (cx[f]>0) { scored++; csum+=cx[f] }
       avg = (scored>0) ? csum/scored : ((WD>0) ? WD : 50)
       for (f in st) {
         if (!live(st[f])) { delete st[f]; continue }
         n++
         if (st[f]=="open") open++
-        if (og[f]=="derived") dn++
+        if (og[f]=="derived") { if (st[f]!="done") dr++ }
         else { an++; if (st[f]=="done") ad++ }
       }
       if (n==0) { print "0 0 0 0 0 0" ; exit }
@@ -167,12 +176,12 @@ if [ -n "$BOARD" ]; then
       }
       ap = (atot>0) ? int(adtot*100/atot + 0.5) : 0
       q = int(open*100/n + 0.5)
-      printf "%d %d %d %d %d %d\n", an, ad, ap, open, q, dn
+      printf "%d %d %d %d %d %d\n", an, ad, ap, open, q, dr
     }
   ' 2>/dev/null)
 
   set -- $STATS
-  N=${1:-0}; D=${2:-0}; P=${3:-0}; O=${4:-0}; Q=${5:-0}; DN=${6:-0}
+  N=${1:-0}; D=${2:-0}; P=${3:-0}; O=${4:-0}; Q=${5:-0}; DR=${6:-0}
   if [ "$N" -gt 0 ] 2>/dev/null; then
     BOARD_OUT="\033[38;5;108m▸pearde\033[0m"
     # attached to the label, not appended to the row — it qualifies what the
@@ -180,9 +189,10 @@ if [ -n "$BOARD" ]; then
     [ "$NB" -gt 1 ] 2>/dev/null && \
       BOARD_OUT="$BOARD_OUT\033[38;5;108m⊞${NB}\033[0m"
     BOARD_OUT="$BOARD_OUT \033[38;5;252m${D}/${N}\033[0m \033[38;5;108m${P}%\033[0m"
-    # suppressed at zero — an always-present +0d teaches the eye to skip it
-    [ "$DN" -gt 0 ] 2>/dev/null && \
-      BOARD_OUT="$BOARD_OUT \033[38;5;240m·\033[0m \033[38;5;209m+${DN}d\033[0m"
+    # suppressed at zero, which now means the derived backlog is drained
+    # rather than merely absent — the one state worth rendering nothing for
+    [ "$DR" -gt 0 ] 2>/dev/null && \
+      BOARD_OUT="$BOARD_OUT \033[38;5;240m·\033[0m \033[38;5;209m+${DR}d\033[0m"
     BOARD_OUT="$BOARD_OUT \033[38;5;240m·\033[0m \033[38;5;252mopen ${O}\033[0m \033[38;5;214m${Q}%\033[0m"
   fi
 

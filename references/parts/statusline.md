@@ -9,13 +9,22 @@ link to the board:
 
 ```
 <dir> <branch> *<dirty> ↑<ahead> ↓<behind> · <model>
-▸pearde <rd>/<rn> <rp>% · +<dn>d · open <o> <q>% · <persona> · ▸board
+▸pearde <rd>/<rn> <rp>% · +<dr>d · open <o> <q>% · <persona> · ▸board
 ```
 
 - Two rows — sharing one pushes the board off a narrow terminal. No board in
   scope, no second row.
-- `<rd>/<rn> <rp>%` is requested work only. `+<dn>d` is the derived count,
-  suppressed at zero — its job is to stop a derived tree growing unseen.
+- `<rd>/<rn> <rp>%` is requested work only. `+<dr>d` is the derived PRDs not
+  yet `done` — the backlog, not the tree — suppressed at zero, which reads as
+  "drained" and not merely "none". Its job is to stop a derived tree growing
+  unseen, and **that is why it is the remainder and not the total.** It
+  rendered `<dn>`, every derived PRD, until 2026-08-30: a number that can only
+  go up, so it could not answer its own question. A dotfiles board showed
+  `+99d` with 95 of the 99 closed and was read as 99 things outstanding; this
+  repo's own board showed `+7d` with nothing outstanding at all. The progress
+  line has room for both halves and carries them as `derived <dd>/<dn>`
+  (@references/parts/progress.md); this line has room for one and takes the
+  one that moves.
 - `*<dirty>` is uncommitted entries. `↑`/`↓` is commits against upstream. No
   upstream reads `no-upstream`, not `↑0`.
 - `<persona>` is who is working, read from the session's own transcript — the
