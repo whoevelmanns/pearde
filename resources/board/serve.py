@@ -53,6 +53,8 @@ HTTP API, all JSON, all 127.0.0.1-only:
                                    so there is no index page to keep
   GET  /prd?board=<name>&rel=<rel> one PRD in full: frontmatter, body, specs
   GET  /memos?board=<name>         the board's decision records
+  GET  /adapters                   configured launch targets: [{id, name}] —
+                                   resources/board/adapters/*.json, see below
   POST /register {"cwd": path}     add the board found walking up from cwd
   POST /sync     {"board": name}   force a pass now
   POST /new      {"board","title","body"?,"parent"?,"priority"?,"est"?}
@@ -60,9 +62,14 @@ HTTP API, all JSON, all 127.0.0.1-only:
   POST /edit     {"board","prd","title"?,"fm"?,"body"?,"append"?}
                                    write one PRD — what the detail pane saves
   POST /report   {"board","prd","text"}   a worker's report → `## Report`
-  POST /run      {"board","prd"}   launch that PRD's round — `claude --print
-                                   "/pearde run <prd>"`, detached, cwd the
-                                   repo root. `open` only; 409 otherwise
+  POST /run      {"board","prd","adapter"?}
+                                   launch that PRD's round with one configured
+                                   adapter — its own command, its own prompt
+                                   template (resources/board/adapters/*.json;
+                                   `claude.json` ships by default). `adapter`
+                                   optional only when exactly one is
+                                   configured. Detached, cwd the repo root.
+                                   `open` only; 409 otherwise
   POST /unregister {"board": name} stop watching it
   POST /stop                       shut the daemon down
 
@@ -178,12 +185,66 @@ BOARDS_LOCK = threading.Lock()
 RUNNING = {}  # (board name, prd rel) → Popen
 RUN_LOCK = threading.Lock()
 
+ADAPTERS_DIR = os.path.join(DIR, "adapters")
 
-def claude_bin():
-    """The Claude Code CLI to launch a round with. `PEARDE_CLAUDE_BIN`
-    overrides — a machine where `claude` is not the PATH entry, or a build
-    under test, names its own."""
-    return os.environ.get("PEARDE_CLAUDE_BIN") or shutil.which("claude")
+
+def load_adapters():
+    """Every configured launch target — one JSON file per adapter in
+    resources/board/adapters/. `{"name": <picker label>, "command":
+    [argv...], "prompt": <template, default "/pearde run {rel}">}`.
+    `{prompt}` in `command` is replaced by the rendered prompt string,
+    `{rel}` in either by the PRD's relative path. Each adapter phrases its
+    own prompt: a pearde-aware agent (claude.json ships one) gets the
+    `/pearde run <rel>` handle; an adapter for something that has never
+    heard of pearde would instead template a plain-language task
+    description in its own `prompt` field — this function does not care
+    which, it only fills in placeholders.
+
+    Missing dir or no valid files: empty list — the Start button then
+    simply does not render (`ADAPTERS.length > 0` in view.js), same as an
+    unserved page today. A malformed file is skipped with a stderr line,
+    not a crash: one bad adapter must not take the others down with it."""
+    if not os.path.isdir(ADAPTERS_DIR):
+        return []
+    out = []
+    for fn in sorted(os.listdir(ADAPTERS_DIR)):
+        if not fn.endswith(".json"):
+            continue
+        path = os.path.join(ADAPTERS_DIR, fn)
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            command = data.get("command")
+            if not isinstance(command, list) or not command or not all(
+                    isinstance(p, str) for p in command):
+                raise ValueError("'command' must be a non-empty list of strings")
+            out.append({
+                "id": fn[:-5],
+                "name": data.get("name") or fn[:-5],
+                "command": command,
+                "prompt": data.get("prompt") or "/pearde run {rel}",
+            })
+        except Exception as e:
+            print(f"serve: adapter {fn!r} invalid, skipped ({e})", file=sys.stderr)
+    return out
+
+
+def adapter_bin(argv0):
+    """Resolves one adapter's command[0] to a runnable path. An adapter that
+    already names an existing absolute path is trusted as-is — an install
+    with two adapters under test, each its own stand-in binary, needs both
+    to resolve independently. Only a bare/relative name (the common case:
+    `"claude"`, found via PATH) falls through to `PEARDE_ADAPTER_BIN`,
+    which overrides *that* resolution for a machine where it is not the
+    PATH entry, or a build under test naming its own; replaces the old
+    adapter-specific `PEARDE_CLAUDE_BIN` now that an install can configure
+    more than one adapter."""
+    if os.path.isabs(argv0) and os.path.exists(argv0):
+        return argv0
+    override = os.environ.get("PEARDE_ADAPTER_BIN")
+    if override:
+        return override
+    return shutil.which(argv0)
 
 
 def plan_digest(path):
@@ -581,6 +642,9 @@ class Handler(BaseHTTPRequestHandler):
             out.sort(key=lambda m: (str(m["status"]), str(m["date"])),
                      reverse=True)
             return self.reply(200, {"memos": out})
+        if path == "/adapters":
+            return self.reply(200, [{"id": a["id"], "name": a["name"]}
+                                    for a in load_adapters()])
         if path == "/wait":
             b = by_name(q.get("board"))
             if not b:
@@ -782,48 +846,68 @@ class Handler(BaseHTTPRequestHandler):
             if prd["state"] != "open":
                 return self.reply(409, {"error":
                     f"{rel} is {prd['state']}, not open"})
+
+            adapters = load_adapters()
+            if not adapters:
+                return self.reply(500, {"error":
+                    "no adapter configured — add one under resources/board/adapters/"})
+            adapter_id = body.get("adapter")
+            if adapter_id:
+                adapter = next((a for a in adapters if a["id"] == adapter_id), None)
+                if not adapter:
+                    return self.reply(404, {"error": f"no adapter {adapter_id!r}"})
+            elif len(adapters) == 1:
+                adapter = adapters[0]
+            else:
+                # The view only shows a picker at 2+ adapters and always
+                # sends one; a caller that skips the picker (a script, an
+                # older cached page) is the only way to land here.
+                return self.reply(400, {"error":
+                    "multiple adapters configured, specify one",
+                    "adapters": [a["id"] for a in adapters]})
+
             key = (b.name, rel)
             with RUN_LOCK:
                 cur = RUNNING.get(key)
                 if cur and cur.poll() is None:
                     return self.reply(409, {"error": "already starting"})
-            claude = claude_bin()
-            if not claude:
+
+            # Each adapter renders its own prompt template (a pearde-aware
+            # agent gets "/pearde run <rel>"; one that has never heard of
+            # pearde gets whatever plain-language task text its own
+            # adapters/*.json spells out) and its own command argv — this
+            # daemon does not assume either.
+            prompt = adapter["prompt"].format(rel=rel)
+            argv = [part.format(prompt=prompt, rel=rel) for part in adapter["command"]]
+            resolved = adapter_bin(argv[0])
+            if not resolved:
                 return self.reply(500, {"error":
-                    "claude not found on PATH — set PEARDE_CLAUDE_BIN"})
+                    f"{argv[0]!r} not found on PATH — set PEARDE_ADAPTER_BIN "
+                    f"or fix the {adapter['id']} adapter's command"})
+            argv[0] = resolved
+
             os.makedirs(APP_DIR, exist_ok=True)
             safe = re.sub(r"[^A-Za-z0-9_-]", "_", f"{b.name}-{rel}")
             log = open(os.path.join(APP_DIR, f"run-{safe}.log"), "a")
             try:
-                # `claude` on Windows resolves (via shutil.which) to a .CMD
-                # shim — CreateProcess cannot launch that directly, only
+                # Windows resolves many CLI launchers (via shutil.which) to a
+                # .CMD shim — CreateProcess cannot launch that directly, only
                 # cmd.exe can, so this one call needs shell=True there. POSIX
                 # never does: shell=True with a list there hands the extra
                 # args to the shell itself as $0/$1, not to the command, so
-                # the CLI would run with none of its arguments.
-                #
-                # --dangerously-skip-permissions: a detached `--print` launch
-                # has no TTY to answer a permission prompt with, so without
-                # this every round dies on its first gated tool call (proven
-                # live: a real launch stalled on a Bash-approval prompt,
-                # printed the request, then exited having done nothing). The
-                # button's whole point is a browser click standing in for a
-                # terminal, so the launched round needs the same unattended
-                # trust a person running `/pearde run <prd>` themselves would
-                # extend to it - the risk this trades away is real (the round
-                # then executes anything, including destructive commands,
-                # without asking), not hidden from the person clicking it.
+                # the CLI would run with none of its arguments. Not
+                # adapter-specific — any adapter's Windows binary can be a
+                # shim, so this stays unconditional on `os.name`.
                 proc = subprocess.Popen(
-                    [claude, "--print", "--dangerously-skip-permissions",
-                     f"/pearde run {rel}"],
-                    cwd=os.path.dirname(b.path), stdout=log, stderr=log,
+                    argv, cwd=os.path.dirname(b.path), stdout=log, stderr=log,
                     start_new_session=True, shell=(os.name == "nt"))
             except OSError as e:
                 return self.reply(500, {"error": f"could not start: {e}"})
             with RUN_LOCK:
                 RUNNING[key] = proc
             return self.reply(200, {"started": True, "board": b.name,
-                                    "prd": rel, "pid": proc.pid})
+                                    "prd": rel, "adapter": adapter["id"],
+                                    "pid": proc.pid})
         if path == "/unregister":
             name = body.get("board")
             with BOARDS_LOCK:
