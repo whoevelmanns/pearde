@@ -60,6 +60,9 @@ HTTP API, all JSON, all 127.0.0.1-only:
   POST /edit     {"board","prd","title"?,"fm"?,"body"?,"append"?}
                                    write one PRD — what the detail pane saves
   POST /report   {"board","prd","text"}   a worker's report → `## Report`
+  POST /run      {"board","prd"}   launch that PRD's round — `claude --print
+                                   "/pearde run <prd>"`, detached, cwd the
+                                   repo root. `open` only; 409 otherwise
   POST /unregister {"board": name} stop watching it
   POST /stop                       shut the daemon down
 
@@ -69,6 +72,7 @@ import datetime
 import json
 import os
 import re
+import shutil
 import socket
 import subprocess
 import sys
@@ -162,6 +166,24 @@ class Board:
 
 BOARDS = {}  # name → Board
 BOARDS_LOCK = threading.Lock()
+
+# ── the Start button: a click launches a round ────────────────────────────────
+# The view has no way to drive a Claude Code session itself — the daemon does,
+# since it already runs local Python with subprocess access. RUNNING tracks one
+# in-flight launch per (board, prd) so a second click while the first round is
+# still starting up is refused rather than spawning a duplicate session; it is
+# not the board's own claim tracking (`claim:` in the PRD, which the spawned
+# round writes for itself once it picks the PRD up) and is dropped the moment
+# the process this daemon started exits.
+RUNNING = {}  # (board name, prd rel) → Popen
+RUN_LOCK = threading.Lock()
+
+
+def claude_bin():
+    """The Claude Code CLI to launch a round with. `PEARDE_CLAUDE_BIN`
+    overrides — a machine where `claude` is not the PATH entry, or a build
+    under test, names its own."""
+    return os.environ.get("PEARDE_CLAUDE_BIN") or shutil.which("claude")
 
 
 def plan_digest(path):
@@ -745,6 +767,63 @@ class Handler(BaseHTTPRequestHandler):
                                    "Report", text)
             threading.Thread(target=mirror, args=(b,), daemon=True).start()
             return self.reply(200, {"wrote": f"{rel}/prd.md"})
+        if path == "/run":
+            # The Start button. Only `open` is offered one in the view, and
+            # this is the server-side half of that same rule — a stale page,
+            # or a second tab, must not launch a round on a PRD that already
+            # moved on.
+            b = by_name(body.get("board"))
+            if not b:
+                return self.reply(404, {"error": "unknown board"})
+            rel = body.get("prd") or ""
+            prd = planlib.scan(b.path).get(rel)
+            if not prd:
+                return self.reply(404, {"error": f"no PRD at {rel}"})
+            if prd["state"] != "open":
+                return self.reply(409, {"error":
+                    f"{rel} is {prd['state']}, not open"})
+            key = (b.name, rel)
+            with RUN_LOCK:
+                cur = RUNNING.get(key)
+                if cur and cur.poll() is None:
+                    return self.reply(409, {"error": "already starting"})
+            claude = claude_bin()
+            if not claude:
+                return self.reply(500, {"error":
+                    "claude not found on PATH — set PEARDE_CLAUDE_BIN"})
+            os.makedirs(APP_DIR, exist_ok=True)
+            safe = re.sub(r"[^A-Za-z0-9_-]", "_", f"{b.name}-{rel}")
+            log = open(os.path.join(APP_DIR, f"run-{safe}.log"), "a")
+            try:
+                # `claude` on Windows resolves (via shutil.which) to a .CMD
+                # shim — CreateProcess cannot launch that directly, only
+                # cmd.exe can, so this one call needs shell=True there. POSIX
+                # never does: shell=True with a list there hands the extra
+                # args to the shell itself as $0/$1, not to the command, so
+                # the CLI would run with none of its arguments.
+                #
+                # --dangerously-skip-permissions: a detached `--print` launch
+                # has no TTY to answer a permission prompt with, so without
+                # this every round dies on its first gated tool call (proven
+                # live: a real launch stalled on a Bash-approval prompt,
+                # printed the request, then exited having done nothing). The
+                # button's whole point is a browser click standing in for a
+                # terminal, so the launched round needs the same unattended
+                # trust a person running `/pearde run <prd>` themselves would
+                # extend to it - the risk this trades away is real (the round
+                # then executes anything, including destructive commands,
+                # without asking), not hidden from the person clicking it.
+                proc = subprocess.Popen(
+                    [claude, "--print", "--dangerously-skip-permissions",
+                     f"/pearde run {rel}"],
+                    cwd=os.path.dirname(b.path), stdout=log, stderr=log,
+                    start_new_session=True, shell=(os.name == "nt"))
+            except OSError as e:
+                return self.reply(500, {"error": f"could not start: {e}"})
+            with RUN_LOCK:
+                RUNNING[key] = proc
+            return self.reply(200, {"started": True, "board": b.name,
+                                    "prd": rel, "pid": proc.pid})
         if path == "/unregister":
             name = body.get("board")
             with BOARDS_LOCK:
