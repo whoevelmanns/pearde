@@ -156,12 +156,16 @@ def round_problems(prd):
 # One function per gate, each raising Refused with the gate named and what
 # would clear it. `transition` picks the gate off the (from, to) edge.
 
-def gate_claim(board, prds, prd):
+def gate_claim(board, prds, prd, holder=None):
     """`plan.dispatchable` is the gate — the one predicate the scan's ready
     band reads too, so what `scan` offers is what `claim` takes. The reason
     arrives with its gate word in front (`unclaimed:`, `leaf:`, `container:`,
-    `needs:`, `footprint:`, `workflow:`) and is raised as it stands."""
-    why = planlib.dispatchable(prd, prds, board)
+    `needs:`, `footprint:`, `workflow:`) and is raised as it stands.
+
+    `holder` names the worker asking, so a claim it already holds is not
+    the `unclaimed` gate — every caller but `brief` briefing a named worker
+    leaves it `None`, which is `dispatchable`'s original, stricter test."""
+    why = planlib.dispatchable(prd, prds, board, holder=holder)
     if why:
         raise Refused(why)
 
