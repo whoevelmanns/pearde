@@ -1,6 +1,6 @@
 # Archive
 
-`prds/` accumulates every PRD it ever finishes and never sheds one — a
+`.pearde/prds/` accumulates every PRD it ever finishes and never sheds one — a
 `done` PRD stays a live-looking directory forever, `scan` walks it on every
 call, and `doctor`'s census (requested / derived / live) only ever grows.
 Nothing here changes what `state: done` means; it moves the file once the
@@ -107,8 +107,8 @@ everything before the move.
   in files` — `scan` keeps walking it, `doctor`'s count doesn't move, and
   the report's actual complaint (the walk cost) is unfixed.
 - **A tenth `state:` meaning, e.g. `state: archived`.** Still a live
-  directory under `prds/` either way — the walk cost this document exists to
-  cut is the size of `prds/`, not the spelling of `state:`.
+  directory under `.pearde/prds/` either way — the walk cost this document exists to
+  cut is the size of `.pearde/prds/`, not the spelling of `state:`.
 - **Deleting done PRDs.** Out of scope by instruction, and against the
   board's own practice — `superseded` PRDs are kept specifically for their
   evidence, not as clutter.

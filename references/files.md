@@ -30,7 +30,7 @@ whose scope it changed. Nothing else points at it.
 
 | anchor | is |
 |---|---|
-| @references/archive.md | how a finished PRD leaves `prds/` — the flat `prds/archive/` shape, and why `scan` already ignores it |
+| @references/archive.md | how a finished PRD leaves `.pearde/prds/` — the flat `.pearde/prds/archive/` shape, and why `scan` already ignores it |
 | @references/files.md | this manifest — every tracked file, one row |
 | @references/language.md | how every document is written |
 | @references/install.md | what the system is, and how to install it for any agent |

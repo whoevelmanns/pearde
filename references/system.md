@@ -1,7 +1,7 @@
 <!-- pearde:begin — from the pearde skill's system.md -->
 ## PRD board (pearde)
 
-This repo has a PRD board at `prds/`.
+This repo has a PRD board at `.pearde/`.
 
 The skill itself lives at `<PEARDE>` — an absolute path, written in when this
 block was installed. Every `@<path>` below is relative to *that* folder and

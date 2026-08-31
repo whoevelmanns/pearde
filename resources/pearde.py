@@ -10,7 +10,7 @@ A dispatcher, not a home. No logic lives here: each name forwards to the
 script that owns it, arguments in the order that script takes them, exit
 code passed through. The board is resolved by the script that reads it, the
 way @resources/board/plan.py `find_board` does — the path given, or the
-nearest `prds/` walking up from the working directory.
+nearest `.pearde/` walking up from the working directory.
 
 Discovery. Every `resources/board/*.py` that exposes
 `COMMANDS = {"<name>": <callable>}` is imported and its names are routed. A

@@ -66,7 +66,7 @@ never reads `off` — the map is either right or wrong.
   `workflow:` on a `prd.md` or a spec naming no **workflow** in the library
   — an atomic is a file, so naming one is this same failure: a route was
   asked for and a single step was found. Both are silent from the outside,
-  and both send a worker nowhere. A `workflows:` pointing outside `prds/` is
+  and both send a worker nowhere. A `workflows:` pointing outside `.pearde/` is
   checked in full, not mirrored: it is this library shared between boards,
   not another system's. Not `--fix`-able — what a step should name is its
   author's to say.
@@ -76,7 +76,7 @@ never reads `off` — the map is either right or wrong.
   nobody defined. It is not `--fix`-able — which row a new file belongs in is
   a judgement.
 - `harnesses` runs the board's own acceptance checks — every `verify.sh` that
-  `find` returns under `prds/`, and nothing else: a harness outside this board
+  `find` returns under `.pearde/`, and nothing else: a harness outside this board
   is not this board's business. Every PRD is closed against one, and until
   this row existed nothing ran them: no CI, no hook, no command — every green
   total on record was a person remembering to type it. **Opt-in, because it

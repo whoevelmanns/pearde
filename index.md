@@ -7,7 +7,7 @@
 
 `@@` names a row in this index, not a path on disk. No keyword is a directory.
 
-Board paths (`prds/…`) are neither. They address a board, not this skill.
+Board paths (`.pearde/…`) are neither. They address a board, not this skill.
 
 **A scope is what a feature is made of, not a reading list.** Read the one
 file that answers the question in front of you — the first anchor in a row is

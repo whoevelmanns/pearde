@@ -1,7 +1,7 @@
 # pearde — the PRD board
 
-A board of PRDs — product requirement definitions — as files under `prds/`,
-one session that moves them through nine states with one command each, and a
+A board of PRDs — product requirement definitions — as files under
+`.pearde/prds/`, one session that moves them through nine states with one command each, and a
 live page that draws the board. Nothing leaves the machine: Python 3, no
 dependency, no build step.
 

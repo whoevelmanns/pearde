@@ -210,7 +210,7 @@ the template, the daemon watching it, `doctor` once, and the three lines to
 run next — each runs as printed, with the two lines above in the shell. It
 asks nothing; `pearde settings <key>=<value>` changes a knob, per
 @references/settings.md. Nothing about installing does that, and nothing
-about installing touches `prds/`.
+about installing touches `.pearde/`.
 
 ## Uninstall
 
@@ -220,7 +220,7 @@ retired it. Delete the `pearde:begin`/`:end` block from the instructions file,
 leaving the rest of it alone. Unwire the status line yourself — that
 file is yours. Drop the alias from your shell file — it was yours to add.
 
-`prds/` is your data: untouched by installing, and it survives uninstalling.
+`.pearde/` is your data: untouched by installing, and it survives uninstalling.
 The view stops with `python3 @resources/board/serve.py stop`. Nothing else of
 this system lives outside this folder except `.pearde/.state/plan.json`,
 `.pearde/.state/history.jsonl` and `.pearde/.state/view.html` on each board — machine-local and
