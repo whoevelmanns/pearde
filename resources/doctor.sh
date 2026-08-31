@@ -209,9 +209,15 @@ if [ -z "$BOARD" ]; then
 else
   ROOT=$(git -C "$BOARD" rev-parse --show-toplevel 2>/dev/null)
   N=$(find "$BOARD" -type f -name prd.md 2>/dev/null | wc -l | tr -d ' ')
-  # compare physical paths — /tmp vs /private/tmp is a spelling, not a move
+  # compare physical paths — /tmp vs /private/tmp is a spelling, not a move.
+  # On Git for Windows, `rev-parse --show-toplevel` can answer in native
+  # form (`C:/Users/...`) while `$BOARD`/`pwd -P` stay in Git Bash's own
+  # POSIX form (`/c/Users/...`) — same place, two spellings. `cd` accepts
+  # either, so resolving $ROOT through it too puts both sides in the one
+  # form this shell already uses, instead of comparing spellings.
   PBOARD=$(cd "$BOARD" 2>/dev/null && pwd -P)
-  if [ -n "$ROOT" ] && [ "$PBOARD" != "$ROOT/prds" ]; then
+  PROOT=$(cd "$ROOT" 2>/dev/null && pwd -P)
+  if [ -n "$ROOT" ] && [ "$PBOARD" != "$PROOT/prds" ]; then
     row board broken "$BOARD is not $ROOT/prds"
     fix "git mv $BOARD $ROOT/prds"
   elif [ ! -f "$BOARD/settings.md" ]; then
@@ -435,6 +441,23 @@ if [ -n "$BOARD" ] && [ "$N" -gt 0 ] 2>/dev/null; then
   fi
 fi
 
+# A native Windows Python (the service) stores and echoes board paths as
+# `C:\Users\...` — backslashes, uppercase drive, and JSON-escaped over the
+# wire (`\\`, doubled). Git Bash's own $BOARD and `pwd -P` stay POSIX-style,
+# `/c/Users/...` — same place, a spelling a plain string match never
+# bridges. Only the `/x/...` shape is Git Bash's drive convention; anything
+# else already matches what the service would print.
+winpath() {
+  case "$1" in
+    /?/*) d="$(printf '%s' "${1:1:1}" | tr '[:lower:]' '[:upper:]')"
+          printf '%s' "$d:${1:2}" | tr '/' '\\' ;;
+    *) printf '%s' "$1" | tr '/' '\\' ;;
+  esac
+}
+# the same path, with every backslash doubled — how it reads inside a JSON
+# string, which is how `/status` actually prints it
+winpath_json() { winpath "$1" | sed 's/\\/\\\\/g'; }
+
 # ── the view service: is the board actually being watched? ────────────────────
 # The board is files, so nothing here is required for the board to work. What
 # this row answers is whether the live view — the thing a person looks at and
@@ -444,6 +467,7 @@ fi
 if [ -n "$BOARD" ]; then
   SRV_PORT="${PEARDE_PORT:-8443}"
   SRV=$(curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
+  WBOARD_JSON="$(winpath_json "$BOARD")"
   if [ -z "$SRV" ]; then
     row view off "not running — the board reads and plans without it"
     fix "python3 $DIR/board/serve.py ensure $BOARD"
@@ -451,8 +475,10 @@ if [ -n "$BOARD" ]; then
       did "view service started"
     fi
   elif printf '%s' "$SRV" | grep -qF "\"$BOARD\"" \
-       || printf '%s' "$SRV" | grep -qF "\"$PBOARD\""; then
-    BN=$(printf '%s' "$SRV" | tr '{' '\n' | grep -F "\"$BOARD\"" \
+       || printf '%s' "$SRV" | grep -qF "\"$PBOARD\"" \
+       || printf '%s' "$SRV" | grep -qF "$WBOARD_JSON"; then
+    BN=$(printf '%s' "$SRV" | tr '{' '\n' \
+         | grep -F -e "\"$BOARD\"" -e "$WBOARD_JSON" \
          | sed -n 's/.*"name": "\([^"]*\)".*/\1/p' | head -1)
     row view ok "watching · http://127.0.0.1:$SRV_PORT/board/${BN:-?}"
   else

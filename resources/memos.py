@@ -115,7 +115,11 @@ def scan(board):
 
 
 def board_prds(board):
-    return {os.path.relpath(r, board) for r, ds, fs in os.walk(board)
+    # relpath is OS-native (`\` on Windows); every `prds:` reference in a
+    # memo is written `/`, the project's own convention — normalize so the
+    # comparison in `check()` is not a silent path-separator mismatch.
+    return {os.path.relpath(r, board).replace(os.sep, "/")
+            for r, ds, fs in os.walk(board)
             if "prd.md" in fs and r != board}
 
 

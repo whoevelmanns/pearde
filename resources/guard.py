@@ -118,10 +118,24 @@ WRITERS = re.compile(r"(^|[|;&]\s*)(rm|mv|cp|mkdir|touch|tee|install|chmod)\b"
                      r"|>>?|\bgit\s+(add|commit|checkout|reset|rm|mv|stash)\b")
 
 
+_GITBASH_DRIVE_RE = re.compile(r"^/([A-Za-z])(/.*)?$")
+
+
 def board_of(start):
     """The nearest ancestor holding `prds/`, or None. The guard has no opinion
     about a directory that is not a board."""
-    d = os.path.abspath(start or os.getcwd())
+    start = start or os.getcwd()
+    if os.name == "nt":
+        # Git Bash's own `cwd` (and `pwd`/`dirname` output doctor.sh builds
+        # from it) is POSIX-style, `/c/Users/...` — os.path.abspath under a
+        # native Windows interpreter does not read that as a drive letter,
+        # it prepends the current drive instead: `/c/Users/...` becomes
+        # `C:\c\Users\...`, a path that never exists, so `prds/` is never
+        # found and the guard silently no-ops on every real Bash tool call.
+        m = _GITBASH_DRIVE_RE.match(start)
+        if m:
+            start = f"{m.group(1)}:{m.group(2) or '/'}"
+    d = os.path.abspath(start)
     while True:
         if os.path.isdir(os.path.join(d, "prds")):
             return os.path.join(d, "prds")
