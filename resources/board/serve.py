@@ -1013,9 +1013,24 @@ class Handler(BaseHTTPRequestHandler):
                 # the CLI would run with none of its arguments. Not
                 # adapter-specific — any adapter's Windows binary can be a
                 # shim, so this stays unconditional on `os.name`.
+                #
+                # stdin is a PIPE, closed right after spawn, rather than left
+                # to inherit: `view` starts this daemon detached on Windows,
+                # so it has no stdin handle of its own to hand down, and on
+                # Windows that absence — not the missing console some of its
+                # symptoms suggest — is what makes the Junie CLI's own
+                # console-mode probe on startup fail and exit immediately
+                # with ERROR_INVALID_FUNCTION ("Unzulässige Funktion"),
+                # before it ever looks at the task it was given (confirmed:
+                # neither a fresh console via CREATE_NEW_CONSOLE nor
+                # stdin=DEVNULL fixes it — only a real, if immediately
+                # closed, pipe does). A closed PIPE reads as a clean EOF, the
+                # same as any adapter expecting no stdin sees today.
                 proc = subprocess.Popen(
                     argv, cwd=os.path.dirname(b.path), stdout=log, stderr=log,
-                    start_new_session=True, shell=(os.name == "nt"))
+                    stdin=subprocess.PIPE, start_new_session=True,
+                    shell=(os.name == "nt"))
+                proc.stdin.close()
             except OSError as e:
                 return self.reply(500, {"error": f"could not start: {e}"})
             with RUN_LOCK:
