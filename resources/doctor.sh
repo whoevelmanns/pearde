@@ -244,11 +244,16 @@ fi
 # PreToolUse hook — @references/parts/guard.md. Where hooks are configured IS
 # knowable here, unlike a status line: the settings file sits in the repo the
 # board lives in, so this checks that file and `--fix` writes the block.
+# The same walk the `board` row below and @resources/guard.py `board_of` do:
+# the nearest ancestor holding `.pearde/`, not a literal `prds/` — that was
+# the pre-migration contract, and on a machine with another project's board
+# sitting a level up (its own leftover `prds/`) the old literal walk picked
+# THAT project's .claude/settings.json instead of this repo's.
 GSET=""
 d="$START"
-while [ "$d" != "/" ]; do
-  [ -d "$d/prds" ] && { GSET="$d/.claude/settings.json"; break; }
-  d="$(dirname "$d")"
+while [ -n "$d" ] && [ "$d" != "/" ]; do
+  [ -d "$d/.pearde" ] && { GSET="$d/.claude/settings.json"; break; }
+  p=$(dirname "$d"); [ "$p" = "$d" ] && break; d="$p"
 done
 if [ -z "$GSET" ]; then
   :
