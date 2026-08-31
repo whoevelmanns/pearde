@@ -107,12 +107,12 @@ else
   python3 "$SERVE" ensure "$B" >/dev/null 2>&1
   NAME="$(curl -s "http://127.0.0.1:$PORT/status" | python3 -c "import json,sys;print([b['name'] for b in json.load(sys.stdin)['boards'] if b['path']=='$B'][0])")"
   check "serve: the fixture registered under its own name" "$NAME" "example"
-  check "GET /round: absent file is null" "$(curl -s "http://127.0.0.1:$PORT/round?board=$NAME" | python3 -c 'import json,sys;print(json.load(sys.stdin)["text"])')" "None"
+  # /round was removed (9a8f6ac — the page dropped the panel, nothing fetches
+  # it); the endpoint stays gone, and the probe asserts the removal
+  check "/round is gone — 404, not a route to a file nothing reads" "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/round?board=$NAME")" "404"
   check "GET /report: absent file is null" "$(curl -s "http://127.0.0.1:$PORT/report?board=$NAME" | python3 -c 'import json,sys;print(json.load(sys.stdin)["text"])')" "None"
-  check "GET /round: unknown board is 404" "$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/round?board=no-such")" "404"
-  printf '# Round — probing\n\n## Established\n- one · 15:00\n\n## Asked\n- where · answered\n\n## Owed\n- write the specs\n' > "$B/.round.md"
+  check "/round stays gone with a .round.md on disk" "$(printf '# Round — probing\n' > "$B/.round.md"; curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/round?board=$NAME")" "404"
   printf '# Where the example stands\n\n*today*\n\nOne worker is **building**.\n\n## In work\n\n- `building` — half done\n' > "$B/report.md"
-  check "GET /round: the file, read on the call" "$(curl -s "http://127.0.0.1:$PORT/round?board=$NAME" | python3 -c 'import json,sys;print(json.load(sys.stdin)["text"].splitlines()[0])')" "# Round — probing"
   check "GET /report: the file, read on the call" "$(curl -s "http://127.0.0.1:$PORT/report?board=$NAME" | python3 -c 'import json,sys;print(json.load(sys.stdin)["text"].splitlines()[0])')" "# Where the example stands"
   back
   if ! node -e 'require("playwright-core")' 2>/dev/null; then
