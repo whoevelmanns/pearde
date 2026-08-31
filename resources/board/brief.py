@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """pearde brief — a worker's brief is one command's output, never composed.
 
-    brief.py <prd> [--role analyst|implementer] [--as <id>] [--force] [--board <path>]
+    brief.py <prd> [--role analyst|implementer] [--as <id>] [--worker <id>] [--force] [--board <path>]
     brief.py --consult <id> --question "<q>" [--transcript <path>] [--board <path>]
     brief.py --check                    the brief blocks in workers.md, one problem per line
 
@@ -15,7 +15,13 @@ and holds no copy. The role follows the state: `open` is an analyst,
 
 Dispatchable is @resources/board/transitions.py `gate_claim` — the same test
 `claim` runs, imported and not re-implemented. A PRD that fails it exits 1
-naming the skip: `held`, `gated`, `clash`, `workflow`, `leaf`, `state`.
+naming the skip: `held`, `gated`, `clash`, `workflow`, `leaf`, `state`. Pass
+`--worker <id>` naming the worker `pearde claim` wrote for this PRD and the
+`held` gate does not fire on that claim alone — the same worker briefing the
+PRD it already holds is not a refusal; a claim naming anyone else, or no
+`--worker` at all, still refuses exactly as before. Every other gate — a
+`needs:` not done, a footprint clash, an unresolved `workflow:`, a parked
+leaf, an unbriefable state — still stops the brief even self-claimed.
 `--force` prints the brief anyway and says `forced` on the header line.
 
 `--check` is the `doctor` row `briefs`: every marker pair present and
@@ -201,7 +207,7 @@ def repo_of(prd, board):
     from there and not restated. Else the PRD's own board's repo — a
     member's — else the board's."""
     board_root = planlib.repo_root(board) or os.path.dirname(board)
-    found = collectlib.repo_of(prd, board_root)
+    found = collectlib.repo_of(prd, board, board_root)
     if found != board_root:
         return found
     return planlib.repo_root(prd["board_path"]) or board_root
@@ -261,7 +267,7 @@ def persona_line(pid):
 def brief_prd(args, out=print):
     if len(args.pos) != 1:
         raise Refused("brief <prd> [--role analyst|implementer] [--as <id>] "
-                      "[--force]")
+                      "[--worker <id>] [--force]")
     blocks, bad = read_blocks()
     if bad:
         raise Refused("workers.md is not sound — " + "; ".join(bad))
@@ -280,17 +286,23 @@ def brief_prd(args, out=print):
     if not role:
         role = {"open": "analyst", "analyzing": "analyst",
                 "specced": "implementer", "claimed": "implementer"}.get(state)
+    worker = args.opt.get("worker")
     skip = None
     held = planlib.claim_of(prd["fm"])
-    if state in ("analyzing", "claimed") or (held and state in ("open",
-                                                                "specced")):
+    self_claim = bool(worker) and bool(held) and held["who"] == worker
+    if state in ("analyzing", "claimed") and not self_claim:
         skip = (f"held — {rel} is `{state}`"
                 + (f", `claim: {prd['fm']['claim']}`" if held else ""))
-    elif state not in ("open", "specced"):
+    elif held and state in ("open", "specced"):
+        skip = f"held — {rel} is `{state}`, `claim: {prd['fm']['claim']}`"
+    elif state not in ("open", "specced", "analyzing", "claimed"):
         skip = f"state — {rel} is `{state}`, not open or specced"
     else:
+        # open/specced with no claim, or a self-claimed analyzing/claimed:
+        # `gate_claim` still runs, so needs/footprint/workflow/leaf still
+        # gate it — the self-claim lifts only the `unclaimed` check.
         try:
-            trlib.gate_claim(board, prds, prd)
+            trlib.gate_claim(board, prds, prd, holder=worker)
         except trlib.Refused as e:
             msg = str(e)
             word = SKIP.get(msg.split(":", 1)[0], "gate")
@@ -355,7 +367,7 @@ def brief_consult(args, out=print):
 # The declaration — transitions.py `Args` is the parser. No `--dry`: brief
 # writes nothing.
 FLAGS = trlib.Flags(("as", "board", "role", "consult", "question",
-                     "transcript"), ("force", "check"))
+                     "transcript", "worker"), ("force", "check"))
 
 
 def cmd_brief(argv):

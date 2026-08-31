@@ -196,10 +196,15 @@ def contract_line(prd):
     return t
 
 
-def repo_of(prd, board_root):
+def repo_of(prd, board, board_root):
     """Where the PRD's code lives. `repo:` that is a directory — absolute, or
-    relative to the board's repo — is it; a name that is no directory, or no
-    `repo:` at all, is the board's own repo."""
+    relative to the board's repo — is it. With no `repo:`: when the board is
+    its own git repo (`board_root == board` — a nested `.pearde` with a
+    `.git` of its own), the repo enclosing it, `repo_root` of the board's
+    own parent — a nested board defaults to the code repo it sits in, never
+    to itself. When the board is not its own repo — `board_root` was found
+    walking up *past* the board, so it already is the code repo — unchanged,
+    the board's own repo, exactly as before this default existed."""
     raw = str(prd["fm"].get("repo", "") or "").strip()
     if raw:
         for cand in (raw, os.path.join(board_root, raw)):
@@ -207,6 +212,10 @@ def repo_of(prd, board_root):
                 root = planlib.repo_root(cand)
                 if root:
                     return root
+    if board_root == board:
+        enclosing = planlib.repo_root(os.path.dirname(board_root))
+        if enclosing:
+            return enclosing
     return board_root
 
 
@@ -723,9 +732,26 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
            if prd.get("board") else None)
     for f in feet:
         if own and f.startswith(own):
-            groups.setdefault(repo, set()).add(f[len(own):])
+            p = f[len(own):]
         elif not f.startswith(planlib.MEMBER_SIGIL):
-            groups.setdefault(repo, set()).add(f)
+            p = f
+        else:
+            continue
+        # a footprint path `repo_of` filed under a repo that does not hold
+        # it at all is the exact silent drop this replaces: `collect` must
+        # not write `done` over code it never found — refused loudly here,
+        # before any group's `dirty_paths` loop ever runs. "Holds it" means
+        # on disk (an untracked new file) or in the index (`git ls-files` —
+        # still true of a path deleted from the working tree but not yet
+        # staged, so a spec whose finish is a deletion still passes); a path
+        # that DOES exist but is merely clean is not this — it goes to
+        # plan.add=[] further down, no bug, nothing to say.
+        full = os.path.join(repo, p)
+        tracked = git_out(repo, "ls-files", "-z", "--", p).strip("\0")
+        if not os.path.exists(full) and not tracked:
+            raise Stop(f"{rel}: footprint {p} is not under {repo} — "
+                       f"repo_of matched no repo for it; nothing written")
+        groups.setdefault(repo, set()).add(p)
     for a in opts["also"]:
         ap = os.path.abspath(a)
         root = planlib.repo_root(ap)
@@ -859,7 +885,7 @@ def collect_one(board, rel, opts, out=print):
                    f"is finished ({closed}/{total})")
 
     # 2 — the verify, then the gate — never the worker's word
-    repo = repo_of(prd, board_root)
+    repo = repo_of(prd, board, board_root)
     base = baseline(board, rel)
     report, trusted, known = [], False, False
     if opts.get("trust"):
@@ -1046,7 +1072,7 @@ def container(prd, prds, board):
                  ).startswith("container:"))
 
 
-def last_child_commit(kids, board_root):
+def last_child_commit(kids, board, board_root):
     """The `commit:` of the child that landed last — the newest of the
     children's shas by commit date, each read in the repo the child wrote;
     two in the same second are ordered by how deep in history they sit.
@@ -1056,7 +1082,7 @@ def last_child_commit(kids, board_root):
         raw = str(c["fm"].get("commit", "") or "").split()
         if not raw or raw[0] == "none":
             continue
-        root = repo_of(c, board_root)
+        root = repo_of(c, board, board_root)
         r = subprocess.run(["git", "-C", root, "log", "-1", "--format=%ct",
                             raw[0]], capture_output=True, text=True)
         if r.returncode != 0 or not r.stdout.strip():
@@ -1084,7 +1110,7 @@ def close_container(board, rel, prd, prds, board_root, opts, now, out=print):
     prd_rel = os.path.relpath(prd["dir"], board_root)
     actual = fmt_hours(sum(planlib.hours(c["fm"].get("actual"))
                            for c in kids))
-    sha = last_child_commit(kids, board_root)
+    sha = last_child_commit(kids, board, board_root)
     message = f"{prd['name']} — done: every child landed\n\nprd: {prd_rel}\n"
     phrase = "container: every child done — pearde collect closes it"
     if opts.get("dry"):
