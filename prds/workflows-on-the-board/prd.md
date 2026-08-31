@@ -1,5 +1,5 @@
 ---
-state: open
+state: done
 origin: requested
 priority: 50
 complexity: 0
@@ -15,6 +15,8 @@ footprint:
   - README.md
   - SKILL.md
   - prds/workflows
+actual: 4.24h
+commit: 7e5250f
 ---
 
 # workflows-on-the-board — a folder of how-to files a worker is handed, and improves on every run
@@ -61,7 +63,8 @@ This folder is where the how accumulates.
   on failure |`. `on failure` is `→ N` with N an earlier step, or `stop`. A
   back-edge is taken at most twice per run; the third failure at one step is
   a stop.
-- `runs` counts the times a file was followed. `updated` moves only when the
+- `runs` counts the runs a file was in — one collect, one count, never the
+  traversals inside one run. `updated` moves only when the
   text changed. No log section — git holds the history, the text holds the
   current lesson.
 - Written per @references/language.md, in the board language.
@@ -137,3 +140,9 @@ Work flows to the leaves; this PRD is done when every child is.
 - @references/parts/loop.md step 6 — where the edits are applied.
 - @references/personas/INDEX.md — the precedent for a registered file kind
   with a fixed format and a `create` path.
+
+## Report
+
+container: every child done — pearde collect closes it
+
+children: workflows-on-the-board/workflow-improve, workflows-on-the-board/workflow-skill, workflows-on-the-board/workflow-format, workflows-on-the-board/workflow-attach, workflows-on-the-board/workflow-seed, workflows-on-the-board/workflow-reader

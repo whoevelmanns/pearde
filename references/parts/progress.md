@@ -2,17 +2,23 @@
 
 The one line printed on every state change, term by term.
 
-Print on EVERY state change:
+Print on EVERY state change. **Printed by the tool**: every transition
+command — `pearde claim` · `release` · `answer` · `retry` · `unblock` ·
+`defer` · `add` · `set` · `sweep` · `specced` · `refine` · `collect` — prints
+it on its stdout with every term below computed from the board after the
+write, and a command run from a shell says `round file owed` before `as`. The
+round computes none of it; the one term the tool cannot know is the persona,
+passed as `--as <id>` or `PEARDE_AS` in the environment.
 
 ```
-▸ <prd>: <from> → <to> · asked <ad>/<an> · <ap>% · derived <dd>/<dn> · open <o>/<n> · <q>% · ready <r> · blocked <b> · collect <c> @<w> workers · as <persona>
+▸ <prd>: <from> → <to> · done <rd>/<rn> · <rp>% · derived <dd>/<dn> · open <o>/<n> · <q>% · ready <r> · blocked <b> · collect <c> @<w> workers · as <persona>
 ```
 
 | term       | is                                                                        |
 |------------|---------------------------------------------------------------------------|
 | weight     | the PRD's `complexity`; missing counts at the average of scored PRDs, `weight-default` if none |
-| `<ad>/<an>`| `done` / all `origin: requested` — **the deliverable**                     |
-| `<ap>`     | Σ weight(done, requested) / Σ weight(all requested). `failed` counts as remaining |
+| `<rd>/<rn>`| `done` / all `origin: requested` — **the deliverable**                     |
+| `<rp>`     | Σ weight(done, requested) / Σ weight(all requested). `failed` counts as remaining |
 | `<dd>/<dn>`| `done` / all `origin: derived`. Counts, never weighted                      |
 | `<o>`      | PRDs still `open`, both origins                                             |
 | `<q>`      | `<o>/<n>`. A count — an `open` PRD is not scored yet                        |
@@ -23,12 +29,12 @@ Print on EVERY state change:
 | `<c>`      | **to collect** — finished work still open: every acceptance box `[x]`, state not yet `done`. Omitted at zero |
 | `as <persona>` | who is working, the id — @references/parts/personas.md. **Always last, never omitted**, because it is the only record of it |
 
-- **`asked` is the answer to "how far along are we".** Derived PRDs enlarge
+- **`done` is the answer to "how far along are we".** Derived PRDs enlarge
   the denominator with work the user never requested: a board 90% through its
   deliverable reads 63% combined. Report both or neither.
 - Omit the `derived` term on a board that has none.
 - When the tripwire is live, say so on the line and in the round.
-- `<q>` and `<ap>` do not sum to 100 — untouched board vs requested work done.
+- `<q>` and `<rp>` do not sum to 100 — untouched board vs requested work done.
 - A parked PRD is in neither numerator nor denominator. Name it in the report.
 - **`ready` and `blocked` are the actionable pair.** A board with 20 PRDs left
   and `ready 1` is not slow, it is serial. The round says which dependency or
@@ -47,4 +53,7 @@ showing the persona before it.
 
 The same numbers rendered continuously in the terminal are
 @references/parts/statusline.md — a different reader, and nothing the loop
-needs.
+needs. It carries one term this line does not: where there is room here for
+`derived <dd>/<dn>`, the status line renders `+<dr>d`, the derived PRDs not
+yet `done`. Same rule — report both or neither — resolved for a row that can
+hold one number.

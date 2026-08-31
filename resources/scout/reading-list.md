@@ -34,6 +34,19 @@ Three genres, in rising order of value:
 | [ByteByteGoHq/system-design-101](https://github.com/ByteByteGoHq/system-design-101) | 88k | the diagrams — each pattern as one picture | the visual grammar for the shapes model already implements (quorum, leader election, anti-entropy). Unmaintained since 2025-04 — read the diagrams, do not cite the repo as current |
 | [karanpratapsingh/system-design](https://github.com/karanpratapsingh/system-design) | 46k | the consistency and replication chapters, maintained 2026-07 | the freshest of the system-design corpora; the successor to system-design-101's abandoned text |
 
+## For model — the support model that knows a harness
+
+The job (`findings.md`: *give a general LLM knowledge of one tree it never
+saw*) is a corpus→weights compile plus a two-arm comparative gate. These four
+are the reference implementations of those two halves.
+
+| repo | ★ | what to read | what to steal |
+|---|---|---|---|
+| [karpathy/nanochat](https://github.com/karpathy/nanochat) | 58k | the whole pipeline end to end — tokenizer, pretrain, mid-train, SFT, eval, serve — as one readable repo | the *shape of the compile*. `the-harness-is-its-own-corpus` says the record is the dataset; this is the only short repo that shows every stage between a text corpus and a served model without a framework in the way. Pushed 25d ago, active. The closest thing to a spec for what `src/learning/` + `src/teacher/` have to become |
+| [karpathy/nanoGPT](https://github.com/karpathy/nanoGPT) | 63k | `model.py` — a decoder in ~300 lines; `train.py` for the loop | the minimal substrate against which `src/transformers/` is judged. Read it as the floor: anything we add on top of this has to justify itself. **Last push 288d — read as finished, not abandoned**; the scout's activity heuristic flags it "slow" and is wrong about what that means here |
+| [EleutherAI/lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness) | 14k | the task/model abstraction — one question set, many model backends, recorded results | the **two-arm gate** in `the-support-model-knows-the-harness`, which needs exactly this: our model and a general-model arm answering one human-authored set, with the gap as the reading. `src/grade/` currently has no notion of a second arm. Active, 0d |
+| [promptfoo/promptfoo](https://github.com/promptfoo/promptfoo) | 25k | the declarative config — assertions as data, providers swapped per run | the alternative to the above for the same slot, and the better one if the question set should be a *recorded file* rather than code. That framing matches DOGMA 8 (gates recorded, never claimed) more closely than a Python task class does. Active, 0d |
+
 ## For the whole family — testing the harness itself
 
 | repo | ★ | what to read | what to steal |

@@ -27,6 +27,10 @@ from memos import ISO_RE, parse  # noqa: E402
 # The closed set, per @references/workflow.md. Exactly one slug key, and the
 # slug key says the kind — there is no `kind:`, because two fields that must
 # agree are one field that can disagree.
+# A member's PRD is addressed `@<member>/<rel>`, the address `plan.py scan`
+# prints. Kept spelled the same in both readers — one address, two readers.
+MEMBER_SIGIL = "@"
+
 SLUG_KEYS = ("atomic", "workflow")
 REQUIRED = ("subject", "date")
 OPTIONAL = ("updated", "runs")
@@ -138,10 +142,25 @@ def scan(board):
                        key=lambda kv: (kv[1]["kind"] != "workflow", kv[0])))
 
 
-def board_workflow_refs(board):
-    """[(relpath, slug)] — every `workflow:` in a prd.md or a spec on this
-    board. The board half of the check: a PRD routed to a workflow nobody
-    wrote is a worker sent nowhere."""
+def members(board):
+    """[(name, path)] — the member boards a master board merges.
+
+    `members:` has exactly one reader on this board and it lives in the
+    planner; this borrows it rather than parsing the key a second time, so
+    the two never drift. The import is deferred on purpose: `plan.py` imports
+    this module at its top, and a module-level import here would close that
+    circle while both are still loading."""
+    d = os.path.join(os.path.dirname(os.path.abspath(__file__)), "board")
+    if d not in sys.path:
+        sys.path.insert(0, d)
+    import plan  # noqa: E402 — deferred: plan.py imports this module
+    return plan.members(board)
+
+
+def _refs_one(board, prefix=""):
+    """[(rel, value, board)] — every `workflow:` in a prd.md or a spec on one
+    board, the value as written. A non-scalar shape is carried out rather
+    than dropped: the reader that finds it is the reader that reports it."""
     refs = []
     lib, _ = workflows_dir(board)
     lib = os.path.abspath(lib)
@@ -157,8 +176,25 @@ def board_workflow_refs(board):
             path = os.path.join(root, n)
             fm, _, _ = parse(path)
             v = (fm or {}).get("workflow")
-            if v and not isinstance(v, list):
-                refs.append((os.path.relpath(path, board), v))
+            if v:
+                refs.append((prefix + os.path.relpath(path, board), v, board))
+    return refs
+
+
+def board_workflow_refs(board):
+    """[(rel, value, board)] — every `workflow:` on this board and, when this
+    is a master, on every member board too, addressed `@<member>/<rel>` the
+    way `plan.py scan` addresses it.
+
+    The board half of the check: a PRD routed to a workflow nobody wrote is a
+    worker sent nowhere, and a member's PRD is no less routed for living on
+    another path. The board each ref came from travels with it — resolution
+    is per-PRD, never against one flattened set, because the library does not
+    merge and only the refs do."""
+    refs = _refs_one(board)
+    for name, path in members(board):
+        if os.path.isdir(path):
+            refs += _refs_one(path, f"{MEMBER_SIGIL}{name}/")
     return refs
 
 
@@ -234,11 +270,57 @@ def check(board):
                 else:
                     bad.append(f"{at}: step {r['n']} on failure `{f}` — "
                                "neither `stop` nor `→ N` with N earlier")
-    for rel, slug in board_workflow_refs(board):
-        if slug not in lib:
+    # A member named in `members:` and absent from disk is reported, not
+    # skipped: `plan.py`'s `cmd_status` prints MISSING for one, and a check
+    # that walks past it would call a board clean it never opened.
+    for name, path in members(board):
+        if not os.path.isdir(path):
+            bad.append(f"settings.md: member `{name}` is not on disk at "
+                       f"{path} — a member that cannot be read is not clean")
+
+    # One scan per library, not one per PRD. The board's own is already in
+    # hand; a member's is read the first time one of its PRDs asks.
+    libs = {os.path.abspath(board): lib}
+
+    def library(b):
+        k = os.path.abspath(b)
+        if k not in libs:
+            libs[k] = scan(b)
+        return libs[k]
+
+    for rel, val, home in board_workflow_refs(board):
+        if isinstance(val, list):
+            # Neither a slug nor absence. @references/workflow.md says the key
+            # holds one slug and anything else is a break, so the shape error
+            # joins the dangling slug instead of passing as silence.
+            bad.append(f"{rel}: `workflow:` is a list of "
+                       f"{len(val)} — the key holds one slug, and any other "
+                       "shape is a break, not an absence")
+            continue
+        if not isinstance(val, str):
+            bad.append(f"{rel}: `workflow:` is not a slug — the key holds "
+                       "one slug, and any other shape is a break, not an "
+                       "absence")
+            continue
+        slug = val.strip()
+        if not slug:
+            continue
+        # Its own board's library first, then the master's — the order
+        # @references/parts/workers.md sets, and the order `needs:` resolves
+        # in. The libraries are asked in turn; they are never merged.
+        seen, order = set(), []
+        for b in (home, board):
+            k = os.path.abspath(b)
+            if k not in seen:
+                seen.add(k)
+                order.append(b)
+        found = [library(b)[slug] for b in order if slug in library(b)]
+        where = ("its library or the master's" if len(order) > 1
+                 else "the library")
+        if not found:
             bad.append(f"{rel}: `workflow: {slug}` names no workflow "
-                       "in the library")
-        elif lib[slug]["kind"] != "workflow":
+                       f"in {where}")
+        elif not any(e["kind"] == "workflow" for e in found):
             # The file is right there. Saying it "names no workflow" about a
             # slug the reader can open costs the checker its credibility, so
             # this branch names the file and says what it is instead.
@@ -277,7 +359,15 @@ def brief(board, slug):
     out = [f"# {e['title']}", ""]
     use = section(e["body"], "Use when")
     if use is not None:
-        out += ["## Use when", ""] + [l for l in use if l.strip()] + [""]
+        # Trim the blank lines at the ends, keep the ones in the middle:
+        # dropping every blank glues a paragraph onto the last bullet, on the
+        # one page a worker actually reads.
+        body = list(use)
+        while body and not body[0].strip():
+            body.pop(0)
+        while body and not body[-1].strip():
+            body.pop()
+        out += ["## Use when", ""] + body + [""]
     rows = steps(e["body"]) or []
     for r in rows:
         out += [f"### {r['n']} — {r['atomic']}", "",

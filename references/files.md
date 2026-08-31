@@ -81,11 +81,13 @@ whose scope it changed. Nothing else points at it.
 | @references/templates/atomic.md | one unit of work |
 | @references/templates/workflow.md | one ordered route over atomics |
 | @references/templates/report.md | the one rolling state, for a person |
+| @references/templates/vision.md | one board's destination — the vision, its terminals, its edges |
 
 ## `resources/` — run
 
 | anchor | is |
 |---|---|
+| @resources/pearde.py | the one command — a dispatcher over every script; discovers `COMMANDS` in `resources/board/*.py`; `help` from docstrings |
 | @resources/install.sh | build one skill folder of links per file in `skills/` |
 | @resources/doctor.sh | install check + repair |
 | @resources/guard.py | the PreToolUse/PostToolUse hook that enforces the loop |
@@ -102,6 +104,12 @@ whose scope it changed. Nothing else points at it.
 | @resources/board/viewtest.js | the view's gate — a rendered page in a real browser |
 | @resources/board/lit-core.min.js | Lit 3, vendored — the page's component base |
 | @resources/board/edit.py | the writers — one line at a time |
+| @resources/board/collect.py | `collect` — verify, commit the footprint, `done`, one call |
+| @resources/board/brief.py | `brief` — a worker's or a consultant's brief, one command's output; the text is the marker blocks of workers.md, this fills them and holds no copy |
+| @resources/board/transitions.py | the eight transition commands — the one writer of `state:` |
+| @resources/board/specs.py | `specced` and `refine` — the two transitions a spec set decides |
+| @resources/board/init.py | `init` and `settings` — a board after one command, no question; one key of settings.md |
+| @resources/board/example/ | the example board — eight PRDs, one per band; copied by `plan.py example`, never run in place |
 
 ## `skills/` — one file per skill
 
@@ -123,6 +131,7 @@ command, and @references/install.md is the naming rule and the install.
 | @skills/pearde-persona-ask.md | one problem, one colleague, nothing written | `@@consult` |
 | @skills/pearde-persona-create.md | composing one for a field the roster misses | `@@personas` |
 | @skills/pearde-scout.md | ranked discovery, the route index, and the quality gates | `@@scout` |
+| @skills/pearde-workflow.md | how a kind of job is done, and improved on every run | `@@workflows` |
 | @skills/pearde-jira.md | mirroring a PRD's state onto its Jira issue, and the read-only drift/import-new direction back | `@@jira` |
 
 ### `resources/scout/` — a self-contained tool
@@ -139,7 +148,7 @@ Nothing outside it links in past `@@scout`. Its docs ship with it.
 | @resources/scout/findings.md | index two — what won, on which axis, when |
 | @resources/scout/buckets.txt | the taxonomy — the knob |
 | @resources/scout/reading-list.md | the curated, mechanism-mapped list |
-| @resources/scout/snapshots/2026-08-25.tsv | one day's star counts |
+| @resources/scout/snapshots/ | the sweep's dated star counts, one row for the directory |
 | @resources/scout/templates/_typos.toml | typos gate config |
 | @resources/scout/templates/deny.toml | cargo-deny gate config |
 | @resources/scout/templates/dependabot.yml | dependency updates |

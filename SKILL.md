@@ -1,6 +1,6 @@
 ---
 name: pearde
-description: Install this repo's skills for whichever agent is reading, then work the PRD board at prds/. One pass: materialise a folder per file in skills/ — pearde, pearde-drill, pearde-memo, pearde-view, pearde-master, pearde-doctor, pearde-persona, pearde-persona-ask, pearde-persona-create, pearde-scout — wherever this agent discovers skills, then hand off to the board and carry on with the request. Use for "/pearde", "install pearde", "set up pearde", "wire up the skills", and everything the board answers to.
+description: Install this repo's skills for whichever agent is reading, then work the PRD board at prds/. One pass: materialise a folder per file in skills/ — pearde, pearde-drill, pearde-memo, pearde-view, pearde-report, pearde-master, pearde-doctor, pearde-persona, pearde-persona-ask, pearde-persona-create, pearde-scout, pearde-workflow — wherever this agent discovers skills, then hand off to the board and carry on with the request. Use for "/pearde", "install pearde", "set up pearde", "wire up the skills", and everything the board answers to.
 ---
 
 # pearde — install, then work

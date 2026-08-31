@@ -36,9 +36,14 @@ Q_RE = re.compile(r"^##\s+Questions\b", re.M)
 A_RE = re.compile(r"^##\s+Answers\b", re.M)
 H2_RE = re.compile(r"^##\s+\S", re.M)
 
-# One item inside the round: `### 1. …`, `### Q1: …`, or a numbered item at
-# the top level of the section. Both spellings are live on real boards.
-ITEM_RE = re.compile(r"^(###\s+\S.*|\d+\.\s+\S.*)$", re.M)
+# One item inside the round. Two spellings are live on real boards: `###`
+# heads — `### 1. …`, `### Q1: …` — and numbered items at the top level of the
+# section. A section that carries heads is split on the heads alone: under
+# one, a `1.` line at the top level is a prepared answer of that question,
+# the shape @references/drill.md prescribes, not an item of its own. A section
+# with no head keeps the numbered reading.
+HEAD_RE = re.compile(r"^###\s+\S.*$", re.M)
+ITEM_RE = re.compile(r"^\d+\.\s+\S.*$", re.M)
 
 # …and which of those items is a question. A round also carries dividers and
 # notes — `### Round 2 — raised by the analyst`, `### What answering these
@@ -118,9 +123,11 @@ def sections(body, pattern):
 
 
 def questions_in(text):
-    """The round split into its questions. A section with items is those
-    items; a section with prose and no item shape is one question."""
-    heads = list(ITEM_RE.finditer(text))
+    """The round split into its questions. A section with `###` heads is
+    those heads, each with the numbered answers under it; one with numbered
+    items and no head is those items; one with prose and no item shape is one
+    question."""
+    heads = list(HEAD_RE.finditer(text)) or list(ITEM_RE.finditer(text))
     if not heads:
         return [text] if text.strip() else []
     return [text[h.start():(heads[i + 1].start() if i + 1 < len(heads)
@@ -160,9 +167,143 @@ def prds(board):
     return sorted(out)
 
 
+# ── the plain-words rule ──────────────────────────────────────────────────────
+# @references/drill.md sets what a question may not say, as a table: no
+# tree-shaped word for a reader with no tree open, no name that is a ticket
+# number to someone who did not write it, no board vocabulary — that belongs to
+# the orchestrator — and a length past which the fork stopped being a fork and
+# became a briefing. This is that table as a mechanism, one predicate per row,
+# each naming the word it caught so the analyst can see what to take out.
+#
+# Scope is the fork, the answer labels and the answer text. The `### Qn: title`
+# is not checked — it is the round's own index, and `Q1` there is the id every
+# other reader matches on. The technical anchor an analyst writes under the
+# third answer is an HTML comment, and `parse` drops every comment from the
+# body before anything here sees it, so it is never checked and never reported.
+
+FORK_WORDS = 60
+ANSWER_WORDS = 25
+
+# The five of the nine states that are also ordinary English — `open`,
+# `question`, `blocked`, `done`, `failed` — are words a person uses about their
+# own work ("what they see when they open the board" is drill.md's own worked
+# example), and a bare-word check on them fails correct questions. They are
+# caught in their board spelling only, which is the backtick ROW_TICK already
+# refuses. What is left is board-only vocabulary, safe to catch bare.
+STATE_WORDS = ("analyzing", "specced", "claimed", "refine", "deferred")
+FM_KEYS = ("frontmatter", "blast-radius", "footprint", "priority", "complexity",
+           "needs:", "workflow:", "origin:", "state:", "repo:")
+ROLE_WORDS = ("analyst", "implementer", "orchestrator", "persona", "engineer",
+              "skeptic", "verdict", "dispatch", "dispatched", "prd", "prds",
+              "backlog", "spec", "specs", "brief")
+
+TICK_RE = re.compile(r"`")
+PATH_RE = re.compile(r"(?<![\w/])[\w.-]*[\w-]/[\w./-]*[\w-]")
+EXT_RE = re.compile(r"\b[\w-]+\.(?:md|py|js|jsx|ts|css|sh|json|ya?ml|toml"
+                    r"|txt|html|cfg|ini)\b", re.I)
+QREF_RE = re.compile(r"\bQ\s?\d+\b")
+HEDGE_RE = re.compile(r"\bshould we (?:also|maybe|additionally)\b"
+                      r"|\bdo we (?:also )?(?:want|need) to\b"
+                      r"|\bshall we also\b", re.I)
+
+WORDS_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'\u2019-]*")
+ANSWER_RE = re.compile(r"^(\d+)[.)]\s+(.*)$", re.M)
+REC_MARK_RE = re.compile(r"\s*\((?:recommended|default)\)\s*", re.I)
+
+
+def words(text):
+    return len(WORDS_RE.findall(text))
+
+
+def bare(text, vocab):
+    """The first word of `vocab` present in `text` as a whole word, or None.
+    Whole-word so `opens` is not `open` and `specced` is not `spec`."""
+    low = text.lower()
+    for w in vocab:
+        if w.endswith(":"):
+            if w in low:
+                return w
+        elif re.search(r"(?<![\w-])" + re.escape(w) + r"(?![\w-])", low):
+            return w
+    return None
+
+
+def split_question(q):
+    """(fork, [answer, …]) for one question of a round. The head line is
+    dropped — it is the index, not the question."""
+    body = q.strip()
+    if body.startswith("#"):
+        body = body.split("\n", 1)[1] if "\n" in body else ""
+    at = ANSWER_RE.search(body)
+    fork = (body[:at.start()] if at else body).strip()
+    answers = []
+    if at:
+        for part in re.split(r"^(?=\d+[.)]\s)", body[at.start():], flags=re.M):
+            m = ANSWER_RE.match(part.strip())
+            if m:
+                answers.append(REC_MARK_RE.sub(" ", m.group(2)).strip())
+    return fork, answers
+
+
+def plain(rel, n, q, slugs=()):
+    """Every plain-words problem in one question, one string each."""
+    bad = []
+    fork, answers = split_question(q)
+    where = [("the fork", fork, FORK_WORDS)]
+    where += [(f"answer {i}", a, ANSWER_WORDS)
+              for i, a in enumerate(answers, start=1)]
+
+    def say(part, why):
+        bad.append(f"{rel}: {label(q, n)} — {part} {why}")
+
+    for part, text, limit in where:
+        if not text:
+            continue
+        if TICK_RE.search(text):
+            say(part, "quotes code — a backtick, for a reader with no tree open")
+        m = EXT_RE.search(text) or PATH_RE.search(text)
+        if m:
+            say(part, f"names a file — `{m.group(0)}`, which the reader "
+                      "cannot open")
+        for s in slugs:
+            if re.search(r"(?<![\w-])" + re.escape(s) + r"(?![\w-])", text):
+                say(part, f"names a PRD — `{s}` is a ticket number to "
+                          "someone who did not write it")
+                break
+        m = QREF_RE.search(text)
+        if m:
+            say(part, f"cross-references `{m.group(0)}` — each question is "
+                      "answered on its own")
+        w = (bare(text, STATE_WORDS) or bare(text, FM_KEYS)
+             or bare(text, ROLE_WORDS))
+        if w:
+            say(part, f"says `{w}` — board vocabulary is the orchestrator's")
+        if words(text) > limit:
+            say(part, f"runs {words(text)} words, over {limit} — past that "
+                      "it is a briefing, not a fork")
+        m = HEDGE_RE.search(text)
+        if m:
+            say(part, f"hedges — `{m.group(0)}` asks for a fact a build "
+                      "would find, not a decision")
+    return bad
+
+
+def slugs_of(board):
+    """Every PRD name on the board that is safe to look for inside prose — a
+    hyphenated directory name. A one-word name is an ordinary word and a
+    substring check on it would refuse correct English."""
+    out = set()
+    for rel, _path in prds(board):
+        for name in (rel, os.path.basename(rel)):
+            if "-" in name:
+                out.add(name)
+    return sorted(out, key=len, reverse=True)
+
+
 def check(board):
     """Every problem, one string each. Empty means the rounds are clean."""
     bad = []
+    slugs = slugs_of(board)
     for rel, path in prds(board):
         fm, body = parse(path)
         qs = sections(body, Q_RE)
@@ -187,19 +328,41 @@ def check(board):
                     bad.append(f"{rel}: {label(q, n)} carries no recommended "
                                "answer — the round hands over a fork with no "
                                "way to pick")
+                bad.extend(plain(rel, n, q, slugs))
 
+        # A CLOSED PRD'S RECORDED ANSWER IS HISTORY AND IS LEFT ALONE. The
+        # drill's own rule, and the reason this branch is guarded: the six
+        # `## Answers`-without-`## Questions` sections on this board's closed
+        # decision nodes hold real calls — fzf, tinty, odin, shift-select —
+        # taken in conversation and written down afterwards. Reporting them
+        # asks an author either to invent the fork that was never typed, or
+        # to delete the decision. Both are worse than the flag.
+        #
+        # An OPEN node with the same shape is still reported: there the
+        # missing round is a live gap, not a record.
+        closed = state.lower() in CLOSED
         for head, text in ans:
             if not text.strip():
                 bad.append(f"{rel}: `{head}` with nothing under it — "
                            "unanswered reads the same as unasked")
-            elif not any(t.strip() for _h, t in qs):
+            elif not any(t.strip() for _h, t in qs) and not closed:
                 bad.append(f"{rel}: `{head}` with no `## Questions` above it — "
                            "an answer to a question nobody wrote down")
 
-        waiting = state.lower() in WAITING or mode.lower() in WAITING
-        said = f"state `{state}`" if state.lower() in WAITING \
-            else f"mode `{mode}`"
-        if waiting and state.lower() in CLOSED:
+        # `mode:` IS A PROPERTY OF THE WORK, NOT A POSITION IN A QUEUE. The
+        # template defines it as `afk | hitl (needs the human: naming, taste,
+        # money)`, and on a closed node `hitl` stays a TRUE statement: that
+        # work did need a human. Reading it as a state made every finished
+        # hitl node a defect for having been honest about itself — eight of
+        # them on one board — and the only way to green them was to delete
+        # the true label.
+        #
+        # `state:` is still read as a state, because it is one: a PRD parked
+        # in `question` while closed really is a contradiction.
+        waiting_state = state.lower() in WAITING
+        waiting = waiting_state or (mode.lower() in WAITING and not closed)
+        said = f"state `{state}`" if waiting_state else f"mode `{mode}`"
+        if waiting and closed:
             bad.append(f"{rel}: state `{state}` and {said} — a closed PRD that "
                        "still says it is waiting on you; the label outlived "
                        "the work")

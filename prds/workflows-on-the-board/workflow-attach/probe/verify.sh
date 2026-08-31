@@ -122,7 +122,7 @@ lacks "check is silent about the empty one"     "$CHK" "empty/prd.md"
 # `scan` is not the only list a round reads. `ready now` in `plan` IS the
 # dispatch list, and step 5 of loop.md skips a dangling PRD — so the mark has
 # to survive into that output or the planner silently contradicts the rule.
-PLANOUT="$(python3 "$PLAN" plan "$B" 2>&1 | sed -n '/ready now/,/^$/p')"
+PLANOUT="$(python3 "$PLAN" plan "$B" 2>&1 | sed -n '/ready now/,/^≈/p')"
 have  "plan's ready now marks a dangling slug" \
       "$(printf '%s\n' "$PLANOUT" | grep ' dangling ')" "wf no-such-route?"
 have  "  … and an atomic the same way" \
@@ -254,20 +254,43 @@ fi
 nodoc() { # name file needle — the file must NOT carry it any more
   if grep -qF -- "$3" "$ROOT/$2"; then bad "$1 — $2 still carries '$3'"; else ok "$1"; fi
 }
-doc   "loop step 5 skips an unresolvable workflow" references/parts/loop.md \
-      'skip any whose `workflow:` names no workflow'
-doc   "loop step 5 counts three skips"             references/parts/loop.md \
-      'All three skips are real work'
-doc   "loop step 5 says which of the three holds"  references/parts/loop.md \
-      'Say which of the three holds it'
-doc   "loop step 4 carries the same third clause"  references/parts/loop.md \
-      'and no `workflow:` that names nothing'
+# The three dispatch skips left loop.md for `pearde claim`'s gate: each is
+# asserted as behaviour — a fixture PRD, and `transitions.gate_claim` refusing it.
+G="$TMP/gate/prds"; mkdir -p "$G"; cp "$B/settings.md" "$G/"; cp -R "$B/workflows" "$G/"
+gprd() { # dir state extra-frontmatter
+  mkdir -p "$G/$1"
+  { printf -- '---\nstate: %s\norigin: requested\npriority: 10\n' "$2"
+    [ -n "${3:-}" ] && printf '%s\n' "$3"
+    printf -- '---\n\n# %s — a probe PRD\n\nBody.\n' "$1"
+  } > "$G/$1/prd.md"
+}
+gprd dangling specced "workflow: no-such-route"
+gprd waits    specced $'needs:\n  - pending'
+gprd pending  open    ""
+gprd clash    specced $'footprint:\n  - src/x.py'
+gprd holder   claimed $'claim: impl-holder 2026-08-28 10:00\nfootprint:\n  - src/x.py'
+gate() { # rel — what transitions.gate_claim says about it on the gate board
+  python3 - "$ROOT/resources/board" "$G" "$1" <<'PYG'
+import sys; sys.path.insert(0, sys.argv[1])
+import transitions as t, plan as p
+board, rel = sys.argv[2], sys.argv[3]; prds = p.scan(board)
+try:
+    t.gate_claim(board, prds, prds[rel]); print("NOT REFUSED")
+except t.Refused as e:
+    print(f"refused — {e}")
+PYG
+}
+have 'claim refuses a `workflow:` naming nothing'   "$(gate dangling)" 'refused — workflow: `no-such-route` names no workflow'
+have 'claim refuses a `needs:` that is not done'     "$(gate waits)"    'refused — needs: pending is `open`, not done'
+have "claim refuses a footprint a claimed PRD holds" "$(gate clash)"    'refused — footprint: holder is claimed and holds `src/x.py`'
+doc   "loop says claim names the gate that holds it" references/parts/loop.md \
+      'and names the gate'
 doc   "loop says what to do instead"               references/parts/loop.md \
       'fix the slug or remove the key'
 doc   "loop names the scan mark"                   references/parts/loop.md \
       'marks the PRD'"'"'s line `wf <slug>?`'
 doc   "loop names the checker"                     references/parts/loop.md \
-      '@resources/workflows.py check'
+      '`pearde workflow check` names the file'
 # The master limit is asserted as TEXT, not as behaviour: asserting that
 # `check` stays silent on a master would lock in the defect that
 # prds/check-crosses-member-boundaries exists to remove.

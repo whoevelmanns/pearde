@@ -10,7 +10,11 @@ footprint:           # analyst — every dir/file this spec touches; the
   - <dir/or/file>    #   dispatching overlapping PRDs
 ---
 <!-- Add your own keys freely. Nothing outside complexity, footprint and
-     workflow is read. -->
+     workflow is read. `pearde specced` is the reader: it refuses the file,
+     naming the line, on a complexity outside 1-100, no box under
+     `## Acceptance`, no `sh` block under `## Verify and Proof`, a box that
+     asks for a commit, or a `workflow:` naming no workflow; a missing
+     footprint is a warning, and the PRD's own stands for it. -->
 
 # specNN — <one-line goal>
 
@@ -36,5 +40,5 @@ PRD, without reading the sibling specs.>
 <command(s) that exercise the acceptance boxes — tests, build, lint;
 the implementer runs these and quotes the output.
 Scope them to this PRD's footprint: a whole-workspace command inherits every
-other node's flake.>
+other node's flake, and `pearde specced` warns when no path here is under it.>
 ```

@@ -1,28 +1,49 @@
-# The board — where it stands
+# Where the pearde skill stands
 
-*2026-08-27*
+*2026-08-29, morning*
 
-The fix for slow agents is in place: the analyst now builds the work before it
-specs it, so questions only come from walls the build actually hit. Everything
-you asked for is done, and the only piece of work left is one the board found
-itself.
+The board runs itself, and now it keeps its word about it. Yesterday's
+thirteen pieces landed the commands; today's three closed what the first day
+of running them found: finished work is committed whole with its record in
+the same place, a change two people made to adjacent lines is refused rather
+than committed under one name, a parent whose children have all landed is
+closed by the same one call — and the tree that did this was itself closed by
+that call, the first parent the tool ever finished on its own. A piece of
+work a person set aside now holds its parent back everywhere the board looks,
+not only where one command looked. And the guard that refuses wasted reading
+is wired by one command instead of a block to paste. Sixteen pieces of the
+board-runs-itself work are landed; every one of the repo's checks is green on
+the result, and the checks themselves now have a runner in the health check.
 
-## Planned
-
-- **Make the written rule match the working one** — the code now treats a piece
-  of work as finished only when its checklist *and* its own request file are
-  clear, but the documentation still describes the older, narrower rule. A
-  fresh reader hits the wrong sentence first. Someone other than the person who
-  spotted it re-runs the proof and commits the change.
+Two more landed this afternoon, both found by running the tool on itself:
+a piece of work a person set aside comes back with one command, and a
+command given a flag it does not know now refuses and writes nothing —
+found because a "dry run" that did not exist moved a real piece of work.
+Every writing command takes a real dry run now. The workflow routes have
+been followed forty-three times; every "what went wrong and what to do" row
+in them was paid for by a real run.
 
 ## In work
 
-Nothing is being worked on right now.
+**The board asks for itself** — the other stream's last tree, three pieces:
+a question in plain words, a route written at spec time, two questions that
+start an interview. Being built now.
+
+## Planned
+
+- **The health check's false problem on a valid group of boards** — un-parked
+  on your condition, now that the deliverable is finished; the other stream
+  takes it next.
 
 ## Undecided or failing
 
-- **Whether to do the piece above at all.** The board is currently working only
-  on itself — everything you requested is done, and the only item left is one it
-  raised. Three ways to go: let it run, set it aside for later, or drop it.
-  Letting it run is the smallest of the three; the fix is a paragraph and a
-  check.
+**One thing waits on you.** A half-finished rename sits uncommitted in two
+files — the progress line's `asked` term becoming `done` — that no session
+working this repo will claim, alongside two row moves in the settings and
+manifest references. Every writer here commits under one git identity, so
+git cannot say whose it is; only the session trailer can, and not every
+commit carries one. Take the rename (it fixes a term that lies about a
+finished parent) or drop it; until then commits step around it.
+
+Nothing else is undecided. Nothing is pushed — the commits are the board's,
+the push is yours.

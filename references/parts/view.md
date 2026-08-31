@@ -12,14 +12,48 @@ a second of any file changing it swaps the new payload in **where it stands**:
 the rows move, and scroll, zoom, selection and half-typed text do not. Every
 registered board is listed at `/`. `PEARDE_PORT` moves the port.
 
-| view          | answers                                                        |
-|---------------|------------------------------------------------------------------|
-| **timeline**  | what is in front of us — see below                                |
-| **board**     | what is where — kanban by state; drag a card to write `state:`    |
-| **asks**      | what is waiting on *you* — every `question` and `blocked` PRD. A round in `@references/drill.md`'s format renders as picks: the fork, its three prepared answers as buttons (recommended pre-selected), and an own-answer box per question |
-| **list**      | all of it — sortable, filterable, one row per PRD                 |
-| **analytics** | how this is going — where the work and weight sit, the est/actual records, the machine-wide hours-per-weight fit, weight left over time |
-| **memos**     | what the board decided — `prds/memos/`, rendered                  |
+**Seven views, one at a time.** The bar in the header is tabs: one section
+visible, the rest hidden, and the URL names it — `#view=board` is the board.
+The page opens on the plan; ⌘1–7 switch the same way. The now strip sits
+above whichever view is open; the prose section opens the plan. A tab landing
+on a folded one opens it.
+
+| # | section       | answers                                                        |
+|---|---------------|------------------------------------------------------------------|
+| 1 | **what's up** | what the board is doing and what is next, in prose — `prds/report.md`'s title, lede, `## In work` and `## Planned`, each cut to two or three whole sentences. A renderer, never an author. Beside it, how old the file is, off its modification time and not the dateline inside it; past a day the line says `stale` and carries the class. No file, one line naming `pearde report` |
+| 2 | **timeline**  | what is in front of us — see below                                |
+| 3 | **board**     | what is where — kanban by state; drag a card to write `state:`    |
+| 4 | **analytics** | how this is going — where the work and weight sit, the est/actual records, the machine-wide hours-per-weight fit, weight left over time, and what a transition costs: calls per transition over the last thirty, refusals per session, both off the guard's count (@references/parts/guard.md). Calls are the proxy for tokens, named as such; no guard state at all reads `no guard`, never zero |
+| 5 | **asks**      | what is waiting on *you* — every `question` and `blocked` PRD, and beside them the answered panel. A round in `@references/drill.md`'s format renders as picks: the fork, its three prepared answers as buttons (recommended pre-selected), and an own-answer box per question. An answered question leaves the cards at once and appears in the panel, newest first |
+| 6 | **list**      | all of it — sortable, filterable, one row per PRD                 |
+| 7 | **memos**     | what the board decided — `prds/memos/`, rendered                  |
+| 8 | **report**    | the same file in full, folded — section 1 is its opening. ⌘7 |
+
+**Three of those fold.** `list`, `memos` and `report` are archives, not
+status: measured on a 41-PRD board they are 4038px of a 7065px page. Each
+renders collapsed behind a summary that says what is inside — `41 PRDs ·
+every state, every weight`, `13 on record · newest: …` — and opens on a click
+or on the tab that lands on it. What folds is the body, by the reader's
+choice. **Every section draws on the first paint**, folded or hidden, so
+nothing on this page is waiting for a click to exist.
+
+**The now strip is the first thing under the title**, on every view: three
+doors — `to collect N` · `waiting on you N` · `in flight N` — the top three
+bands of @references/parts/order.md, each a click into that set (the timeline
+filtered to collect, the list filtered to the `hot` band, the list filtered to
+the `held` band). Zero renders the door dimmed, never absent, so the strip is
+the same shape on every board and the eye learns where to land. When a worker
+in flight has gone silent the door says how many.
+
+**Nothing that is git-ignored is rendered for a person.**
+A file git ignores is machine scratch: `prds/.round.md` is one session's own
+memory (@references/parts/round.md), `prds/.plan.json` and `prds/.history.jsonl`
+are the board's. Each is true only at the instant it was written and each is
+written in the board's own vocabulary — states, footprints, commit shas — which
+is the one register @@report forbids in the document a person reads. The view
+draws tracked files and nothing else. That rule is prose, and prose is not a
+mechanism: what would enforce it is a check that `git check-ignore -q` refuses
+every path the view fetches, and no such check exists.
 
 **Every number is a door.** A count, a swatch, a bar, a column head — if it
 names a set of PRDs, clicking it goes there: `5 waiting on you` opens **asks**,
@@ -37,7 +71,9 @@ is behind you. Once `calibrate` has fitted the machine's hours-per-weight
 (see @references/parts/order.md), every weight on the page prints as tuned
 real hours — header, tiles, vision pill, axis, drawer; before the first fit
 they print as raw weight units. Parked PRDs — `failed`, `deferred`, the user's own states — sit
-at zero: visible, weighed, and scheduled by nothing.
+at zero: visible, weighed, and scheduled by nothing. Under the numbers the
+page prints the one sentence `prds/vision.md` declares — the payload's
+`vision.purpose`, empty on a board with no vision, and then no line.
 
 - **★ critical** marks the chain that sets the finish. Weight cut there moves
   the vision closer. Weight cut anywhere else moves nothing.
@@ -133,6 +169,7 @@ them:
 | a shrinking bar            | a held PRD weighs what is **left** of it, so the chain shortens as the run lands checks |
 | **✓** before a name        | every box closed — this one is yours to collect                      |
 | `implementer-1 holding 40m`| off `claim:`, in the tooltip and the pane. Counted in the page, so it ticks between board changes |
+| `silent 42m` beside it     | nothing under the PRD directory or its footprint union in `repo` has moved for longer than `claim-ttl` (`settings.md`, default 30m). Below the limit the row says only `holding`. In amber, in the column's meta and on the bar's label too: the one word in the column that asks for a person. `scan` prints the same word on the same line — one rule, `silent_of` in @resources/board/plan.py, read by both and the one `sweep` acts on. Read off files, never off a process: the board cannot see a worker, and a file that has not moved is the only honest signal. A PRD to collect is never silent — its worker finished |
 
 - The signal is evidence, never a guess: a box is `[x]` because a check ran.
 - A worker that ticks nothing shows no progress. That is correct — an
@@ -165,7 +202,7 @@ person.
 | drag the left rail | row height — wheel it too, shift for fine |
 | `↑` `↓` | move the selection |
 | `⏎` | open it |
-| ⌘1–6 | switch view |
+| ⌘1–7 | switch view |
 
 **Clicking anything opens the PRD**, and the pane writes back:
 
@@ -185,17 +222,31 @@ person.
 - Which questions are already answered is read off `## Answers`, not
   remembered by the page — a redraw, a reload and a second reader all agree,
   and nothing is answered twice.
+- An answer is written as `**Q1** *(answered 2026-08-28 14:22)* — <the
+  decision>`. The id opens the line and the decision follows the dash, as
+  before; the stamp is what the answered panel orders by. A line written
+  before the stamp existed still reads — it sorts under the dated ones.
 - **"take the recommended"** picks the analyst's recommendation on every
   question that carries one and sends in the same click. It appears only when
   the round recommends something.
 - The **asks** view is that same round for every waiting PRD at once (⌘⏎
   sends). It renders exactly what the inspector renders — the same picks, the
   same prose, the same buttons — because both build from the same parse.
+- **The answered panel** is the right half of that view: every question the
+  board has settled, newest answer first, each row the question, the decision
+  and the PRD it belongs to — click one to open that PRD. It is read over
+  `GET /answers` out of the PRDs themselves, so it holds answers from PRDs
+  that have long since reopened, not only from the ones still asking. A
+  question answered here leaves its card in the same motion, so the cards
+  hold open forks only and going through a round is a list that empties.
 - `+ PRD` (or `n`) writes a new one.
 - Every write goes through @resources/board/edit.py: one line at a time,
   atomically, frontmatter and body never in the same write.
 - A worker's report lands via `POST /report` (`{"board","prd","text"}` →
   `## Report`).
+- `GET /report` serves `prds/report.md` as `{"text": <file or null>}`, read
+  from disk on each call like `/prd`. `/round` is gone: the page dropped the
+  panel, and a route nothing fetches is a door to nowhere.
 
 Deep links: `#prd=<rel>` opens one PRD, `#view=asks` a view, `#state=blocked`
 a filtered list, `#crit=1` the critical chain, `#collect=1` the finished work
@@ -219,12 +270,15 @@ background at session start, and whenever a round ends with work still open.
 
 **What the board keeps.** `prds/.plan.json` is the last plan.
 `prds/.history.jsonl` is one row a day — the only memory the board has, and
-what the burn-down draws. Both are machine-local and regenerable, so gitignore
+what the burn-down draws. `prds/.transitions.jsonl` is one row a transition,
+appended by the transition commands, carrying the guard's count for the window
+before it — what the cost series draw. All are machine-local, so gitignore
 them:
 
 ```
 prds/.plan.json
 prds/.history.jsonl
+prds/.transitions.jsonl
 prds/.view.html
 ```
 
@@ -307,8 +361,11 @@ customElements.define("my-list", MyList);
 pearde.replace("list", "my-list");
 ```
 
-- `board`, `asks`, `list`, `analytics` and `memos` can be replaced. The
-  timeline cannot — it is a canvas the plan arithmetic draws.
+- `board`, `asks`, `list`, `analytics`, `memos` and `report` can be
+  replaced. The timeline cannot — it is a canvas the plan arithmetic draws.
+- `now` and `whatsup` — the door strip and the prose section above the plan —
+  are replaced the same way: `pearde.replace("now", "my-now")` puts the element
+  in the strip's place and hands it the payload on every swap.
 - The page stops drawing a view it has handed over.
 - A replaced view gets the payload as `data` on every swap, like a seam.
 - An unreplaceable name is ignored, never an error.

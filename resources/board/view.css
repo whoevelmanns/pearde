@@ -207,7 +207,9 @@ body{background:var(--bg);color:var(--ink);
 
 /* segmented control — the sliding pill is one transform, not six repaints */
 #views{position:relative;display:flex;background:var(--fill);
-  border-radius:9px;padding:2px;gap:0}
+  border-radius:9px;padding:2px;gap:0;max-width:100%;
+  overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none}
+#views::-webkit-scrollbar{display:none}
 #segpill{position:absolute;top:2px;bottom:2px;left:0;width:0;
   background:var(--content);border-radius:7px;
   box-shadow:0 1px 2px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.05);
@@ -216,12 +218,13 @@ body{background:var(--bg);color:var(--ink);
 :root[data-theme="dark"] #segpill,
 :root:where(:not([data-theme="light"])) #segpill{
   box-shadow:0 1px 2px rgba(0,0,0,.5),0 0 0 .5px rgba(255,255,255,.07)}
-#views button{position:relative;z-index:1;background:none;border:none;
+#views a{position:relative;z-index:1;background:none;border:none;
   color:var(--ink2);font:500 12.5px/1 -apple-system,system-ui,sans-serif;
   padding:6px 13px;border-radius:7px;cursor:pointer;display:flex;gap:6px;
-  align-items:center;transition:color var(--dur-fast) ease}
-#views button:hover{color:var(--ink)}
-#views button.on{color:var(--ink);font-weight:590}
+  align-items:center;text-decoration:none;white-space:nowrap;
+  transition:color var(--dur-fast) ease}
+#views a:hover{color:var(--ink)}
+#views a.on{color:var(--ink);font-weight:590}
 /* a badge is a count that wants you, so it is allowed a hue */
 #views .badge{font:600 10px/14px -apple-system,system-ui,sans-serif;
   min-width:16px;height:15px;padding:0 4px;border-radius:99px;
@@ -369,8 +372,29 @@ label.lab{color:var(--ink2);font-size:12px}
   opacity:0;pointer-events:none;transition:opacity var(--dur-fast) ease}
 #vrread.on{opacity:1}
 
-section[data-view]{display:none}
-section[data-view].on{display:block;animation:rise var(--dur) var(--ease)}
+/* ── seven views, one at a time ────────────────────────────────────────────
+   The bar is tabs again: one section visible, the rest display:none. The
+   draws still run for every section on the first paint — a hidden section
+   builds its DOM eagerly, so switching to it is instant and the fold is
+   presentation, not a lazy load. The active section is `.on`; setView toggles
+   it, and the URL's #view= names it.                                        */
+section[data-view]{display:none;margin:0;scroll-margin-top:64px}
+section[data-view].on{display:block}
+h2.sect{font-size:11px;font-weight:620;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ink3);margin:0 0 9px;padding-top:5px;
+  border-top:.5px solid var(--sep-2)}
+details.fold>summary{list-style:none;cursor:pointer;display:flex;
+  align-items:baseline;gap:9px;padding-top:5px;margin:0 0 9px;
+  border-top:.5px solid var(--sep-2)}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary .sect{font-size:11px;font-weight:620;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ink3)}
+details.fold>summary::before{content:"\25B8";color:var(--ink4);font-size:9px;
+  transition:transform var(--dur-fast) var(--ease);display:inline-block}
+details.fold[open]>summary::before{transform:rotate(90deg)}
+details.fold>summary:hover .sect{color:var(--ink)}
+details.fold>summary .n{font-size:11px;color:var(--ink4);font-weight:400;
+  letter-spacing:0;text-transform:none}
 @keyframes rise{from{opacity:0;transform:translateY(4px)}
                 to{opacity:1;transform:none}}
 
@@ -386,8 +410,17 @@ section[data-view].on{display:block;animation:rise var(--dur) var(--ease)}
    writes it here, once. Both cards then stretch to it, so focus cannot grow the
    page by being longer than the plan, and the plan cannot leave a band of dead
    page under the legend. The fallback is for a page opened with no script. */
+/* The old rule was `min(76vh, calc(100vh - 258px))` and the comment above it
+   said the page must not grow past the plan. That constraint belonged to a
+   page that was one screen: the 258 was the measured height of everything
+   above the stage, and section 1 alone moves it. On a page built to be
+   scrolled the plan does not have to be the last thing on screen, so the
+   constraint is retired deliberately, not dropped by accident. What is left
+   is a plain height — most of a fold, capped so a tall monitor does not get
+   one enormous band, floored so a short one still gets a chart. JS writes the
+   same number; this is the fallback for a page opened with no script.        */
 #stage{display:flex;align-items:stretch;
-  height:min(76vh,calc(100vh - 258px));min-height:280px}
+  height:min(74vh,720px);min-height:280px}
 #chart{flex:1 1 auto;min-width:0;display:flex;flex-direction:column}
 #frame{position:relative;flex:1 1 auto;min-height:0;
   border:.5px solid var(--sep);
@@ -518,7 +551,7 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
   align-items:flex-start}
 .col{flex:0 0 262px;background:var(--content);border:.5px solid var(--sep);
   border-radius:var(--r-lg);display:flex;flex-direction:column;
-  max-height:calc(100vh - 250px);box-shadow:var(--shadow);
+  max-height:calc(100vh - 155px);box-shadow:var(--shadow);
   transition:box-shadow var(--dur-fast) ease,border-color var(--dur-fast) ease,
     flex-basis var(--dur) var(--ease),opacity var(--dur-fast) ease}
 .col.over{border-color:var(--ink3);
@@ -551,6 +584,11 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
   font-size:11px;font-variant-numeric:tabular-nums;align-items:center}
 .card .m .chip{background:var(--fill);border-radius:var(--r-xs);padding:0 5px}
 .card .star{color:var(--ink)}
+.card .m .start{margin-left:auto;background:var(--accent);color:var(--accent-ink);
+  border:none;border-radius:var(--r-xs);padding:2px 7px;font:600 10px/1.5
+  -apple-system,system-ui,sans-serif;cursor:pointer}
+.card .m .start:hover{opacity:.86}
+.card .m .start:disabled{opacity:.5;cursor:default}
 
 /* ── list ───────────────────────────────────────────────────────────────── */
 #listbar{display:flex;gap:8px;align-items:center;margin:0 2px 10px;
@@ -592,7 +630,7 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
 #list .none{padding:26px;text-align:center;color:var(--ink3);font-size:12.5px}
 
 /* ── asks: the board waiting on a person, and the place to answer ───────── */
-#asks{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));
+#asks{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(min(430px,100%),1fr));
   align-items:start}
 .ask2{background:var(--content);border:.5px solid var(--sep);
   border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden;
@@ -708,6 +746,103 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
 .memo .f b{color:var(--ink2);font-weight:590}
 .memo pre{white-space:pre-wrap;font:11.5px/1.55 ui-monospace,SFMono-Regular,
   monospace;color:var(--ink2);max-height:240px;overflow:auto}
+
+/* ── the now strip: three doors under the title ───────────────────────── */
+#now{display:flex;gap:6px;padding:8px 0 2px;flex-wrap:wrap}
+#now:empty{display:none}
+#now .door{display:flex;align-items:baseline;gap:7px;padding:5px 12px 5px 10px;
+  border:.5px solid var(--sep);border-radius:9px;background:var(--content);
+  color:var(--ink2);font-size:12px;cursor:pointer;box-shadow:var(--shadow);
+  transition:border-color var(--dur-fast) ease,transform var(--dur-fast) var(--ease)}
+#now .door b{font-size:17px;font-weight:640;color:var(--ink);letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;line-height:1}
+#now .door:hover{border-color:var(--ink4);transform:translateY(-1px)}
+/* the same hues the numbers bar spends: green is finished work waiting to be
+   taken, amber is a person wanted. In flight stays graphite — a worker on it
+   is the ordinary case — until one has gone quiet */
+#now .door.got b{color:var(--ok)}
+#now .door.hot b{color:var(--warn)}
+#now .door.quiet{border-color:var(--warn)}
+#now .door.quiet b{color:var(--warn)}
+/* zero is dimmed, never absent: the strip keeps its shape on every board */
+#now .door.dim{opacity:.42;box-shadow:none}
+#now .door.dim b{color:var(--ink3)}
+
+/* the quiet worker, wherever a holding time is printed */
+.silent{color:var(--warn);font-weight:590}
+
+/* ── narrow ──────────────────────────────────────────────────────────────
+   At 390px the unmodified page measured `body.scrollWidth` 543 against a 390
+   client — the bar alone was 449 and overlapped the title. The bar is the
+   main cause and it is gone as a bar; what is left is to stop anything else
+   setting a width the viewport has not got. Nothing here is a phone layout:
+   it is the same page, told not to overflow.                                */
+@media (max-width:720px){
+  #titlebar{flex-wrap:wrap;gap:8px 10px}
+  #views{order:3;flex-basis:100%}
+  #titlebar .right{margin-left:auto}
+  #stage{flex-direction:column;height:auto;min-height:0}
+  #chart{min-height:60vh}
+  #land{flex:0 0 auto;max-height:40vh}
+  #charts{grid-template-columns:1fr}
+  #whatsup .two{grid-template-columns:1fr}
+}
+/* The table and the empty-state card are what is left setting a width the
+   viewport has not got — measured at 390: `table` 575 and `div.blank` 430
+   against a 390 client. Each is boxed rather than allowed to widen the page:
+   the table scrolls inside its own scroller, the card wraps. */
+#list{display:block;max-width:100%;overflow-x:auto}
+#askwrap,#answered,#asks{max-width:100%;min-width:0}
+.blank{max-width:100%;box-sizing:border-box}
+#tiles,#charts{max-width:100%;min-width:0}
+#charts>*{min-width:0;max-width:100%}
+
+/* ── what's up: the first thing on the page, and the only prose on it ────
+   The eye lands on the doors (three verbs), then here (what is going on),
+   then the plan. Everything else is dense, so this is given air and a reading
+   measure and nothing else — no card, no border, no tint. A paragraph that
+   has to be picked out of a box is a paragraph nobody reads.
+   `in work` and `next` sit side by side once there is room, because stacking
+   them costs the plan a hundred pixels of the first fold for nothing.        */
+#whatsup{display:block;margin:0 0 16px}
+/* the heading and how old it is are one line: a title and its timestamp, not
+   two stacked blocks. The 25px that saves is 25px the plan keeps. */
+#whatsup .hd{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;
+  margin:0 0 9px}
+#whatsup h2{font-size:19px;font-weight:620;letter-spacing:-.012em;
+  color:var(--ink);margin:0}
+#whatsup .age{font-size:11.5px;color:var(--ink3);
+  font-variant-numeric:tabular-nums}
+/* stale is a word first and a colour second — a state carried by hue alone
+   is a state a check cannot read and a colour-blind reader cannot see */
+#whatsup .age.stale{color:var(--warn);font-weight:560}
+#whatsup .lede{max-width:76ch;margin:0 0 11px;font-size:13.5px;line-height:1.55;
+  color:var(--ink2)}
+#whatsup .two{display:grid;gap:6px 30px;max-width:96ch}
+@media (min-width:760px){#whatsup .two{grid-template-columns:1fr 1fr}}
+#whatsup h3{font-size:10.5px;font-weight:620;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ink3);margin:0 0 3px}
+#whatsup .two p{margin:0 0 8px;font-size:12.5px;line-height:1.5;
+  color:var(--ink2)}
+/* an empty headline says its one line quietly and gets out of the way — a
+   card with a border around "there is nothing here" is 200px of nothing. */
+#whatsup .blank{display:block;background:none;border:0;box-shadow:none;
+  padding:0;margin:0;text-align:left;font-size:12.5px;line-height:1.5;
+  color:var(--ink3);max-width:76ch}
+
+/* ── the report view: prose, read at reading width ────────────────────── */
+#report{display:block}
+#report .prose{max-width:72ch;padding:6px 2px 40px;font-size:13.5px;
+  line-height:1.6;color:var(--ink2)}
+#report .prose h2{font-size:19px;font-weight:640;letter-spacing:-.02em;
+  color:var(--ink);margin:4px 0 10px}
+#report .prose h3{font-size:13.5px;font-weight:620;color:var(--ink);
+  margin:20px 0 6px}
+#report .prose p{margin:0 0 10px}
+#report .prose ul{margin:0 0 10px;padding-left:18px}
+#report .prose code{font:12px ui-monospace,SFMono-Regular,monospace;
+  background:var(--fill);padding:0 3px;border-radius:3px}
+#report .prose b{color:var(--ink);font-weight:600}
 
 /* ── the inspector: a glass sheet, not a page ───────────────────────────── */
 #drawer{position:fixed;top:12px;right:12px;bottom:12px;
@@ -847,3 +982,51 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
 .qq.answered{opacity:.62}
 .qq.answered .qsend{display:none}
 .qq.answered .qdone{display:inline}
+
+/* ── the asks view is two halves ──────────────────────────────────────────
+   Open questions on the left, settled ones on the right. The panel is a
+   column of its own card, the way focus is beside the plan: an answered
+   question is still worth reading, and reading it must not cost the inbox
+   its width. Under 1100px the panel drops under the cards rather than
+   squeezing both. */
+#askwrap{display:grid;grid-template-columns:minmax(0,1fr) 336px;gap:12px;
+  align-items:start}
+@media (max-width:1100px){#askwrap{grid-template-columns:minmax(0,1fr)}}
+#answered{background:var(--content-2);border:.5px solid var(--sep);
+  border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden;
+  max-height:min(78vh,900px);overflow-y:auto}
+#answered .ahd{position:sticky;top:0;z-index:1;display:flex;gap:8px;
+  align-items:center;padding:11px 14px;font-size:11px;font-weight:620;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);
+  background:var(--content-2);border-bottom:.5px solid var(--sep)}
+#answered .ahd .n{margin-left:auto;font-size:11px;letter-spacing:0;
+  color:var(--ink2)}
+#answered .ablank{padding:16px 14px;font-size:12px;line-height:1.55;
+  color:var(--ink3)}
+/* one settled question: which fork, when it was settled, what was decided,
+   and the PRD it belongs to. The whole row is the door to that PRD. */
+#answered .adone{display:block;width:100%;text-align:left;padding:10px 14px;
+  background:none;border:none;border-bottom:.5px solid var(--sep-2);
+  cursor:pointer;color:inherit}
+#answered .adone:last-child{border-bottom:none}
+#answered .adone:hover{background:var(--content)}
+#answered .am{display:flex;gap:8px;align-items:baseline}
+#answered .qid{font:10.5px ui-monospace,SFMono-Regular,monospace;
+  font-weight:620;color:var(--ok)}
+#answered .when{margin-left:auto;font:10.5px ui-monospace,SFMono-Regular,
+  monospace;color:var(--ink3)}
+#answered .aq{margin-top:3px;font-size:12px;font-weight:620;
+  letter-spacing:-.01em;line-height:1.4}
+#answered .at{margin-top:3px;font-size:12px;line-height:1.5;color:var(--ink2);
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+  overflow:hidden}
+#answered .adone:hover .at{-webkit-line-clamp:unset}
+#answered .ap{margin-top:5px;font:10.5px ui-monospace,SFMono-Regular,monospace;
+  color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* a question answered here leaves the card where it stands, rather than
+   vanishing under the cursor */
+.qq.retiring{opacity:0;transform:translateX(10px);
+  transition:opacity .24s var(--ease),transform .24s var(--ease)}
+.qs .qnone{margin:0 14px 10px;padding:10px 12px;border-radius:8px;
+  background:var(--content-2);border:.5px solid var(--sep-2);
+  font-size:11.5px;line-height:1.5;color:var(--ink3)}

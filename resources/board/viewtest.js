@@ -4,6 +4,8 @@
 //
 //   node viewtest.js <path-to-.view.html>
 //   node viewtest.js http://127.0.0.1:8443/board/<name>
+//   node viewtest.js --example            a fresh copy of the example board,
+//                                         rendered and opened as a file
 //
 // Give it the served URL as well as the file. They are different code paths —
 // the service injects its own head script and live loop — and a page that is
@@ -30,11 +32,32 @@ try {
 
 const path = require("path");
 const fs = require("fs");
+const os = require("os");
+const { spawnSync } = require("child_process");
 
-const arg = process.argv[2];
+// --example: copy resources/board/example to a temp dir, plan and render it
+// there, and open that page. Never the directory itself — a check that ticks
+// a box in the example changes what every other check sees. The copy is
+// removed on exit; the snapshots it writes under --snap are keyed by the
+// board's own name, `example`.
+let arg = process.argv[2];
+let scratch = null;
+if (arg === "--example") {
+  scratch = fs.mkdtempSync(path.join(os.tmpdir(), "pearde-example-"));
+  fs.cpSync(path.join(__dirname, "example"), scratch, { recursive: true });
+  const r = spawnSync("python3", [path.join(__dirname, "plan.py"), "gantt", scratch],
+                      { encoding: "utf8" });
+  if (r.status !== 0) {
+    console.error("viewtest: could not render the example copy\n" + (r.stderr || r.stdout));
+    fs.rmSync(scratch, { recursive: true, force: true });
+    process.exit(2);
+  }
+  arg = path.join(scratch, "prds", ".view.html");
+  process.on("exit", () => fs.rmSync(scratch, { recursive: true, force: true }));
+}
 const served = /^https?:\/\//.test(arg || "");
 if (!arg || (!served && !fs.existsSync(arg))) {
-  console.error("viewtest: node viewtest.js <path-to-.view.html | url>");
+  console.error("viewtest: node viewtest.js <path-to-.view.html | url | --example>");
   process.exit(2);
 }
 const file = served ? arg : path.resolve(arg);
@@ -88,7 +111,7 @@ const file = served ? arg : path.resolve(arg);
       onHold: !!(P && typeof P.onHold === "function"),
       hold: typeof window.__pearde_hold === "function",
       titlebar: !!$("#titlebar"),
-      views: q("#views button").length,
+      views: q("#views a").length,
       canvas: !!$("#cv"),
       draws: window.__draws,
       land: !!$("#land"),
@@ -118,7 +141,7 @@ const file = served ? arg : path.resolve(arg);
     ["pearde.onHold callable", r.onHold, ""],
     ["hold hook still wired", r.hold, ""],
     ["the toolbar built", r.titlebar, ""],
-    ["six view buttons", r.views === 6, `got ${r.views}`],
+    ["seven section anchors", r.views === 7, `got ${r.views}`],
     ["the canvas is sized", r.canvasPainted, ""],
     ["the gantt drew", r.draws > 20, `${r.draws} draw ops`],
     ["the frontier column built", r.land, ""],
@@ -129,16 +152,108 @@ const file = served ? arg : path.resolve(arg);
     ["the inspector exists", r.drawer, ""],
   ];
 
-  for (const v of ["timeline", "board", "asks", "list", "analytics", "memos"]) {
+  // ── seven views, one at a time ──────────────────────────────────────────
+  // The three things this page is, asserted rather than eyeballed: the
+  // sections are in the PRD's order, exactly one is visible on load, every
+  // one of them has drawn before anything was clicked, and the page does not
+  // scroll sideways on a phone.
+  const page1 = await page.evaluate(() => {
+    const secs = [...document.querySelectorAll("section[data-view]")];
+    return {
+      order: secs.map(s => s.dataset.view),
+      // one section visible on load — the timeline — the rest display:none
+      visible: secs.filter(s => getComputedStyle(s).display !== "none")
+                   .map(s => s.dataset.view),
+      // a section that never drew is an empty frame: its content is missing
+      // from the DOM. Hidden sections measure 0, so this checks the DOM, not
+      // the box — the check that would have caught the one-draw-per-repaint
+      // dispatcher.
+      emptyHosts: secs.filter(s => {
+        const host = s.querySelector(
+          "pearde-board,pearde-list,pearde-memos,pearde-report,#asks,#tiles");
+        return host && host.querySelectorAll("*").length === 0;
+      }).map(s => s.dataset.view),
+      // the timeline's own content — the legend is DOM, the canvas is
+      // checked separately above
+      timelineDrew: (() => {
+        const t = document.querySelector('section[data-view="timeline"]');
+        return !!t && !!t.querySelector("#legend *");
+      })(),
+      whatsup: !!document.querySelector("pearde-whatsup"),
+      whatsupAbovePlan: (() => {
+        const w = document.querySelector("pearde-whatsup");
+        const stage = document.querySelector('section[data-view="timeline"] #stage');
+        return !!w && !!stage && (w.compareDocumentPosition(stage) &
+                                  Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+      })(),
+      tcontrolsInside: !!document.querySelector(
+        'section[data-view="timeline"] #tcontrols'),
+      purposeInside: !!document.querySelector(
+        'section[data-view="timeline"] #purpose'),
+    };
+  });
+  const ORDER = ["timeline", "board", "analytics", "asks", "list", "memos",
+                 "report"];
+  checks.push(["the sections are in the PRD's order",
+               page1.order.join(",") === ORDER.join(","), page1.order.join(" ")]);
+  checks.push(["exactly one section is visible on load",
+               page1.visible.length === 1 && page1.visible[0] === "timeline",
+               page1.visible.join(" ")]);
+  checks.push(["every section drew on first load, no click",
+               page1.emptyHosts.length === 0,
+               page1.emptyHosts.length ? "empty frames: " + page1.emptyHosts.join(" ") : ""]);
+  checks.push(["the timeline's legend drew",
+               page1.timelineDrew, ""]);
+  checks.push(["the prose section is the first thing above the plan",
+               page1.whatsup && page1.whatsupAbovePlan, ""]);
+  checks.push(["the plan's toolbar is inside the plan's section",
+               page1.tcontrolsInside, ""]);
+  checks.push(["the vision line is too", page1.purposeInside, ""]);
+
+  // narrow: the page must not scroll sideways. Before this PRD it did —
+  // `body.scrollWidth` 543 against a 390 client, the bar alone 449.
+  const wide0 = page.viewportSize();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(400);
+  const narrow = await page.evaluate(() => ({
+    body: document.body.scrollWidth,
+    client: document.documentElement.clientWidth,
+    culprits: [...document.querySelectorAll("body *")]
+      .filter(e => e.getBoundingClientRect().width >
+                   document.documentElement.clientWidth + 1)
+      .filter(e => !e.closest("#list"))     // the table scrolls in its own box
+      .slice(0, 4)
+      .map(e => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "")),
+  }));
+  checks.push(["at 390px the page does not scroll sideways",
+               narrow.body === narrow.client,
+               `body ${narrow.body} vs client ${narrow.client}` +
+               (narrow.culprits.length ? " — " + narrow.culprits.join(" ") : "")]);
+  if (wide0) await page.setViewportSize(wide0);
+  await page.waitForTimeout(300);
+
+  for (const v of ["timeline", "board", "asks", "list", "analytics", "memos", "report"]) {
     const before = errors.length;
-    await page.click(`#views button[data-v="${v}"]`).catch(e => errors.push(`${v}: ${e.message}`));
+    await page.click(`#views a[data-v="${v}"]`).catch(e => errors.push(`${v}: ${e.message}`));
     await page.waitForTimeout(120);
     const shown = await page.evaluate(n => {
-      const s = document.querySelector(`section[data-view="${n}"]`);
-      return !!s && getComputedStyle(s).display !== "none";
+      const secs = [...document.querySelectorAll("section[data-view]")];
+      const visible = secs.filter(s => getComputedStyle(s).display !== "none")
+                          .map(s => s.dataset.view);
+      return visible.length === 1 && visible[0] === n;
     }, v);
-    checks.push([`view "${v}" switches clean`, errors.length === before && shown,
-                 errors.slice(before).join(" | ") || (shown ? "" : "section not shown")]);
+    checks.push([`section "${v}" is the one shown`, errors.length === before && shown,
+                 errors.slice(before).join(" | ") || (shown ? "" : "not the only section shown")]);
+    // the board is a kanban: it must fit the viewport, not scroll the page.
+    // The columns scroll inside themselves; the view does not.
+    if (v === "board") {
+      const fits = await page.evaluate(() => {
+        const sh = document.documentElement.scrollHeight;
+        return sh <= window.innerHeight + 1;
+      });
+      checks.push(["the board view fits the viewport", fits,
+                   fits ? "" : "the page scrolls on the board view"]);
+    }
     // asks reads each PRD over the wire and renders its round as picks. A card
     // that could not read, or a parsed round showing no options, is the view
     // degrading quietly — which is exactly what it used to do.
@@ -158,11 +273,20 @@ const file = served ? arg : path.resolve(arg);
           recWithoutButton: cards.filter(c =>
             c.querySelector(".qq .rec") && c.querySelector(".act.rec")?.hidden).length,
           // every question answers on its own, and one already written back
-          // is marked rather than offered again
-          roundsMissingSend: [...document.querySelectorAll(".qq")].filter(q =>
+          // is not in the inbox at all — it is in the answered panel
+          roundsMissingSend: [...document.querySelectorAll("#asks .qq")].filter(q =>
             !q.classList.contains("answered") && !q.querySelector(".qsend")).length,
-          answeredStillOffering: [...document.querySelectorAll(".qq.answered")]
-            .filter(q => q.querySelector(".qsend:not([disabled])")).length,
+          answeredStillAsking: document.querySelectorAll("#asks .qq.answered")
+            .length,
+          panel: !!document.querySelector("#answered .ahd"),
+          panelRows: document.querySelectorAll("#answered .adone").length,
+          panelUnsorted: (() => {
+            // newest first, and an undated answer sorts under the dated ones
+            const d = [...document.querySelectorAll("#answered .when")]
+              .map(w => w.textContent.trim());
+            return d.filter((x, i) => i && d[i - 1] !== "undated" &&
+              x !== "undated" && d[i - 1] < x).length;
+          })(),
         };
       });
       checks.push(["no ask card failed to read its PRD", a.broken === 0,
@@ -173,8 +297,12 @@ const file = served ? arg : path.resolve(arg);
                    a.recWithoutButton === 0, ""]);
       checks.push(["every open question has its own submit",
                    a.roundsMissingSend === 0, ""]);
-      checks.push(["an answered question is not offered again",
-                   a.answeredStillOffering === 0, ""]);
+      checks.push(["an answered question has left the inbox",
+                   a.answeredStillAsking === 0, ""]);
+      checks.push(["the answered panel built", a.panel,
+                   `${a.panelRows} answered`]);
+      checks.push(["the answered panel is in date order",
+                   a.panelUnsorted === 0, `${a.panelUnsorted} out of order`]);
     }
   }
 
@@ -187,22 +315,25 @@ const file = served ? arg : path.resolve(arg);
     // so a directory-derived key collides across boards
     const tag = (await page.evaluate(() => (window.pearde && window.pearde.data
       && window.pearde.data.board) || "board")).replace(/[^A-Za-z0-9_.-]/g, "-");
-    for (const v of ["timeline", "board", "asks", "list", "analytics", "memos"]) {
-      await page.click(`#views button[data-v="${v}"]`).catch(() => {});
+    for (const v of ["timeline", "board", "asks", "list", "analytics", "memos", "report"]) {
+      await page.click(`#views a[data-v="${v}"]`).catch(() => {});
       await page.waitForTimeout(150);
       const dom = await page.evaluate(n => {
         const s = document.querySelector(`section[data-view="${n}"]`);
         const land = document.querySelector("#land");
-        // Lit stamps a random marker id per page load, and a claim renders
-        // "held 3m". Neither is a change to the markup.
+        // Lit stamps a random marker id per page load, the service prints
+        // "3s ago", and a claim written at a fixed time renders "holding 40m"
+        // that grows with the clock. None is a change to the markup.
         const clean = h => h
           .replace(/lit\$\d+\$/g, "lit$M$")
           .replace(/>[^<]*?\b\d+[smhd] ago\b[^<]*?</g, ">AGO<")
+          .replace(/holding \d+(?:\.\d+)?[mh]\b/g, "holding AGO")
           .replace(/\s+/g, " ").trim();
         const text = e => (e ? e.textContent : "").replace(/\s+/g, " ").trim();
         return {
           markup: clean((s ? s.innerHTML : "") + "||" + (land ? land.innerHTML : "")),
-          text: (text(s) + " || " + text(land)).replace(/\b\d+[smhd] ago\b/g, "AGO"),
+          text: (text(s) + " || " + text(land)).replace(/\b\d+[smhd] ago\b/g, "AGO")
+            .replace(/holding \d+(?:\.\d+)?[mh]\b/g, "holding AGO"),
         };
       }, v);
       const at = path.join(dir, `${tag}.${v}.html`);

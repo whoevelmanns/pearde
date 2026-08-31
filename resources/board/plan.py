@@ -10,6 +10,13 @@
                                           real hours beside weight from it
     plan.py members [board]               what a master board merges
     plan.py status [board]                the board, its members, its memos
+    plan.py example <dir>                 copy the example board to <dir> —
+                                          an empty or new directory; never
+                                          run in place
+    plan.py vision [board] [--json|--next|--check]
+                                          the axis prds/vision.md declares:
+                                          depth per PRD, the critical chain,
+                                          the off-axis set
 
 board = the prds/ directory, a directory holding one, or omitted to walk up
 from the cwd. The plan persists in prds/.plan.json. The view reads it.
@@ -75,7 +82,13 @@ ITEM_RE = re.compile(r"^\s*-\s+(.*?)\s*$")
 
 
 def strip_comment(v):
-    return re.sub(r"\s+#.*$", "", v).strip().strip("\"'")
+    # `^` as well as `\s+`: a value that is ONLY a comment is an empty value.
+    # `est:   # the weight, only when complexity is absent` — the template's
+    # own line — parsed to the comment TEXT while the leading run of spaces was
+    # eaten by KEY_RE, so every reader of `est` got a sentence where a duration
+    # was meant. `hours()` read it as 0.0 in silence; `dur()` reports it, which
+    # is how it was found. A `#` inside a word (`repo: a#b`) is still a `#`.
+    return re.sub(r"(^|\s+)#.*$", "", v).strip().strip("\"'")
 
 
 def parse_prd(path):
@@ -234,7 +247,9 @@ def spec_data(prd):
                 fm, _, _ = parse_prd(os.path.join(sdir, f))
                 fp = fm.get("footprint", [])
                 feet += fp if isinstance(fp, list) else [fp]
-                est += float(fm.get("complexity", 0) or 0) or hours(fm.get("est", ""))
+                where = f"{prd['rel']}/specs/{f}"
+                est += (num(fm, "complexity", where)
+                        or dur(fm, "est", where))
     return est, qualify_paths(prd, [f.rstrip("/") for f in feet if f])
 
 
@@ -426,8 +441,173 @@ def hours(v):
     m = re.match(r"^([\d.]+)\s*([mhd]?)$", v)
     if not m:
         return 0.0
-    n, unit = float(m.group(1)), m.group(2)
+    try:
+        n = float(m.group(1))
+    except ValueError:   # `..`, `1.2.3` — the shape matches, the number does not
+        return 0.0
+    unit = m.group(2)
     return n / 60 if unit == "m" else n * 8 if unit == "d" else n
+
+
+# ── numbers a person typed ───────────────────────────────────────────────────
+# Every weight on this board is hand-written: `complexity` on every spec by
+# every analyst the board has ever dispatched, `priority` on every prd.md,
+# `weight-default`, `gantt-day` and `claim-ttl` in settings.md. The population
+# of writers is the population of workers, so the failure mode is a typo — and
+# a bare `float()` over one of them turns that typo into a traceback in `scan`,
+# step 1 of every round, that names no PRD and stops every session on the
+# board. Nothing here reads a number off a file a person wrote except through
+# `num` and `dur`.
+#
+# A bad value reads as 0.0, which is what an UNSCORED value already reads as,
+# and that is the whole of the decision: `compute_plan` and `weight_of` weigh
+# an unscored PRD at the board average and `progress_terms` leaves it out of
+# the average it computes, so a typo is weighed as "we do not know this one's
+# size" rather than as free. What would be wrong is the SILENCE — a weight
+# that quietly becomes 0 is a wrong number that looks like a real one, and it
+# moves the PRD in the plan and in the progress percentage — so every bad
+# value is said out loud, on stderr, naming the file a person has to open.
+# Once per (file, key, value), never once per read: `complexity` is read by
+# five functions in a round and one typo is one problem.
+_BAD_SEEN = set()
+# a duration that is honestly zero — `0`, `0h`, `0.0m` — so `dur` does not
+# report the one value `hours()` and a broken value agree on
+ZERO_RE = re.compile(r"^0*\.?0*\s*[mhd]?$")
+
+
+def bad_value(where, key, v):
+    """Say once that a hand-written value is not a number. Never raises."""
+    seen = (str(where), str(key), repr(v))
+    if seen in _BAD_SEEN:
+        return
+    _BAD_SEEN.add(seen)
+    print(f"plan: {where or '?'} — {key}: {v!r} is not a number, weighed as "
+          f"unscored", file=sys.stderr)
+
+
+def num(fm, key, where="", default=0):
+    """A plain number off frontmatter — `complexity`, `priority`,
+    `weight-default`. 0.0 when absent or empty, 0.0 AND a report when it is
+    there and is not a number. Never raises."""
+    v = fm.get(key, default)
+    if v is None or v == "":
+        return 0.0
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        bad_value(where, key, v)
+        return 0.0
+
+
+def dur(fm, key, where="", default=""):
+    """A duration off frontmatter — `est`, `actual`, `gantt-day` — in hours.
+    `hours()` reads the shapes; this names the file when a value is not one of
+    them. 0.0 when absent or unreadable. Never raises."""
+    v = fm.get(key, default)
+    if v is None or v == "":
+        return 0.0
+    h = hours(v)
+    if h == 0.0 and not ZERO_RE.match(str(v).strip()):
+        bad_value(where, key, v)
+    return h
+
+
+# ── silence ──────────────────────────────────────────────────────────────────
+# The board cannot see a worker. What it can see is files: an implementer
+# writes in the repo, an analyst's probe lives in the PRD folder, and either
+# moving is a live worker. A claim whose files have not moved for longer than
+# `claim-ttl` is silent. `silent_of` is the one rule — the scan line, the
+# page's row and `sweep` read it from here, so none of them can disagree about
+# which claim has gone quiet. Read off files, never off a process.
+CLAIM_TTL = "30m"
+SILENT_STATES = {"claimed", "analyzing"}   # the in-flight band, and only it
+
+
+def claim_ttl(settings):
+    """`claim-ttl` from settings.md, in minutes. `30m`, `2h`, `1d` read as
+    `hours()` reads them; a bare number is minutes. Default 30."""
+    v = str(settings.get("claim-ttl", CLAIM_TTL) or CLAIM_TTL).strip()
+    if v.isdigit():
+        return float(v)
+    h = hours(v)
+    if h <= 0:
+        bad_value("settings.md", "claim-ttl", v)
+        return 30.0
+    return h * 60
+
+
+def prd_repo(prd):
+    """Where the PRD's code lives — `collect`'s rule: `repo:` that is a
+    directory, absolute or relative to the board's repo, else the board's own
+    repo. The footprint silence is read over is the one collect commits."""
+    root = (repo_root(prd["board_path"])
+            or os.path.dirname(os.path.abspath(prd["board_path"])))
+    raw = str(prd["fm"].get("repo", "") or "").strip()
+    if raw:
+        for cand in (raw, os.path.join(root, raw)):
+            if os.path.isdir(cand):
+                r = repo_root(cand)
+                if r:
+                    return r
+    return root
+
+
+def newest_mtime(paths):
+    """The newest mtime under any of `paths` — a file's own, a directory's
+    walked, dot-dirs and `__pycache__` skipped since nothing a worker does
+    lives there. A path that is not on disk counts nothing: a footprint names
+    what the work will touch, not what exists yet."""
+    newest = 0.0
+    for p in paths:
+        if os.path.isfile(p):
+            try:
+                newest = max(newest, os.stat(p).st_mtime)
+            except OSError:
+                pass
+        elif os.path.isdir(p):
+            for root, dirs, files in os.walk(p):
+                dirs[:] = [d for d in dirs
+                           if not d.startswith(".") and d != "__pycache__"]
+                for f in files:
+                    try:
+                        newest = max(newest,
+                                     os.stat(os.path.join(root, f)).st_mtime)
+                    except OSError:
+                        pass
+    return newest
+
+
+def silent_of(prd, settings, collect=None, now=None):
+    """Minutes since anything of this PRD's last moved, when that is longer
+    than `claim-ttl`; None otherwise. THE rule for a quiet worker.
+
+    "Anything of this PRD's" is its directory and every path of its footprint
+    union — the PRD's own plus its specs', the union `collect` commits — in
+    its repo. Only a held PRD in the in-flight band can be silent: a `blocked`
+    one is waiting on a person, and a PRD to collect is a worker that
+    finished, which is the opposite of one that went quiet. `collect` is
+    `standing()`'s verdict; pass it when you already hold it."""
+    if prd["state"] not in SILENT_STATES or not claim_of(prd["fm"]):
+        return None
+    if collect is None:
+        collect = standing(prd)[3]
+    if collect:
+        return None
+    repo = prd_repo(prd)
+    _, feet = spec_data(prd)
+    paths = [prd["dir"]] + [os.path.join(repo, f) for f in feet
+                            if not f.startswith(MEMBER_SIGIL)]
+    newest = newest_mtime(paths)
+    if not newest:
+        return None
+    age = ((time.time() if now is None else now) - newest) / 60
+    return age if age >= claim_ttl(settings) else None
+
+
+def fmt_age(minutes):
+    """`42m` under ninety minutes, `1.5h` past it — the page's own spelling
+    for a holding time, so the scan and the row read the same word."""
+    return f"{round(minutes)}m" if minutes < 90 else f"{minutes / 60:.1f}h"
 
 
 # The round's own memory — @references/parts/round.md. Fifteen lines the
@@ -486,32 +666,127 @@ def board_name(board):
     return re.sub(r"[^A-Za-z0-9_. -]", "-", raw) or infer_name(board)
 
 
-def plane_name(board):
-    """What the board calls itself in Plane, or "" — `.plane.env`'s
-    PLANE_PROJECT_NAME. Mirrors allboards.plane_name so the axis addresses
-    match the ones vision.py writes."""
-    try:
-        for line in open(os.path.join(board, ".plane.env"), encoding="utf-8"):
-            k, sep, v = line.strip().partition("=")
-            if sep and k.strip() == "PLANE_PROJECT_NAME":
-                return v.strip()
-    except OSError:
-        pass
-    return ""
+# ── the vision axis ───────────────────────────────────────────────────────────
+# `prds/vision.md` says where the board is going: `vision:` in one sentence,
+# `terminals:` naming the PRDs whose completion is that destination, `edges:`
+# for a dependency nobody wrote as `needs:`. @references/parts/order.md.
+VISION_FILE = "vision.md"
 
 
-def axis_depth(board):
-    """{addr: depth} from the vision axis — `.vision.json` when the board has
-    one, else {} (a member board has no axis of its own; the master's plan is
-    the one that dispatches it)."""
-    vj = os.path.join(board, ".vision.json")
-    if not os.path.isfile(vj):
-        return {}
-    try:
-        data = json.load(open(vj, encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
-    return {n["addr"]: n["depth"] for n in data.get("prds", [])}
+def read_vision(board):
+    """`prds/vision.md` as data — {vision, terminals, edges, title, body} —
+    or None when the board has none. The one reader of the file."""
+    path = os.path.join(board, VISION_FILE)
+    if not os.path.isfile(path):
+        return None
+    fm, title, body = parse_prd(path)
+
+    def items(key):
+        v = fm.get(key, [])
+        v = v if isinstance(v, list) else [v]
+        return [str(x).strip() for x in v if str(x).strip()]
+
+    edges = []
+    for e in items("edges"):
+        a, sep, b = e.partition("->")
+        edges.append((a.strip(), b.strip()) if sep else (e, ""))
+    return {"vision": str(fm.get("vision", "")).strip(),
+            "terminals": items("terminals"), "edges": edges,
+            "title": title, "body": body}
+
+
+def resolve_addr(prds, tok, board, idx=None):
+    """The rel a vision address names, or None. `needs:` resolution — own
+    board first, `@<member>/<rel>` across boards — plus `@<this board's
+    name>/<rel>` for the board's own PRD, which a master's file writes so its
+    terminals read as one list."""
+    t = str(tok).strip().rstrip("/")
+    own = f"{MEMBER_SIGIL}{board_name(board)}/"
+    if t.startswith(own) and t[len(own):] in prds:
+        return t[len(own):]
+    return resolve_need(prds, {"board": None}, t, idx)
+
+
+def vision_axis(board, prds=None, vis=None):
+    """The axis as data, or None when the board declares no terminals.
+
+    `depth[rel]` is the longest serial chain from that PRD to a terminal over
+    `needs:` plus `edges:` — a parent is a terminal for its subtree, a done
+    PRD on the chain costs no hop — or None when no terminal is reachable:
+    off the axis, neither near the vision nor far from it. `reach[rel]` is
+    the undone work the PRD stands in front of. `dangling` lists every
+    terminal or edge end that names no PRD — what `doctor`'s `vision` row
+    reports."""
+    v = read_vision(board) if vis is None else vis
+    if not v or not v["terminals"]:
+        return None
+    prds = scan(board) if prds is None else prds
+    idx = needs_index(prds)
+    term, dangling = set(), []
+    for t in v["terminals"]:
+        r = resolve_addr(prds, t, board, idx)
+        if r:
+            term.add(r)
+        else:
+            dangling.append(f"terminal {t} names no PRD")
+    after = {r: set() for r in prds}       # after[x]: the rels that wait on x
+    for r, p in prds.items():
+        deps = p["fm"].get("needs", [])
+        for d in (deps if isinstance(deps, list) else [deps]):
+            t = resolve_need(prds, p, d, idx)
+            if t and t != r:
+                after[t].add(r)
+        for c in p["children"]:            # a parent lands after its children
+            after[c].add(r)
+    for a, b in v["edges"]:
+        ra, rb = (resolve_addr(prds, x, board, idx) for x in (a, b))
+        bad = [x for x, rx in ((a, ra), (b, rb)) if not rx]
+        if bad:
+            dangling.append(f"edge {a} -> {b}: {', '.join(bad)} names no PRD")
+        elif ra != rb:
+            after[ra].add(rb)
+    depth, reach = {}, {}
+
+    def walk(r):
+        if r in depth:
+            return depth[r]
+        depth[r] = 0 if r in term else None   # a cycle reads this partial value
+        best = depth[r]
+        for nxt in after[r]:
+            d = walk(nxt)
+            if d is None:
+                continue
+            step = d if prds[nxt]["state"] == "done" else d + 1
+            best = step if best is None else max(best, step)
+        depth[r] = 0 if r in term else best
+        return depth[r]
+
+    def down(r):
+        if r in reach:
+            return reach[r]
+        reach[r] = set()
+        acc = set()
+        for nxt in after[r]:
+            if prds[nxt]["state"] != "done":
+                acc.add(nxt)
+            acc |= down(nxt)
+        reach[r] = acc
+        return acc
+
+    for r in prds:
+        walk(r)
+        down(r)
+    return {"vision": v["vision"], "body": v["body"],
+            "terminals": v["terminals"], "term": term, "after": after,
+            "depth": depth, "reach": {r: len(s) for r, s in reach.items()},
+            "dangling": dangling}
+
+
+def axis_depth(board, prds=None):
+    """{rel: depth} from the vision axis — None for a PRD off it, {} on a
+    board that declares no terminals, which orders as it always has."""
+    ax = vision_axis(board, prds)
+    return ax["depth"] if ax else {}
 
 
 def scan_memos(board):
@@ -708,19 +983,16 @@ def gantt_payload(board, prds, mp, settings):
     the past out to the LEFT of now and pins the parked at now, so where we
     are is a place on the whole track, not kilometre zero of a shrinking
     one."""
-    day_h = hours(settings.get("gantt-day", "8h")) or 8.0
+    day_h = dur(settings, "gantt-day", "settings.md", "8h") or 8.0
     sched = mp.get("schedule", {})
     tasks, unplanned = [], []
     done = parked = containers = 0
     for rel in sorted(prds):
         p = prds[rel]
         st = p["state"]
-        weight = round(float(p["fm"].get("complexity", 0) or 0)
-                       or hours(p["fm"].get("est", "")), 2)
-        try:
-            pr = float(p["fm"].get("priority", 0))
-        except (TypeError, ValueError):
-            pr = 0.0
+        weight = round(num(p["fm"], "complexity", rel)
+                       or dur(p["fm"], "est", rel), 2)
+        pr = num(p["fm"], "priority", rel)
         nd = p["fm"].get("needs", [])
         nd = nd if isinstance(nd, list) else [nd]
         base = {
@@ -765,6 +1037,9 @@ def gantt_payload(board, prds, mp, settings):
             held=st in HOLDING_STATES or st == "analyzing",
             collect=ready_to_collect,
             claim=claim_of(p["fm"]),
+            # the quiet worker, off the files — @references/parts/view.md.
+            # None below `claim-ttl`; minutes of silence past it
+            silent=silent_of(p, settings, collect=ready_to_collect),
         ))
     # Every PRD, not only the scheduled ones: the timeline draws what is left,
     # the analytics have to see what is done, parked and estimated too, and a
@@ -774,10 +1049,7 @@ def gantt_payload(board, prds, mp, settings):
     everything = []
     for rel in sorted(prds):
         p = prds[rel]
-        try:
-            prio = float(p["fm"].get("priority", 0))
-        except (TypeError, ValueError):
-            prio = 0.0
+        prio = num(p["fm"], "priority", rel)
         # boxes for live PRDs only: a `done` PRD's specs are history, and
         # reading every one of them is the plan-time cost this loop avoids.
         # `collect` comes from `standing`, the same reader `tasks[]` above
@@ -793,13 +1065,13 @@ def gantt_payload(board, prds, mp, settings):
             "state": p["state"], "board": p.get("board"),
             "parent": p.get("parent"),
             "prio": int(prio) if prio == int(prio) else prio,
-            "est": round(hours(p["fm"].get("est", "")), 2),
-            "actual": round(hours(p["fm"].get("actual", "")), 2),
+            "est": round(dur(p["fm"], "est", rel), 2),
+            "actual": round(dur(p["fm"], "actual", rel), 2),
             # the weight the board schedules by — complexity, falling back
             # to est. est and actual are records the plan never schedules
             # by; `calibrate` fits real hours from them
-            "weight": round(float(p["fm"].get("complexity", 0) or 0)
-                            or hours(p["fm"].get("est", "")), 2),
+            "weight": round(num(p["fm"], "complexity", rel)
+                            or dur(p["fm"], "est", rel), 2),
             "boxes": [closed, total],
             "collect": collect,
             "kids": len(p.get("children") or []),
@@ -811,6 +1083,10 @@ def gantt_payload(board, prds, mp, settings):
         "boards": [n for n, _ in members(board)],
         "all": everything,
         "history": read_history(board),
+        # the cost series — @references/parts/guard.md. `guard` is None when
+        # no session file exists, and the page says `no guard`
+        "transitions": read_transitions(board),
+        "guard": guard_view(board),
         # the states the loop works, then any the user parked work in
         "states": sorted(LIVE_STATES | {"done"}) + sorted(
             {p["state"] for p in prds.values()} - LIVE_STATES - {"done"}),
@@ -822,6 +1098,9 @@ def gantt_payload(board, prds, mp, settings):
         "calib": read_calibration(),
         "tune": TUNE,
         "workers": str(settings.get("workers", "3")),
+        # the one sentence `prds/vision.md` says the board is for — the page
+        # prints it under the numbers. Empty when the board declares none
+        "vision": {"purpose": (read_vision(board) or {}).get("vision", "")},
         "counts": {"done": done, "parked": parked, "containers": containers,
                    "collect": sum(1 for t in tasks if t["collect"]),
                    "held": sum(1 for t in tasks if t["held"])},
@@ -854,6 +1133,99 @@ def read_history(board):
     return rows[-400:]
 
 
+TRANSITIONS_FILE = ".transitions.jsonl"
+
+
+def read_transitions(board, last=30):
+    """The last `last` rows transitions.py `record` appended — one per state
+    move, carrying the guard's count for the window before it (`calls`,
+    `reads`, `refused`, `tokens`, each `null` when no guard was counting).
+    The analytics draw calls per transition off these; `.history.jsonl`
+    stays the burn-down's."""
+    rows = []
+    try:
+        for line in open(os.path.join(board, TRANSITIONS_FILE),
+                         encoding="utf-8"):
+            line = line.strip()
+            if line:
+                try:
+                    rows.append(json.loads(line))
+                except ValueError:
+                    continue
+    except OSError:
+        return []
+    return rows[-last:]
+
+
+# The guard's session files — resources/guard.py writes them, one per
+# session, and `PEARDE_GUARD_STATE` moves the directory for both. plan.py
+# only reads: the newest file is the live session, because the guard touches
+# its file on every tool call, and the call that runs `pearde status` is
+# the last one it saw.
+GUARD_DIR = os.environ.get("PEARDE_GUARD_STATE") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "state", "guard")
+
+
+def guard_sessions():
+    """[(session, mtime, data)] oldest first, or [] with no state dir or no
+    file in it — `no guard`, never zero."""
+    out = []
+    try:
+        names = [n for n in os.listdir(GUARD_DIR) if n.endswith(".json")]
+    except OSError:
+        return out
+    for n in names:
+        path = os.path.join(GUARD_DIR, n)
+        try:
+            out.append((n[:-5], os.stat(path).st_mtime,
+                        json.load(open(path, encoding="utf-8"))))
+        except (OSError, ValueError):
+            continue
+    out.sort(key=lambda x: x[1])
+    return out
+
+
+def guard_block(board, data):
+    """The per-board counter block a session file holds for `board`, or
+    None."""
+    return (data.get("boards") or {}).get(os.path.realpath(board))
+
+
+def guard_view(board):
+    """What the analytics draw: every session that counted on this board,
+    oldest first, or None when the guard has left no file at all."""
+    sessions = guard_sessions()
+    if not sessions:
+        return None
+    rows = []
+    for sid, mtime, data in sessions:
+        b = guard_block(board, data)
+        if b is None:
+            continue
+        rows.append({"session": sid, "at": round(mtime, 3),
+                     "refused": int(b.get("refused", 0)),
+                     "calls": int(b.get("calls", 0)),
+                     "transitions": int(b.get("transitions", 0))})
+    return {"sessions": rows[-30:]}
+
+
+def session_line(board):
+    """`pearde status`'s one line on the cost of this session — the newest
+    guard file's block for this board. `no guard` when there is no file;
+    a session that has not counted here yet says so."""
+    sessions = guard_sessions()
+    if not sessions:
+        return "this session: no guard"
+    b = guard_block(board, sessions[-1][2])
+    if b is None:
+        return "this session: no calls counted on this board"
+    calls = int(b.get("calls", 0))
+    n = int(b.get("transitions", 0))
+    per = f"{calls / n:.1f}" if n else "—"
+    return (f"this session: {calls} calls · {int(b.get('refused', 0))} refused"
+            f" · {n} transitions · {per} per transition")
+
+
 def write_history(board, prds=None):
     """Today's row, once. Rewrites today's line rather than appending a second,
     so a daemon restarted six times in a day still leaves one point."""
@@ -861,11 +1233,11 @@ def write_history(board, prds=None):
     today = datetime.date.today().isoformat()
     row = {"d": today, "states": {}, "hleft": 0.0, "hdone": 0.0,
            "done": 0, "left": 0}
-    for p in prds.values():
+    for rel, p in prds.items():
         st = p["state"]
         row["states"][st] = row["states"].get(st, 0) + 1
-        h = (float(p["fm"].get("complexity", 0) or 0)
-             or hours(p["fm"].get("est", "")))
+        h = (num(p["fm"], "complexity", rel)
+             or dur(p["fm"], "est", rel))
         if st == "done":
             row["done"] += 1
             row["hdone"] += h
@@ -935,14 +1307,11 @@ def calib_rows():
         for rel, p in sorted(_scan_one(b).items()):
             if p["state"] != "done":
                 continue
-            act = hours(p["fm"].get("actual", ""))
+            act = dur(p["fm"], "actual", rel)
             if act <= 0:
                 continue
-            try:
-                w = float(p["fm"].get("complexity", 0) or 0)
-            except (TypeError, ValueError):
-                w = 0.0
-            rows.append((name, rel, hours(p["fm"].get("est", "")), act, w))
+            w = num(p["fm"], "complexity", rel)
+            rows.append((name, rel, dur(p["fm"], "est", rel), act, w))
     return rows
 
 
@@ -1007,6 +1376,76 @@ def cmd_gantt(board, open_after=False):
 def overlap(a, b):
     return any(x == y or x.startswith(y + "/") or y.startswith(x + "/")
                for x in a for y in b)
+
+
+def dispatchable(prd, prds, board=None):
+    """None when `claim` would take this PRD now, else why not — one string,
+    `<gate>: <why>`, the gate word first so `transitions.gate_claim` raises
+    it as it stands and `brief` maps it to a skip word.
+
+    The one place the gates are written. `compute_plan`'s ready band,
+    `cmd_scan`'s `ready` and `gated` sections and `gate_claim` all call it,
+    so the scan cannot list as ready what `claim` refuses — the memo
+    `a-parked-child-holds-the-parent` is the day they disagreed. The gates:
+
+    - unclaimed — it carries a `claim:`.
+    - leaf — a child is not `done`. A parked child is neither done nor
+      coming, so it holds the parent for good: `held by <child> (parked)`.
+    - container — children, every one `done`, and no specs or open box of
+      its own. Finished work `collect` closes, never a thing to dispatch;
+      `claim` on it is the trap `a-container-cannot-reach-done` records.
+    - needs — a `needs:` entry naming nothing, or a PRD not `done`.
+    - footprint — overlaps a `claimed` PRD's.
+    - workflow — `workflow:` names no workflow in any library it can see;
+      `board` is the master's library when there is one.
+
+    The state is not checked here: the callers partition by state first,
+    and a `claimed` PRD is in flight, not refused."""
+    rel = prd["rel"]
+    if claim_of(prd["fm"]):
+        return f"unclaimed: {rel} carries `claim: {prd['fm']['claim']}`"
+    parked = [c for c in prd["children"]
+              if prds[c]["state"] not in LIVE_STATES
+              and prds[c]["state"] != "done"]
+    if parked:
+        return (f"leaf: {rel} held by "
+                + ", ".join(f"{c} (parked)" for c in parked))
+    live = [c for c in prd["children"] if prds[c]["state"] != "done"]
+    if live:
+        return (f"leaf: {rel} has children not done — "
+                + ", ".join(os.path.basename(c) for c in live))
+    sdir = os.path.join(prd["dir"], "specs")
+    specs = (os.path.isdir(sdir)
+             and any(f.endswith(".md") for f in os.listdir(sdir)))
+    if prd["children"] and not specs and not body_has_open_box(prd):
+        return "container: every child done — pearde collect closes it"
+    deps = prd["fm"].get("needs", [])
+    for d in (deps if isinstance(deps, list) else [deps]):
+        t = resolve_need(prds, prd, d)
+        if t is None:
+            return f"needs: `{d}` names no PRD on this board"
+        if prds[t]["state"] != "done":
+            return f"needs: {t} is `{prds[t]['state']}`, not done"
+    _, mine = spec_data(prd)
+    for r, p in prds.items():
+        if p["state"] != "claimed" or r == rel:
+            continue
+        _, theirs = spec_data(p)
+        for x in mine:
+            for y in theirs:
+                if x == y or x.startswith(y + "/") or y.startswith(x + "/"):
+                    return (f"footprint: {r} is claimed and holds `{y}`, "
+                            f"which clashes with `{x}`")
+    v = prd["fm"].get("workflow")
+    if isinstance(v, list):
+        return ("workflow: the key holds one slug — a list is a break, not "
+                "an absence; fix the shape or remove the key")
+    mark = workflow_marks(board or prd["board_path"], {rel: prd}).get(rel, "")
+    if mark.endswith("?"):
+        return (f"workflow: `{mark[:-1]}` names no workflow in "
+                f"{prd['board_path']}/workflows — fix the slug or remove "
+                "the key")
+    return None
 
 
 def board_settings(board):
@@ -1114,8 +1553,8 @@ def compute_plan(board, workers=None, warn=True):
     for r, p in todo.items():
         e, f = spec_data(p)
         # complexity is the weight. est is the fallback for an unscored PRD
-        est[r] = (e or float(p["fm"].get("complexity", 0) or 0)
-                  or hours(p["fm"].get("est", "")))
+        est[r] = (e or num(p["fm"], "complexity", r)
+                  or dur(p["fm"], "est", r))
         feet[r] = f
     # A parent with live children is a container: the work is in the children,
     # and weighing it too counts the same work twice. It still waits for them.
@@ -1124,7 +1563,7 @@ def compute_plan(board, workers=None, warn=True):
             est[r] = 0.0
     known = [e for e in est.values() if e > 0]
     avg = (sum(known) / len(known) if known
-           else float(settings.get("weight-default", 50) or 50))
+           else num(settings, "weight-default", "settings.md", 50) or 50)
     for r, p in todo.items():
         if not est[r] and not any(c in todo for c in p["children"]):
             est[r] = avg
@@ -1143,30 +1582,32 @@ def compute_plan(board, workers=None, warn=True):
             collect.append(r)
         if total and p["state"] in HOLDING_STATES:
             est[r] = max(est[r] * (1 - frac), est[r] * 0.05)
+    # A container — children every one `done`, nothing of its own — is
+    # finished work `collect` closes, never a thing to dispatch. It joins the
+    # list here, once, so `scan`, `plan` and a bare `collect` read one list.
+    for r, p in todo.items():
+        if (p["state"] in ("open", "specced") and r not in collect
+                and (dispatchable(p, prds, board) or "")
+                .startswith("container:")):
+            collect.append(r)
 
     def prio(r):
-        try:
-            return float(todo[r]["fm"].get("priority", 0))
-        except ValueError:
-            return 0.0
+        return num(todo[r]["fm"], "priority", r)
 
     # The vision axis orders the frontier: asap lanes first, then on-axis
     # deepest-first, then the old widest-door order. A PRD off the axis (or a
-    # board with no axis) keeps the old order. The axis is `.vision.json`,
-    # written by prds/vision.py; the asap lane is a PRD declaring `axis: asap`
+    # board with no axis) keeps the old order. The axis is `prds/vision.md`,
+    # read by `axis_depth`; the asap lane is a PRD declaring `axis: asap`
     # in its frontmatter — the "see it working" ask, scheduled by priority,
     # not hops.
-    axis = axis_depth(board)
-    master = plane_name(board) or project_name(board)
-    def addr_of(r):
-        return r if r.startswith(MEMBER_SIGIL) else f"{MEMBER_SIGIL}{master}/{r}"
+    axis = axis_depth(board, prds)
     def asap(r):
         return str(todo[r]["fm"].get("axis", "")).strip() == "asap"
     def axis_rank(r, unblocks=None):
         u = (unblocks or {}).get(r, 0)
         if asap(r):
             return (0, 0, -u, -prio(r), r)
-        d = axis.get(addr_of(r))
+        d = axis.get(r)
         if d is not None:
             return (1, -d, -u, -prio(r), r)
         return (2, 0, -u, -prio(r), r)
@@ -1234,6 +1675,20 @@ def compute_plan(board, workers=None, warn=True):
     nslots = max(workers, 1)
     left = {r: len(edges[r]) for r in todo}
     ready = [r for r in todo if not left[r]]
+    # The ready band is `dispatchable`, the one predicate `claim` reads. A
+    # PRD with no edge left that the gate would still refuse — a parked
+    # child, a stale claim, a dangling workflow — is held to the tail of the
+    # schedule: visible, never offered. A container is collect's, not a
+    # hold; it folds at zero like any weightless PRD.
+    held = {}
+    for r in list(ready):
+        if todo[r]["state"] not in ("open", "specced"):
+            continue
+        why = dispatchable(todo[r], prds, board)
+        if why and not why.startswith("container:"):
+            held[r] = why
+            ready.remove(r)
+    pending = list(held)
     running, schedule, order, t0 = [], {}, [], 0.0
     def take(pool):
         best = min(pool, key=lambda x: axis_rank(x, unblocks))
@@ -1244,7 +1699,7 @@ def compute_plan(board, workers=None, warn=True):
             left[s] -= 1
             if not left[s]:
                 ready.append(s)
-    while ready or running:
+    while ready or running or pending:
         # a container weighs nothing and holds no worker — it folds away the
         # moment its children are done
         while ready:
@@ -1261,6 +1716,14 @@ def compute_plan(board, workers=None, warn=True):
             schedule[r] = {"start": t0, "end": t0 + est[r]}
             order.append(r)
             running.append((schedule[r]["end"], r))
+        if not running and not ready and pending:
+            # nothing left that can run: the held go at the tail, in order,
+            # so what waits on them is scheduled after them, not never
+            for r in pending:
+                schedule[r] = {"start": t0, "end": t0 + est[r]}
+                order.append(r)
+                running.append((schedule[r]["end"], r))
+            pending = []
         if not running:
             continue
         running.sort()
@@ -1269,7 +1732,7 @@ def compute_plan(board, workers=None, warn=True):
     wall = max((s["end"] for s in schedule.values()), default=0.0)
     return {"prds": prds, "todo": todo, "parked": parked, "settings": settings,
             "workers": workers, "needs": needs, "est": est, "feet": feet,
-            "boxes": boxes, "collect": sorted(collect),
+            "boxes": boxes, "collect": sorted(collect), "held": held,
             "after": after, "schedule": schedule, "order": order,
             "unblocks": unblocks, "wall": wall, "avg": avg,
             "prio": {r: prio(r) for r in todo}}
@@ -1377,8 +1840,8 @@ def weight_of(prd, avg):
     else `est`, else the board average. `compute_plan` weighs only live work;
     the progress line's percentage needs the closed PRDs too."""
     e, _ = spec_data(prd)
-    return (float(prd["fm"].get("complexity", 0) or 0) or e
-            or hours(prd["fm"].get("est", "")) or avg)
+    return (num(prd["fm"], "complexity", prd["rel"]) or e
+            or dur(prd["fm"], "est", prd["rel"]) or avg)
 
 
 def progress_terms(board, prds=None, settings=None):
@@ -1390,10 +1853,10 @@ def progress_terms(board, prds=None, settings=None):
     prds = scan(board) if prds is None else prds
     settings = board_settings(board) if settings is None else settings
     live = {r: p for r, p in prds.items() if p["state"] in LIVE_STATES}
-    scored = [w for w in (float(p["fm"].get("complexity", 0) or 0)
-                          for p in prds.values()) if w > 0]
+    scored = [w for w in (num(p["fm"], "complexity", r)
+                          for r, p in prds.items()) if w > 0]
     avg = (sum(scored) / len(scored) if scored
-           else float(settings.get("weight-default", 50) or 50))
+           else num(settings, "weight-default", "settings.md", 50) or 50)
 
     def origin(p):
         return "derived" if str(p["fm"].get("origin", "")).strip() == \
@@ -1414,8 +1877,8 @@ def progress_terms(board, prds=None, settings=None):
     return {
         "prds": prds, "live": live, "avg": avg, "counts": counts,
         "parked": parked,
-        "asked": (sum(1 for p in req.values() if p["state"] == "done"),
-                  len(req)),
+        "done": (sum(1 for p in req.values() if p["state"] == "done"),
+                 len(req)),
         "pct": round(100 * done_w / all_w) if all_w else 0,
         "derived": (sum(1 for p in der.values() if p["state"] == "done"),
                     len(der)),
@@ -1447,7 +1910,14 @@ def workflow_marks(board, prds):
 
     for rel, p in prds.items():
         v = p["fm"].get("workflow")
-        if not v or isinstance(v, list):
+        if not v:
+            continue
+        if isinstance(v, list):
+            # A shape error, not an absence. @references/workflow.md says the
+            # key holds one slug and anything else is a break, so it marks
+            # like one — the line shows it and the loop does not dispatch it.
+            # `workflows.py check` is where it is named in words.
+            marks[rel] = ",".join(str(x).strip() for x in v) + "?"
             continue
         slug = str(v).strip()
         if not slug:
@@ -1476,21 +1946,36 @@ def cmd_scan(board):
     after = r["after"] if r else {}
     est = r["est"] if r else {}
     wf = workflow_marks(board, prds)
+    settings = board_settings(board)     # `claim-ttl`, for the silent word
     mem = [n for n, _ in members(board)]
+    # The axis, when the board declares one: how much live work is on the way
+    # to the vision and how much is not. A board with no terminals prints
+    # neither this nor the marks below — its scan reads as it always has.
+    vis = read_vision(board)
+    ax = vision_axis(board, prds, vis) if vis else None
+    axis_note = ""
+    if ax:
+        on = sum(1 for x in t["live"] if ax["depth"].get(x) is not None)
+        axis_note = f" · axis: {on} on · {len(t['live']) - on} off"
     print(f"board: {board} · {len(prds)} PRDs"
           + (f" · master of {len(mem)}: " + ", ".join(mem) if mem else "")
-          + (f" · workers={r['workers']}" if r else ""))
+          + (f" · workers={r['workers']}" if r else "")
+          + axis_note)
+    if vis and vis["vision"]:
+        print(f"vision: {vis['vision']}")
     if t["counts"]:
         print("counts: " + " · ".join(f"{s} {n}" for s, n in sorted(
             t["counts"].items(), key=lambda kv: -kv[1])))
-    ad, an = t["asked"]
+    rd, rn = t["done"]
     dd, dn = t["derived"]
     o, n = t["open"]
-    print(f"progress: asked {ad}/{an} · {t['pct']}%"
+    print(f"progress: done {rd}/{rn} · {t['pct']}%"
           + (f" · derived {dd}/{dn}" if dn else "")
           + f" · open {o}/{n} · {t['openpct']}%")
     if t["parked"]:
         print("parked: " + ", ".join(sorted(t["parked"])))
+
+    why = {}                              # rel → `dispatchable` reason, below
 
     def line(x):
         p = prds[x]
@@ -1501,6 +1986,8 @@ def cmd_scan(board):
                 f"w{est.get(x, 0):.0f}"]
         if wf.get(x):
             bits.append("wf " + wf[x])
+        if ax and ax["depth"].get(x) is None:
+            bits.append("off-axis")
         if tt:
             bits.append(f"boxes {c}/{tt}")
         if needs.get(x):
@@ -1509,11 +1996,19 @@ def cmd_scan(board):
         if after.get(x):
             bits.append("after " + ",".join(os.path.basename(d)
                                             for d in after[x]))
+        if why.get(x) and not needs.get(x) and not after.get(x):
+            # the gate's own words, when no `needs`/`after` bit already
+            # says it — `held by <child> (parked)`, a container, a clash
+            bits.append(why[x])
         if cl:
             bits.append(f"claim {cl['who']}"
                         + (f" since {cl['since']}" if cl["since"] else ""))
         if q:
             bits.append(f"questions {q}/{a} answered")
+        # the same word the page prints on the row — one rule, `silent_of`
+        sil = silent_of(p, settings, collect=x in collect)
+        if sil is not None:
+            bits.append(f"silent {fmt_age(sil)}")
         return "  " + " · ".join(bits)
 
     # One PRD, one section, in THE PRESSURE ORDER — the single ranking this
@@ -1531,8 +2026,19 @@ def cmd_scan(board):
     flight = [x for x in rest if prds[x]["state"] in ("analyzing", "claimed")
               and x not in yours]
     free = [x for x in rest if x not in flight and x not in yours]
-    ready = [x for x in free if not needs.get(x) and not after.get(x)]
-    gated = [x for x in free if needs.get(x) or after.get(x)]
+    # `dispatchable` is the one predicate `claim` reads: a PRD it refuses is
+    # never listed as ready. A container — children all done, nothing of its
+    # own — is already in `collect`: `compute_plan` put it there, the one list
+    # `scan`, `plan` and a bare `collect` read.
+    why = {x: dispatchable(prds[x], prds, board) for x in free}
+    for x in collect:   # a container's row says why it is here, in its own words
+        w = (dispatchable(prds[x], prds, board)
+             if prds[x]["state"] in ("open", "specced") else None)
+        if (w or "").startswith("container:"):
+            why[x] = w
+    ready = [x for x in free
+             if not why[x] and not needs.get(x) and not after.get(x)]
+    gated = [x for x in free if x not in ready]
     for title, group in (
             (f"collect — {len(collect)} finished, waiting to be closed",
              collect),
@@ -1547,6 +2053,14 @@ def cmd_scan(board):
             print(line(x))
     rf = os.path.join(board, ROUND_FILE)
     print(f"\nround: {rf}" + ("" if os.path.isfile(rf) else "  (not written)"))
+
+
+def plan_frontier(r):
+    """`plan`'s ready set — every PRD nothing gates, in dispatch order. The
+    same list `vision --next` prints alone."""
+    return [x for x in r["order"]
+            if not r["needs"][x] and not r["after"][x] and r["est"][x] > 0
+            and x not in r["held"]]
 
 
 def cmd_plan(board, workers):
@@ -1580,8 +2094,8 @@ def cmd_plan(board, workers):
     # moment its own gates clear, so the plan is the dispatch order and what
     # gates each entry — not waves that would hold unrelated work hostage to
     # the slowest member of a round.
-    frontier = [x for x in r["order"]
-                if not needs[x] and not after[x] and est[x] > 0]
+    frontier = plan_frontier(r)
+    wf = workflow_marks(board, prds)
     if frontier:
         # `ready now` is the dispatch list, and step 5 of @references/parts/
         # loop.md skips a PRD whose `workflow:` names no workflow. The other
@@ -1592,7 +2106,6 @@ def cmd_plan(board, workers):
         # the order is untouched. Only the `?` form prints, because this
         # parenthetical is the register of what holds a PRD back and a slug
         # that resolves holds back nothing.
-        wf = workflow_marks(board, prds)
         print(f"\nready now — {len(frontier)} in parallel, widest door first")
         for x in frontier:
             p = todo[x]
@@ -1604,12 +2117,16 @@ def cmd_plan(board, workers):
             print(f"  · {x} [{p['state']}] p{p['fm'].get('priority', 0)}"
                   f" {fw(est[x])} · unblocks {fw(unblocks[x])}"
                   + (f"  ({'; '.join(tags)})" if tags else ""))
-    gated = [x for x in r["order"] if (needs[x] or after[x]) and est[x] > 0]
+    held = r["held"]
+    gated = [x for x in r["order"]
+             if (needs[x] or after[x] or x in held) and est[x] > 0]
     if gated:
         print("\nthen, as gates clear — dispatch order")
         for x in gated:
             p = todo[x]
             why = []
+            if x in held:
+                why.append(held[x])
             if needs[x]:
                 why.append("needs " + ", ".join(os.path.basename(d)
                                                 for d in needs[x]))
@@ -1619,6 +2136,10 @@ def cmd_plan(board, workers):
                            + " (footprint)")
             if not feet[x]:
                 why.append("unspecced")
+            if wf.get(x, "").endswith("?"):
+                # the mark the ready line carries, on the line the hold
+                # moved it to — a dangling slug is visible in both lists
+                why.append("wf " + wf[x])
             print(f"  · {x} [{p['state']}] p{p['fm'].get('priority', 0)}"
                   f" {fw(est[x])}" + (f"  ({'; '.join(why)})" if why else ""))
     print(f"\n≈ {fw(r['wall'])} wall @ {r['workers']} workers — a staffing"
@@ -1661,12 +2182,228 @@ def cmd_status(board):
             " · no settings.md"
         print(f"  @{name:14} {n:4} PRDs · {path}{own}")
     print(f"view: {serve_url(board)}")
+    print(session_line(board))
+
+
+def vision_json(board, prds, ax):
+    """What `.vision.json` held, as data: every live PRD with its depth and
+    reach, deepest first, and the off-axis set by address."""
+    name = board_name(board)
+    idx = needs_index(prds)
+    rows = []
+    for r, p in prds.items():
+        if p["state"] not in LIVE_STATES:
+            continue
+        deps = p["fm"].get("needs", [])
+        unmet = []
+        for d in (deps if isinstance(deps, list) else [deps]):
+            t = resolve_need(prds, p, d, idx)
+            if t is None or prds[t]["state"] != "done":
+                unmet.append(str(d).strip())
+        specs = os.path.join(p["dir"], "specs")
+        prio = num(p["fm"], "priority", r)
+        d = ax["depth"].get(r)
+        rows.append({
+            "addr": (r if r.startswith(MEMBER_SIGIL)
+                     else f"{MEMBER_SIGIL}{name}/{r}"),
+            "board": p["board"] or name, "rel": p["local"],
+            "state": p["state"], "depth": d, "reach": ax["reach"].get(r, 0),
+            "est": dur(p["fm"], "est", r) or None, "prio": prio,
+            "ready": (not p["children"] and not unmet
+                      and p["state"] in ("open", "specced", "failed")),
+            "on_axis": d is not None, "blocked_by": unmet,
+            "nspecs": len(os.listdir(specs)) if os.path.isdir(specs) else 0,
+        })
+    on = sorted((x for x in rows if x["on_axis"]),
+                key=lambda x: (-x["depth"], -x["reach"], -x["prio"], x["addr"]))
+    return {"vision": ax["vision"], "terminals": ax["terminals"],
+            "longest_chain": max((x["depth"] for x in on), default=0),
+            "prds": on,
+            "off_axis": [x["addr"] for x in rows if not x["on_axis"]]}
+
+
+def critical_chain(ax, prds, start):
+    """The serial chain from `start` to a terminal: at each hop, the
+    dependent that carries the depth — a done one costs no hop."""
+    chain, cur = [start], start
+    while cur not in ax["term"]:
+        nxt = None
+        for cand in sorted(ax["after"][cur]):
+            d = ax["depth"].get(cand)
+            hop = 0 if prds[cand]["state"] == "done" else 1
+            if d is not None and d + hop == ax["depth"][cur]:
+                nxt = cand
+                break
+        if nxt is None or nxt in chain:
+            break
+        chain.append(nxt)
+        cur = nxt
+    return chain
+
+
+def cmd_vision(board, flags):
+    """`pearde vision` — the axis for a person: depth per PRD, the critical
+    chain, the off-axis set. `--json` prints what `.vision.json` held.
+    `--next` prints `plan`'s ready set alone, in axis order. `--check` is the
+    `doctor` row: one line, exit 0, or the dangling names, exit 1."""
+    prds = scan(board)
+    vis = read_vision(board)
+    ax = vision_axis(board, prds, vis) if vis else None
+    live = [r for r, p in prds.items() if p["state"] in LIVE_STATES]
+    on = sorted((r for r in live if ax and ax["depth"].get(r) is not None),
+                key=lambda r: (-ax["depth"][r], -ax["reach"][r], r))
+    off = sorted(r for r in live if not ax or ax["depth"].get(r) is None)
+    chain = max((ax["depth"][r] for r in on), default=0) if ax else 0
+    if "--check" in flags:
+        if not vis:
+            print("no vision.md")
+        elif ax and ax["dangling"]:
+            for line in ax["dangling"]:
+                print(line)
+            return 1
+        elif not ax:
+            print("vision declared · no terminals — no axis")
+        else:
+            print(f"{len(ax['terminals'])} terminal"
+                  f"{'' if len(ax['terminals']) == 1 else 's'}"
+                  f" · {len(on)} on · {len(off)} off · longest chain {chain}")
+        return 0
+    if not ax:
+        if vis and vis["vision"]:
+            print(f"vision: {vis['vision']}")
+        print("no terminals declared — " + (
+            f"write prds/{VISION_FILE} first: the destination in one sentence,"
+            " and terminals: naming the PRDs whose completion is it"
+            if not vis else
+            "the board orders by dependency, weight and priority alone"))
+        return 1
+    if "--json" in flags:
+        json.dump(vision_json(board, prds, ax), sys.stdout, indent=1)
+        print()
+        return 0
+    if "--next" in flags:
+        r = compute_plan(board, None, warn=False)
+        nxt = plan_frontier(r) if r else []
+        print(f"next — {len(nxt)} dispatchable now, in axis order")
+        for x in nxt:
+            d = ax["depth"].get(x)
+            print(f"  · {x} [{prds[x]['state']}] "
+                  + (f"depth {d}" if d is not None else "off-axis")
+                  + f" · unblocks {ax['reach'].get(x, 0)}")
+        return 0
+    print(f"vision: {ax['vision']}")
+    print(f"axis: {len(on)} on · {len(off)} off · longest chain {chain}")
+    for line in ax["dangling"]:
+        print(f"dangling: {line}")
+    if on:
+        print("chain: " + " → ".join(critical_chain(ax, prds, on[0])))
+    for d in sorted({ax["depth"][r] for r in on}, reverse=True):
+        here = [r for r in on if ax["depth"][r] == d]
+        print(f"\ndepth {d} — {len(here)} PRD{'' if len(here) == 1 else 's'}"
+              + ("  ← the vision" if d == 0 else ""))
+        for r in here:
+            print(f"  {r} [{prds[r]['state']}]"
+                  f" p{prds[r]['fm'].get('priority', 0)}"
+                  f" · unblocks {ax['reach'][r]}")
+    if off:
+        print(f"\noff-axis — {len(off)} with no path to a terminal")
+        for r in off:
+            print(f"  {r} [{prds[r]['state']}]")
+    return 0
+
+
+class Flags:
+    """What one command takes: `valued` are `--name <v>` (or `--name=<v>`),
+    `switches` are bare, `multi` are the valued ones that repeat. `str()` is
+    the list the refusal and `--help` print — one list, so they cannot
+    drift. transitions.py `Args` is the one parser of it; the class is here
+    because that module imports this one, and the two commands below declare
+    at import time."""
+
+    def __init__(self, valued=(), switches=(), multi=()):
+        self.valued, self.switches = tuple(valued), tuple(switches)
+        self.multi = tuple(multi)
+
+    def __str__(self):
+        return (", ".join("--" + k for k in self.valued + self.switches)
+                or "no flags")
+
+
+VISION_FLAGS = Flags(("board",), ("json", "next", "check"))
+EXAMPLE_FLAGS = Flags()
+
+
+def _vision_cli(argv):
+    """`pearde vision [board] [--board <path>] [--json|--next|--check]` —
+    argv is everything after the command name, the return is the exit code.
+    A flag outside the declaration is refused before the board is read,
+    exit 2, naming the flag and the list."""
+    import transitions as translib       # the parser; it imports this module
+    try:
+        args = translib.Args(argv, VISION_FLAGS, "vision")
+    except translib.FlagRefused as e:
+        print(f"pearde vision: {e}", file=sys.stderr)
+        return 2
+    board = find_board(args.opt.get("board")
+                       or (args.pos[0] if args.pos else None))
+    return cmd_vision(board, ["--" + f for f in args.flags])
+
+
+# ── the example board ─────────────────────────────────────────────────────────
+# resources/board/example/ — one small board with a row in every band. Every
+# check in this repo runs against a COPY of it: a check that ticks a box in
+# the example changes what every other check sees.
+EXAMPLE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "example")
+
+
+def cmd_example(argv):
+    """`pearde example <dir>` — copy the example board to <dir>. Refuses an
+    existing non-empty directory; an empty or missing one is filled. Prints
+    the board path and the scan to run next. argv is everything after the
+    command name, the return is the exit code. It declares no flag, and
+    refuses one before anything is copied, exit 2."""
+    import transitions as translib       # the parser; it imports this module
+    try:
+        args = translib.Args(argv, EXAMPLE_FLAGS, "example")
+    except translib.FlagRefused as e:
+        print(f"pearde example: {e}", file=sys.stderr)
+        return 2
+    if len(args.pos) != 1:
+        print("usage: plan.py example <dir>", file=sys.stderr)
+        return 2
+    dest = os.path.abspath(args.pos[0])
+    if os.path.isdir(dest) and os.listdir(dest):
+        print(f"pearde: {dest} exists and is not empty — pick an empty or "
+              "new directory", file=sys.stderr)
+        return 2
+    if os.path.exists(dest) and not os.path.isdir(dest):
+        print(f"pearde: {dest} is a file, not a directory", file=sys.stderr)
+        return 2
+    try:
+        import shutil
+        shutil.copytree(EXAMPLE, dest, dirs_exist_ok=True)
+    except OSError as e:
+        print(f"pearde: could not copy the example to {dest} — {e}",
+              file=sys.stderr)
+        return 2
+    print(f"example: {os.path.join(dest, 'prds')}")
+    print(f"      python3 {os.path.abspath(__file__)} scan {dest}")
+    return 0
+
+
+# What the `pearde` dispatcher discovers: {name: callable(argv) -> exit code}.
+_vision_cli.flags = VISION_FLAGS      # what `pearde vision --help` prints
+cmd_example.flags = EXAMPLE_FLAGS
+COMMANDS = {"vision": _vision_cli}
+COMMANDS["example"] = cmd_example
 
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     flags = [a for a in sys.argv[1:] if a.startswith("--")]
     cmd = args[0] if args else "status"
+    if cmd == "example":          # its argument is not a board yet
+        sys.exit(cmd_example(sys.argv[2:]))
     board = find_board(args[1] if len(args) > 1 else None)
     if cmd == "plan":
         workers = next((int(f.split("=")[1]) for f in flags
@@ -1690,9 +2427,11 @@ def main():
         cmd_status(board)
     elif cmd == "scan":
         cmd_scan(board)
+    elif cmd == "vision":
+        sys.exit(cmd_vision(board, flags))
     else:
         die(f"unknown command '{cmd}' — scan | plan | reconcile | gantt"
-            " | calibrate | members | status")
+            " | calibrate | members | status | vision | example")
 
 
 if __name__ == "__main__":

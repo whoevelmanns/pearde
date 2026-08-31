@@ -24,6 +24,20 @@ equals the slug.
 - `workflows:` in `prds/settings.md` points elsewhere, default `workflows/` —
   several boards share one library.
 
+A PRD or a spec routes itself by carrying `workflow: <slug>` in its own
+frontmatter. The key holds **one slug** — a single scalar naming one file in
+the library. Any other shape is a **break, not an absence**: a list, a
+mapping, or anything that is not a slug reports exactly as a dangling slug
+does, because a key that cannot be read is a route that cannot be taken. A
+key that is simply absent is silence, and silence is fine — a PRD needs no
+route.
+
+The library does **not** merge. Only the refs do: on a master board the check
+crosses into every board named in `members:`, and each slug resolves against
+its own board's library first and the master's second — the order `needs:`
+resolves in, set by @references/parts/workers.md. The libraries are asked in
+turn, never flattened into one set.
+
 ## Atomic
 
 Frontmatter, a **closed** set:
@@ -44,7 +58,7 @@ runs: 4
 | `subject` | yes      | one line: the unit of work                                |
 | `date`    | yes      | the day it was written. ISO 8601, written never stamped   |
 | `updated` | no       | the day the text last changed from a run                  |
-| `runs`    | no       | times followed. Integer ≥ 0, default 0                    |
+| `runs`    | no       | runs the file was in — one collect, one count. Integer ≥ 0, default 0 |
 
 Body — `@references/templates/atomic.md` is the shape:
 
@@ -134,6 +148,14 @@ row `workflows` is that check. It fails on:
 - `workflow:` on a `prd.md` or a spec naming no **workflow** in the
   library — an atomic is a file, so naming one is this same failure:
   a route was asked for and a single step was found
+- `workflow:` on a `prd.md` or a spec holding anything but one slug — a list
+  is neither a slug nor an absence, and passing it over makes a broken PRD a
+  silent one
+- on a master board, either of those on a **member's** PRD or spec, addressed
+  `@<member>/<rel>` — the master's check reads its members, or a green
+  `workflows` row is evidence only about the master's own PRDs
+- a board named in `members:` that is not on disk — a member that cannot be
+  read is not a member that is clean
 
 Checked against the real library, never a fixture — a brief with a dangling
 atomic is a worker sent nowhere.
@@ -144,8 +166,9 @@ atomic is a worker sent nowhere.
   `updated` moves. Git holds what it replaced.
 - **No agent, tool, hook or vendor name.** Commands and files.
 - **The board language**, per @references/language.md.
-- `runs` counts the times the file was followed. `updated` moves only when the
-  text changed.
+- `runs` counts the runs the file was in, not the traversals inside one — a
+  step a back-edge returns to counts once, and so does the atomic it landed
+  on. `updated` moves only when the text changed.
 
 ## Why the board, and the shapes rejected
 

@@ -12,6 +12,8 @@ vicky/
 prds/.plan.json
 prds/.round.md
 prds/.history.jsonl
+prds/.transitions.jsonl
+prds/.claims/
 prds/.view.html
 
 # one-off session measurements, kept beside the work they explain

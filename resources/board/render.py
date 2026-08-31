@@ -261,6 +261,23 @@ def lit_map():
             + "</script>")
 
 
+def report_age(board):
+    """When `prds/report.md` was last written, as an epoch second, or None.
+
+    The age of section 1 is this number and never the dateline inside the
+    file. A dateline is prose its author writes and can forget to change —
+    this board's own report once sat sixteen commits behind with a dateline
+    that read current. The mtime is the one fact about the file its author
+    cannot get wrong. It is baked at render time and the page counts up from
+    it, so a page left open reports itself older, never fresher."""
+    if not board:
+        return None
+    try:
+        return int(os.path.getmtime(os.path.join(board, "report.md")))
+    except OSError:
+        return None
+
+
 def user_asset(board, name):
     """A board's own stylesheet or script, or "". It lives on the board, not
     in this skill, so it survives a skill upgrade and differs per board."""
@@ -283,16 +300,53 @@ def untag(text, tag):
 def render(payload, board=None):
     p = enrich(payload)
     data = json.dumps(p, sort_keys=True).replace("</", "<\\/")
-    # the assets first: `let DATA = __PAYLOAD__` lives inside view.js
+    # the payload and the report's mtime go in as globals in a classic script,
+    # which runs before the module below (classic scripts run during parse,
+    # modules are deferred) — the view reads both off window in every mode
+    globs = ('<script>window.__PAYLOAD__ = ' + data + ';'
+             + 'window.__REPORTMTIME__ = ' + json.dumps(report_age(board))
+             + ';</script>')
     html = (TEMPLATE
             .replace("__LIT__", lit_map())
             .replace("__CSS__", asset("view.css"))
             .replace("__JS__", asset("view.js"))
             .replace("__TITLE__", p["board"])
-            .replace("__PAYLOAD__", data))
+            .replace("</head>", globs + "</head>"))
     # the board's own last, so a user rule wins the cascade and a user script
     # sees a built page. A module, so it can `import ... from "lit"` the way
     # the page itself does.
+    css, js = user_asset(board, USER_CSS), user_asset(board, USER_JS)
+    tail = ((f"<style>\n{untag(css, 'style')}\n</style>\n" if css else "")
+            + (f'<script type="module">\n{untag(js, "script")}\n</script>\n'
+               if js else ""))
+    return html.replace("</body>", tail + "</body>") if tail else html
+
+
+def render_shell(payload, board=None, base="", vstamp=""):
+    """The live service's page — the same shell, with the view linked as files
+    rather than inlined, so an open page can re-import `view.js` where it
+    stands when the view's code moves. `render()` stays the one-file output
+    for `plan.py gantt`; this is only what `/board/<name>` serves.
+
+    The payload and the report's mtime are baked as globals in a classic
+    script ahead of the module, and `view.js` reads them off `window` when it
+    is loaded as a file — the identical data, one hand-off, no fetch on boot.
+    The `?v=` stamp on each asset busts the browser's cache when one moves."""
+    p = enrich(payload)
+    data = json.dumps(p, sort_keys=True).replace("</", "<\\/")
+    globs = ('<script>window.__PAYLOAD__ = ' + data + ';'
+             + 'window.__REPORTMTIME__ = ' + json.dumps(report_age(board))
+             + ';</script>')
+    html = (TEMPLATE
+            .replace("<style>\n__CSS__</style>",
+                     f'<link rel="stylesheet" href="{base}/view.css'
+                     f'?v={vstamp}">')
+            .replace('<script type="module">\n__JS__</script>',
+                     f'<script type="module" src="{base}/view.js?v={vstamp}">'
+                     f"</script>")
+            .replace("__LIT__", lit_map())
+            .replace("__TITLE__", p["board"])
+            .replace("</head>", globs + "</head>"))
     css, js = user_asset(board, USER_CSS), user_asset(board, USER_JS)
     tail = ((f"<style>\n{untag(css, 'style')}\n</style>\n" if css else "")
             + (f'<script type="module">\n{untag(js, "script")}\n</script>\n'
@@ -362,21 +416,25 @@ __CSS__</style>
     <span id="sub">the plan</span>
     <div id="picks" role="listbox" aria-label="boards" hidden></div>
   </div>
-  <nav id="views" role="tablist" aria-label="views">
+  <nav id="views" aria-label="sections of this page">
     <span id="segpill" aria-hidden="true"></span>
-    <button data-v="timeline" role="tab" class="on" aria-selected="true">timeline</button
-    ><button data-v="board" role="tab">board</button
-    ><button data-v="asks" role="tab">asks<span class="badge" id="askbadge"></span></button
-    ><button data-v="list" role="tab">list</button
-    ><button data-v="analytics" role="tab">analytics</button
-    ><button data-v="memos" role="tab">memos</button>
+    <a href="#view=timeline" data-v="timeline" class="on">plan</a
+    ><a href="#view=board" data-v="board">board</a
+    ><a href="#view=analytics" data-v="analytics">analytics</a
+    ><a href="#view=asks" data-v="asks">asks<span class="badge" id="askbadge"></span></a
+    ><a href="#view=list" data-v="list">list</a
+    ><a href="#view=memos" data-v="memos">memos</a
+    ><a href="#view=report" data-v="report">report</a>
   </nav>
   <div class="right">
     <button id="newprd" class="primary" title="write a PRD (N)">＋ PRD</button>
   </div>
 </header>
-<div id="statsbar"><span id="stats"></span><span id="inview"></span></div>
+<pearde-now id="now" aria-label="what the board wants now"></pearde-now>
 <div class="seam" id="seam-toolbar"></div>
+<section data-view="timeline" id="s-timeline" class="on">
+<pearde-whatsup id="whatsup" aria-label="what's up"></pearde-whatsup>
+<h2 class="sect">the plan</h2>
 <div id="purpose"></div>
 <div class="bar-controls" id="tcontrols">
   <span class="seg">
@@ -398,7 +456,7 @@ __CSS__</style>
   <button id="onlycollect" title="only finished work waiting to be closed">collect</button>
   <button id="landtog" title="focus: what to collect, what to dispatch, what to land (L)">focus</button>
 </div>
-<section data-view="timeline" class="on">
+<span id="inview"></span>
 <div id="stage">
   <div id="chart">
     <canvas id="mini" aria-hidden="true"></canvas>
@@ -437,18 +495,45 @@ __CSS__</style>
 <div id="legend"></div>
 <div id="note"></div>
 </section>
-<section data-view="board"><pearde-board id="board"></pearde-board></section>
-<section data-view="asks"><div id="asks"></div></section>
-<section data-view="list">
+<section data-view="board" id="s-board">
+  <h2 class="sect">the board</h2>
+  <pearde-board id="board"></pearde-board>
+</section>
+<section data-view="analytics" id="s-analytics">
+  <h2 class="sect">the analytics</h2>
+  <div id="statsbar"><span id="stats"></span></div>
+  <div id="tiles"></div><div id="charts"></div>
+</section>
+<section data-view="asks" id="s-asks">
+  <h2 class="sect">waiting on you</h2>
+  <div id="askwrap">
+  <div id="asks"></div>
+  <aside id="answered" aria-label="questions already answered"></aside>
+</div></section>
+<section data-view="list" id="s-list">
+  <details class="fold" id="fold-list">
+    <summary><span class="sect">everything, as a table</span
+      ><span class="n" id="listfoldn"></span></summary>
   <div id="listbar"><input type="search" id="lq" placeholder="filter  /">
     <span class="tokens" id="ltokens"></span>
     <span class="n" id="lcount"></span></div>
   <pearde-list id="list"></pearde-list>
+  </details>
 </section>
-<section data-view="analytics">
-  <div id="tiles"></div><div id="charts"></div>
+<section data-view="memos" id="s-memos">
+  <details class="fold" id="fold-memos">
+    <summary><span class="sect">decisions on record</span
+      ><span class="n" id="memofoldn"></span></summary>
+    <pearde-memos id="memos"></pearde-memos>
+  </details>
 </section>
-<section data-view="memos"><pearde-memos id="memos"></pearde-memos></section>
+<section data-view="report" id="s-report">
+  <details class="fold" id="fold-report">
+    <summary><span class="sect">the report, in full</span
+      ><span class="n">the first paragraphs of it open this page</span></summary>
+    <pearde-report id="report"></pearde-report>
+  </details>
+</section>
 <div id="newbox"><div class="card2">
   <h3>a new PRD</h3>
   <input type="text" id="ntitle" placeholder="title — what exists when this is done">

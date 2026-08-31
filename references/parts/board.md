@@ -5,6 +5,7 @@ The layout the scan walks and the progress line counts.
 ```
 prds/
   settings.md       # board settings — @references/settings.md
+  vision.md         # where the board is going — @references/templates/vision.md
   memos/            # decision records — @references/memo.md
     <slug>.md
   workflows/        # how a kind of job is done — @references/workflow.md
@@ -21,5 +22,13 @@ prds/
   child PRD.
 - `specs/`, `memos/` and `workflows/` hold no `prd.md`, so scan walks past
   all three.
+- `vision.md` is one file beside `settings.md`, not a PRD: `vision:` in one
+  sentence, `terminals:` naming the PRDs whose completion is it, `edges:` for
+  a dependency nobody wrote as `needs:`. How the plan reads it is
+  @references/parts/order.md.
 - A parent with children is **not dispatchable** until every child is `done`.
-  Work flows to the leaves.
+  Work flows to the leaves. A parked child is not `done` and holds its
+  parent; a parent whose children are all `done` and that has no specs or
+  open box of its own is a container — `collect` closes it, `claim` refuses
+  it. The gates are one function, `plan.dispatchable`, and `scan`'s ready
+  band and `claim` both read it.

@@ -47,3 +47,7 @@ is a table or a list.
 | workflow      | a worker, cold      | a route             |
 | memo          | a reader months out | decision + argument |
 | worker report | the orchestrator    | verdict + evidence  |
+| README        | a person, first time | quickstart, then rings |
+
+The README is the one document with a human reader — a sentence there may
+carry two ideas. Every other document keeps the rules above.

@@ -6,12 +6,12 @@ description: Look at the board and edit it — a local service rendering every P
 Read @references/parts/view.md. The scopes are `@@view` and `@@order`.
 
 ```bash
-python3 @resources/board/serve.py ensure    # start it, register this board, print the URL
-python3 @resources/board/serve.py status    # what it is watching
-python3 @resources/board/serve.py stop      # end it
-python3 @resources/board/plan.py plan       # the frontier and the queue, no service
-python3 @resources/board/plan.py gantt --open  # prds/.view.html, self-contained
-python3 @resources/board/plan.py reconcile  # recompute after anything moved
+python3 @resources/pearde.py view           # start it, register this board, print the URL
+python3 @resources/pearde.py view status    # what it is watching
+python3 @resources/pearde.py view stop      # end it
+python3 @resources/pearde.py plan           # the frontier and the queue, no service
+python3 @resources/pearde.py gantt --open   # prds/.view.html, self-contained
+python3 @resources/pearde.py reconcile      # recompute after anything moved
 ```
 
 - **One daemon per machine**, singleton by port bind. `ensure` on another

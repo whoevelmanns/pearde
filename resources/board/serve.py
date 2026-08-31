@@ -52,7 +52,10 @@ HTTP API, all JSON, all 127.0.0.1-only:
   GET  /                           302 to a board — the title is the switcher,
                                    so there is no index page to keep
   GET  /prd?board=<name>&rel=<rel> one PRD in full: frontmatter, body, specs
+  GET  /report?board=<name>        `prds/report.md`, the board for a person
   GET  /memos?board=<name>         the board's decision records
+  GET  /answers?board=<name>       every question the board has answered,
+                                   newest first
   GET  /adapters                   configured launch targets: [{id, name}] —
                                    resources/board/adapters/*.json, see below
   POST /register {"cwd": path}     add the board found walking up from cwd
@@ -102,6 +105,7 @@ import plan as planlib  # noqa: E402
 import render as renderlib  # noqa: E402
 import memos as memoslib  # noqa: E402
 import edit as editlib  # noqa: E402
+import transitions as translib  # noqa: E402 — the one writer of `state:`
 
 PORT = int(os.environ.get("PEARDE_PORT", "8443"))
 DIR = os.path.dirname(os.path.abspath(__file__))
@@ -112,20 +116,34 @@ POLL_S = 1.0       # how often each board is stat-swept
 SETTLE_S = 0.4     # a change must hold still this long before a sync
 WAIT_MAX_S = 25    # long-poll ceiling; clients just re-poll
 
-# The board hot-reloads its data. This hot-reloads the page itself: the daemon
-# imported render.py once, so editing it changes nothing until the process is
-# replaced. The watcher stats these files, re-execs when one moves, and the
-# page — which carries the stamp it was rendered from — reloads when the stamp
-# it polls against no longer matches. Always on: this daemon is local.
-SOURCES = [os.path.join(DIR, f)
-           for f in ("serve.py", "render.py", "plan.py", "edit.py",
-                     "view.css", "view.js")]
-SOURCES.append(os.path.join(os.path.dirname(DIR), "memos.py"))
+# Two reloaders, two stamps. The board hot-reloads its data. The page
+# hot-reloads its own code, and the daemon hot-reloads itself — but they move
+# separately now. `PY_SOURCES` is what the daemon re-execs on: `render.py` was
+# imported once, so editing it changes nothing until the process is replaced.
+# `view.js` and `view.css` never need a re-exec — the page fetches them by
+# stamp, and a live page re-imports a moved view without a reload.
+PY_SOURCES = [os.path.join(DIR, f)
+              for f in ("serve.py", "render.py", "plan.py", "edit.py",
+                        "transitions.py")]
+PY_SOURCES.append(os.path.join(os.path.dirname(DIR), "memos.py"))
+VIEW_SOURCES = [os.path.join(DIR, f) for f in ("view.css", "view.js")]
 
 
 def source_stamp():
+    """The Python code — what a re-exec gives a fresh copy of."""
     return ",".join(str(os.stat(p).st_mtime_ns)
-                    for p in SOURCES if os.path.exists(p))
+                    for p in PY_SOURCES if os.path.exists(p))
+
+
+def view_stamp():
+    """The page's own code — what an open page swaps in place, no reload.
+
+    Baked into the served page and returned on every /wait, so an open page
+    that renders against a stale stamp re-imports `view.js` where it stands
+    (LIVE_JS), and the ?v= on each linked asset busts the browser's cache of
+    it. Not part of the re-exec: the daemon only serves these two files."""
+    return ",".join(str(os.stat(p).st_mtime_ns)
+                    for p in VIEW_SOURCES if os.path.exists(p))
 
 
 BOOT = source_stamp()
@@ -449,10 +467,10 @@ def restart(stamp):
     time.sleep(SETTLE_S)              # an editor mid-save settles first
     if source_stamp() != stamp:
         return                        # still moving; the next tick finds it
-    for p in SOURCES:
-        # only the Python is compile-checked. The page's .css and .js are in
-        # SOURCES so that editing one changes the boot stamp and every open
-        # page reloads — they are not Python and never compile.
+    for p in PY_SOURCES:
+        # every source here is Python — a page's .css and .js are not reloaded
+        # by re-exec any more: they are served by stamp, read fresh on each
+        # request, and a live page re-imports a moved view without a reload.
         if not p.endswith(".py"):
             continue
         try:
@@ -472,10 +490,19 @@ def restart(stamp):
 
 
 def watch():
+    last_view = None
     while True:
         stamp = source_stamp()
         if stamp != BOOT and stamp != REFUSED:
             restart(stamp)
+        # the page's own code moved — wake every parked /wait so the pages
+        # learn the new view stamp now, not after their 25s timeout
+        vs = view_stamp()
+        if vs != last_view:
+            last_view = vs
+            for b in boards():
+                with b.cond:
+                    b.cond.notify_all()
         for b in boards():
             try:
                 d = digest(b.path)
@@ -508,21 +535,37 @@ LIVE_JS = """<script>
    survive. A page that cannot swap, or a payload that will not parse, reloads.
 
    The view's own code moving is the other case, and a swap cannot help there:
-   the daemon re-execs and answers with a boot stamp this page does not carry,
-   so the page reloads outright. The URL is the view, so it lands where it
-   stood — the hash restores which view, which filter, which PRD. */
+   the page was rendered against a stamp a newer view.js no longer is, so it
+   re-imports the module where it stands. The new module disposes the
+   listeners the old copy left behind and mounts itself — from a payload made
+   fresh just before, and with the dirty inspector and the scroll handed over
+   in __pearde_restore. No reload: the daemon's JSON contract never changed,
+   so only the page itself has to come across. */
 (async () => {
   let seq = __SEQ__;
-  const boot = "__BOOT__";   // the code this page was rendered from
+  let view = "__VIEW__";   // the page's own code this page was rendered from
   for (;;) {
     try {
-      const r = await fetch((window.__BASE || "") +
-        "/wait?board=__NAME__&seq=" + seq + "&boot=" + boot);
+      const base = window.__BASE || "";
+      // the page's own view stamp travels with the poll — the daemon answers
+      // at once when the view's code moved, so a page does not wait out a
+      // board's silence to hear that its own file changed
+      const r = await fetch(base + "/wait?board=__NAME__&seq=" + seq +
+                            "&view=" + encodeURIComponent(view));
       if (r.status === 200) {
         const out = await r.json();
-        // the daemon is running newer code than this page is: the payload
-        // swap cannot help — the markup and the script are what changed
-        if (out.boot && out.boot !== boot) { location.reload(); return; }
+        if (out.view && out.view !== view) {
+          view = out.view;
+          // hand the half-typed inspector and the scroll to the next copy
+          if (typeof window.__pearde_save === "function") window.__pearde_save();
+          try {
+            const d = await (await fetch(base + "/data?board=__NAME__")).json();
+            if (d.payload) window.__PAYLOAD__ = d.payload;
+            await import(base + "/view.js?v=" + encodeURIComponent(view));
+          } catch (e) { location.reload(); return; }
+          seq = out.seq;
+          continue;
+        }
         seq = out.seq;
         // never write over someone typing in the inspector — the page is
         // live, but a half-written body is not the board's to throw away.
@@ -592,6 +635,27 @@ class Handler(BaseHTTPRequestHandler):
                 b.path, planlib.scan(b.path), planlib.load_map(b.path)[0],
                 planlib.board_settings(b.path)))
             return self.reply(200, {"seq": b.seq, "payload": payload})
+        if path in ("/view.js", "/view.css"):
+            # the page's own code, served as files so a live page can re-import
+            # a moved view where it stands. Every request reads the file fresh;
+            # the `?v=` stamp on the page's links is the cache-buster, so these
+            # are served uncached — what the browser already has is never stale
+            # for long enough to matter. Python never re-execs for these: an
+            # open page swaps the new module in on its own.
+            name = path[1:]
+            try:
+                body = open(os.path.join(DIR, name), encoding="utf-8").read()
+            except OSError:
+                return self.reply(404, {"error": "no such asset"})
+            ctype = ("text/javascript; charset=utf-8" if name == "view.js"
+                     else "text/css; charset=utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(body.encode())))
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            self.wfile.write(body.encode())
+            return
         if path == "/prd":
             # everything the timeline cannot fit on a bar: the PRD itself, its
             # specs and its file. The chart asks for this when a row is
@@ -626,6 +690,24 @@ class Handler(BaseHTTPRequestHandler):
                 "file": os.path.join(prd["dir"], "prd.md"),
                 "board": prd.get("board"),
             })
+        if path == "/answers":
+            # what the board has already settled. The asks view takes an
+            # answered question out of the inbox and shows it here instead,
+            # newest first — so going through a round is a list that empties,
+            # and a decision made a week ago is still readable next to it.
+            b = by_name(q.get("board"))
+            if not b:
+                return self.reply(404, {"error": "unknown board"})
+            out = []
+            for rel, prd in planlib.scan(b.path).items():
+                for a in planlib.answers_of(prd):
+                    out.append(dict(a, rel=rel, prd=prd["title"],
+                                    state=prd["state"], board=prd.get("board")))
+            # by date, and a stamped answer sorts above an unstamped one:
+            # undated is older than anything the view has written
+            out.sort(key=lambda a: (a["date"] or "", a["rel"], a["id"]),
+                     reverse=True)
+            return self.reply(200, {"answers": out})
         if path == "/memos":
             b = by_name(q.get("board"))
             if not b:
@@ -645,6 +727,19 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/adapters":
             return self.reply(200, [{"id": a["id"], "name": a["name"]}
                                     for a in load_adapters()])
+        if path == "/report":
+            # the board's state for a person — `prds/report.md`, read from
+            # disk on each call like `/prd`. Not parsed here: the page renders
+            # the text, and an absent file is `null`, which draws nothing.
+            b = by_name(q.get("board"))
+            if not b:
+                return self.reply(404, {"error": "unknown board"})
+            fp = os.path.join(b.path, "report.md")
+            try:
+                text = open(fp, encoding="utf-8").read()
+            except OSError:
+                text = None
+            return self.reply(200, {"text": text, "path": fp})
         if path == "/wait":
             b = by_name(q.get("board"))
             if not b:
@@ -653,18 +748,22 @@ class Handler(BaseHTTPRequestHandler):
                 since = int(q.get("seq", "-1"))
             except ValueError:
                 since = -1
-            # a page from an older incarnation is answered now, not in 25s:
-            # it has nothing to wait for, it has to reload
-            if q.get("boot") not in (None, BOOT):
-                return self.reply(200, {"seq": b.seq, "boot": BOOT})
+            # the page tells us which view it was rendered against. If the
+            # files it needs moved since then it answers now, not in 25s —
+            # there is no board change to wait for, the page has to re-import.
+            cur_view = view_stamp()
+            if q.get("view") is not None and q.get("view") != cur_view:
+                return self.reply(200, {"seq": b.seq, "view": cur_view,
+                                        "last_error": b.last_error})
             with b.cond:
                 if b.seq == since:
                     b.cond.wait(WAIT_MAX_S)
                 if b.seq == since:
                     return self.reply(204, b"")
-                return self.reply(200, {"seq": b.seq, "boot": BOOT,
+                return self.reply(200, {"seq": b.seq, "view": view_stamp(),
                                         "last_error": b.last_error})
-        ROUTES = ("/", "/status", "/data", "/wait", "/prd", "/memos")
+        ROUTES = ("/", "/status", "/data", "/wait", "/prd", "/memos",
+                  "/answers", "/view.js", "/view.css")
         want = None
         if path.startswith("/board/") or path.startswith("/timeline/"):
             want = path.split("/", 2)[2].strip("/")
@@ -684,10 +783,13 @@ class Handler(BaseHTTPRequestHandler):
             live = "" if q.get("nolive") else (
                 LIVE_JS.replace("__NAME__", b.name)
                        .replace("__SEQ__", str(b.seq))
-                       .replace("__BOOT__", BOOT))
-            # into the head: the page's own script reads __BOARD/__BASE at
-            # module level, so they have to exist before it runs
-            html = (renderlib.render(payload, b.path)
+                       .replace("__VIEW__", view_stamp()))
+            # the shell links the view as files, so an open page can re-import
+            # a moved `view.js` where it stands; the payload and the report's
+            # mtime are baked as globals ahead of the module. The head's own
+            # __BASE/__BOARD go in first — the module reads all four off window.
+            html = (renderlib.render_shell(payload, b.path, self.base,
+                                           view_stamp())
                     .replace("</head>", head + "</head>")
                     .replace("</body>", live + "</body>"))
             return self.reply(200, html, "text/html; charset=utf-8")
@@ -755,28 +857,21 @@ class Handler(BaseHTTPRequestHandler):
             b = by_name(body.get("board"))
             if not b:
                 return self.reply(404, {"error": "unknown board"})
-            title = (body.get("title") or "").strip()
-            if not title:
-                return self.reply(400, {"error": "title required"})
-            slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60]
-            if not slug:
-                return self.reply(400, {"error": "title has no letters"})
-            parent = (body.get("parent") or "").strip("/")
-            base = os.path.join(b.path, parent) if parent else b.path
-            d, n = os.path.join(base, slug), 2
-            while os.path.exists(d):
-                d, n = os.path.join(base, f"{slug}-{n}"), n + 1
-            os.makedirs(d)
-            fm = ["---", "state: open", "origin: requested",
-                  f"priority: {int(body.get('priority') or 0)}"]
-            if body.get("est"):
-                fm.append(f"est: {str(body['est'])[:12]}")
-            fm.append("---")
-            text = ("\n".join(fm) + f"\n\n# {title}\n\n"
-                    + (body.get("body") or "").strip() + "\n")
-            editlib.write_atomic(os.path.join(d, "prd.md"), text)
+            # `transitions.add` is the one way a PRD is filed: the slug is
+            # its gate, and the line it prints lands in serve.log.
+            try:
+                rel = translib.add(
+                    b.path, body.get("title") or "", "view",
+                    priority=int(body.get("priority") or 0),
+                    body=body.get("body") or "",
+                    parent=(body.get("parent") or "").strip("/") or None,
+                    out=lambda line: print(line, flush=True))
+            except translib.Refused as e:
+                return self.reply(409, {"error": str(e)})
+            except ValueError:
+                return self.reply(400, {"error": "priority is an integer"})
             threading.Thread(target=mirror, args=(b,), daemon=True).start()
-            return self.reply(200, {"prd": os.path.relpath(d, b.path)})
+            return self.reply(200, {"prd": rel})
         if path == "/edit":
             # The view writes the board one structured line at a time,
             # atomically, frontmatter and body never in the same write.
@@ -803,7 +898,14 @@ class Handler(BaseHTTPRequestHandler):
             if body.get("title"):
                 editlib.set_title(path_md, str(body["title"])[:250])
                 wrote.append("title")
-            for k, v in (body.get("fm") or {}).items():
+            fm = dict(body.get("fm") or {})
+            # `state:` has one writer — the transition. A person at the page
+            # is the user talking to the board and is not gated, so the call
+            # is forced, and the line in serve.log says `forced · view`.
+            # It goes last: the answer flow appends the answer and sets
+            # `open` in one call, and the gate reads the file as appended.
+            state = fm.pop("state", None)
+            for k, v in fm.items():
                 if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", str(k)):
                     continue
                 if v in (None, ""):
@@ -811,6 +913,19 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     editlib.set_key(path_md, k, str(v).replace("\n", " "))
                 wrote.append(k)
+            if state not in (None, ""):
+                try:
+                    translib.transition(
+                        b.path, rel, str(state).strip(), "view", force=True,
+                        source="view",
+                        out=lambda line: print(line, flush=True))
+                    wrote.append("state")
+                except translib.Refused as e:
+                    if wrote:
+                        threading.Thread(target=mirror, args=(b,),
+                                         daemon=True).start()
+                    return self.reply(409, {"error": str(e), "wrote": wrote,
+                                            "prd": rel})
             if wrote:
                 threading.Thread(target=mirror, args=(b,), daemon=True).start()
             return self.reply(200, {"wrote": wrote, "prd": rel,

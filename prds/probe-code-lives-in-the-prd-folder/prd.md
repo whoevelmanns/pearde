@@ -1,5 +1,5 @@
 ---
-state: open
+state: superseded
 origin: derived
 from: workflows-on-the-board
 priority: 35
@@ -11,6 +11,32 @@ footprint:
 ---
 
 # probe-code-lives-in-the-prd-folder — the analyst brief says to leave the probe, not where
+
+## Superseded 2026-08-28
+
+Absorbed by `the-board-runs-itself/brief-is-printed`, commit `2ae39b4`, which
+made a worker's brief one command's output rather than something composed by
+hand — so the probe's location and the paste-a-box rule land in the printed
+brief rather than in prose a dispatcher has to remember to copy.
+
+The contract is satisfied, not abandoned. What this file keeps is the evidence
+for why the rule exists at all, all of it measured rather than argued: six
+probe scripts left at the repo root took `index.py check` from one problem to
+seven; a worker's own draft put 8 phantom open boxes into a `prd.md` and 9 into
+a spec by quoting box spellings outside backticks; and a fixture `prd.md` under
+`prds/` moved the board from 13 PRDs to 14 and the progress line from 51% to
+47%. Three different ways to break a board with a probe, none of them obvious
+before somebody did it.
+
+## Deferred 2026-08-28
+
+Parked by the user when @references/parts/derived.md's tripwire fired: three
+derived PRDs live against three requested, which is the board working on
+itself. The deliverable — the `workflows-on-the-board` tree — finishes first,
+and the derived tree comes back as its own round with nothing half-built.
+
+Nothing here is withdrawn. The finding stands as measured; only its place in
+the queue moved.
 
 When this is done, an analyst reading its own brief puts its probe scripts
 inside the PRD folder, and a board that has just specced something still has a
@@ -69,7 +95,7 @@ folder therefore adds it to the board. Measured by the `workflow-attach`
 analyst with a fixture at
 `prds/workflows-on-the-board/workflow-attach/probe/fixture-scratch/prd.md`,
 created and removed: the board went from 13 PRDs to 14 and the progress line
-from `asked 5/10 · 51%` to `asked 5/11 · 47%`.
+from `done 5/10 · 51%` to `done 5/11 · 47%`.
 
 So the location rule this PRD writes is necessary but not sufficient. The brief
 has to say the other half too: **fixtures go in a temp dir at run time, never

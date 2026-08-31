@@ -65,8 +65,15 @@ bash @resources/install.sh --apply <skills-dir>  # make it
 bash @resources/install.sh --remove <skills-dir> # take it back out
 ```
 
+- **Two lines.** `--apply` prints `alias pearde='python3 <repo>/resources/pearde.py'` and `export PEARDE_AS=engineer` — add both to your shell yourself. Nothing here writes a shell file. The alias is the one word; every skill file names the same `python3 @resources/pearde.py <cmd>` line, so the alias and the skills are one surface. The export is who is working: every command that moves a PRD records `· as <id>` on its line from that variable and refuses without it, per @references/parts/personas.md — `add` alone files a new PRD `· as engineer (default)`, so the first minute runs before the export is in place. `persona <id>` re-exports it.
 - **Links, not copies.** One source of truth, so editing this repo updates
   every install at once. A copy drifts, and nothing says it happened.
+  The links run the other way too — a session on any other board reaches
+  this repo's working tree through them — so `@resources/guard.py`, where it
+  is wired, refuses an `Edit` or `Write` through a link from a round whose
+  board is not this repo's, naming the real path and
+  `prds/memos/the-install-is-live-symlinks.md`; @references/parts/guard.md
+  is the row.
 - **Windows** needs Developer Mode or Administrator for a symlink. Without
   it, `ln -s` in Git Bash silently *copies*. Either turn it on
   (`MSYS=winsymlinks:nativestrict`), or clone this repo straight into the
@@ -137,13 +144,16 @@ is none, so it is safe to wire globally.
 - Wire `bash @resources/statusline.sh` wherever your setup runs a command for
   its status line. If it has no such hook, the same numbers on demand are
   `bash @resources/statusline.sh <<< '{}'`.
-- Wire `python3 @resources/guard.py` as a `PreToolUse` hook on `Bash|Read` and
-  a `PostToolUse` hook on `Edit|Write`, in the settings file of the repo the
-  board lives in, and set `MAX_THINKING_TOKENS` beside it.
-  @references/parts/guard.md is the block and the reasoning. Optional, and the
-  loop runs without it — it is the loop's own rules made unignorable, which is
-  worth having exactly where a round is long enough to forget them. `doctor`
-  reports it as `ok`, `off` or `broken`.
+- `pearde guard on` in the repo the board lives in wires `python3
+  @resources/guard.py` as a `PreToolUse` hook on `Bash|Read` and on
+  `Edit|Write` and a `PostToolUse` hook on `Edit|Write`, and sets
+  `MAX_THINKING_TOKENS` beside them, in that repo's `.claude/settings.json` —
+  every other key kept; `pearde guard off` takes exactly those out again.
+  @references/parts/guard.md is the block it writes and the reasoning.
+  Optional, and the loop runs without it — it is the loop's own rules made
+  unignorable, which is worth having exactly where a round is long enough to
+  forget them. `doctor` reports it as `ok`, `off` or `broken`, and its `off`
+  fix line is the command; `pearde guard status` is that row alone.
 - **Compose, never overwrite.** An existing status line keeps working: export
   `$PRD_STATUS_JSON` once, call both, join the output. Only the board segment
   is this repo's — drop the dir/branch/model part if the other line shows it.
@@ -194,9 +204,13 @@ members:
 
 ## The first run
 
-The board creates `prds/settings.md` and asks the user for the board
-language, per @references/settings.md. Nothing about installing does that,
-and nothing about installing touches `prds/`.
+`pearde init` — one command, and a board exists: `prds/settings.md` with every
+knob named, `language: English` said on its first line, `prds/vision.md` from
+the template, the daemon watching it, `doctor` once, and the three lines to
+run next — each runs as printed, with the two lines above in the shell. It
+asks nothing; `pearde settings <key>=<value>` changes a knob, per
+@references/settings.md. Nothing about installing does that, and nothing
+about installing touches `prds/`.
 
 ## Uninstall
 
@@ -204,7 +218,7 @@ Remove the skill folders you made, or `bash @resources/install.sh --remove
 <skills-dir>`. `git checkout SKILL.md` restores the installer if `--apply`
 retired it. Delete the `pearde:begin`/`:end` block from the instructions file,
 leaving the rest of it alone. Unwire the status line yourself — that
-file is yours.
+file is yours. Drop the alias from your shell file — it was yours to add.
 
 `prds/` is your data: untouched by installing, and it survives uninstalling.
 The view stops with `python3 @resources/board/serve.py stop`. Nothing else of

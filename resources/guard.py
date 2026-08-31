@@ -4,6 +4,9 @@
     guard.py pre     PreToolUse  — reads the hook payload on stdin, allows or denies
     guard.py post    PostToolUse — reminds the round to write down what it just moved
     guard.py check   prints what the guard would say about the board it is run in
+    guard.py on [<repo>]      writes the hooks block into <repo>/.claude/settings.json
+    guard.py off [<repo>]     removes exactly what `on` wrote, nothing else
+    guard.py status [<repo>]  doctor's guard row alone — exit 0 ok, 1 off, 2 broken
 
 A sentence in a reference file is advice. This is the same sentence as a
 mechanism: the three ways the 2026-08-27 round burned 318,584 tokens are the
@@ -13,6 +16,8 @@ three things it refuses.
     the same board read twice    → nothing changed since; the answer is unchanged
     the manual read three times  → it has not moved; the round file is the note
     a state moved, nothing written → `prds/.round.md` is what survives a compaction
+    a `state:` written by hand   → `pearde set` checks the gate; an editor checks nothing
+    the skill written from another board → the install is links into this tree; file a PRD here
 
 It denies only what is provably redundant: a repeat whose inputs have not
 changed since the first run. Everything else passes through untouched, and a
@@ -27,7 +32,10 @@ import time
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PEARDE = os.path.dirname(ROOT)          # the repo this guard ships in
-STATE = os.path.join(ROOT, "board", "state", "guard")
+# One JSON file per session. `PEARDE_GUARD_STATE` moves the directory — a
+# harness feeding hook JSON to a temp project must never write here.
+STATE = os.environ.get("PEARDE_GUARD_STATE") or os.path.join(
+    ROOT, "board", "state", "guard")
 ROUND_FILE = ".round.md"
 
 # The manual does not change mid-round, so a repeat read of one of its files
@@ -39,6 +47,11 @@ MANUAL = ("references" + os.sep, "skills" + os.sep)
 
 SCAN = "python3 %s/board/plan.py scan" % ROOT
 
+# The board's own tools write through edit.py and are never refused — a
+# transition repeated is a different board, and a refused one costs nothing.
+TOOLS = re.compile(r"\b(pearde|plan|guard)\.py\b|resources/board/\w+\.py")
+STATE_RE = re.compile(r"^state:[ \t]*(.*?)[ \t]*$", re.M)
+
 # A board walked by hand. `find … prd.md`, `grep -r state:`, `ls prds/*/prd.md`
 # — every spelling of the sweep step 1 stopped asking for.
 WALKS = (
@@ -46,6 +59,55 @@ WALKS = (
     re.compile(r"\bgrep\b[^|;&]*(-\w*r\w*)[^|;&]*\bstate:"),
     re.compile(r"\bls\b[^|;&]*\bprds/[^|;&]*\*"),
 )
+
+# A walk carried as data is not a walk. The shell never runs a heredoc body
+# or the inside of a quoted string — a script piped to python, a fixture, a
+# refusal quoted into a memo. It does run the string a walker itself takes
+# (`grep -r 'state:'`) and the one `sh -c` is given. `data_free` returns the
+# command with the data blanked, and the WALKS rules match on that.
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n(.*?)\n\2[ \t]*(?=\n|$)",
+                     re.S)
+RUNS_ITS_STRING = {"find", "grep", "rg", "ls", "sh", "bash", "zsh", "eval"}
+
+
+def data_free(cmd):
+    """`cmd` with heredoc bodies and quoted strings blanked, except a string
+    given to a command that runs it."""
+    cmd = HEREDOC.sub(lambda m: m.group(0)[:m.start(3) - m.start(0)]
+                      + "\n" + m.group(2), cmd)
+    out, i, n, word = [], 0, len(cmd), ""
+    at_start = True
+    while i < n:
+        c = cmd[i]
+        if c in "|;&\n":
+            at_start, word = True, ""
+            out.append(c); i += 1
+            continue
+        if c in "'\"":
+            j = i + 1
+            while j < n and cmd[j] != c:
+                j += 2 if (c == '"' and cmd[j] == "\\") else 1
+            keep = word in RUNS_ITS_STRING
+            out.append(cmd[i:j + 1] if keep else " ")
+            i = j + 1
+            continue
+        if at_start and not c.isspace():
+            m = re.match(r"[\w./-]+", cmd[i:])
+            tok = m.group(0) if m else c
+            if m and cmd[i + len(tok):i + len(tok) + 1] == "=":
+                m = re.match(r"\S+", cmd[i:])      # `X=1` — a prefix, whole
+                out.append(m.group(0)); i += len(m.group(0))
+                continue
+            word = os.path.basename(tok)
+            if word in ("sudo", "env", "command", "time", "exec", "nice"):
+                word = ""          # a prefix — the next word is the command
+            else:
+                at_start = False
+            out.append(tok); i += len(tok)
+            continue
+        out.append(c); i += 1
+    return "".join(out)
+
 
 # Commands that only look. A repeat of one of these over an unchanged board
 # returns the bytes it returned last time, which is the whole argument for
@@ -138,7 +200,50 @@ def clock(t):
     return time.strftime("%H:%M:%S", time.localtime(t))
 
 
+# ── the count ─────────────────────────────────────────────────────────────────
+# The guard sees every tool call a session makes on a board, so it is the one
+# place the round's cost can be counted without a second hook. Per board,
+# under `boards` in the session file: `calls`, `reads`, `bash`, `edits` and
+# `refused` — counted since the session first saw the board — `since`, the
+# time of the last transition, `transitions`, how many there were, and
+# `mark`: the counters as they stood at that transition, with `tokens`, the
+# transcript's output-token sum then. A row's count is counter minus mark;
+# "reset" is the mark moving, so `status` still has the session's totals.
+# transitions.py `hand_over` writes the row and moves the mark; plan.py
+# `status` prints the block.
+COUNTERS = ("calls", "reads", "bash", "edits", "refused")
+KIND = {"Read": "reads", "Bash": "bash", "Edit": "edits", "Write": "edits"}
+_LIVE = {}      # session, st, board — set by `count`, read by `deny`
+
+
+def block_of(st, board):
+    boards = st.setdefault("boards", {})
+    b = boards.setdefault(os.path.realpath(board), {})
+    for k in COUNTERS:
+        b.setdefault(k, 0)
+    b.setdefault("since", time.time())
+    b.setdefault("transitions", 0)
+    b.setdefault("mark", {})
+    return b
+
+
+def count(session, st, board, tool, data):
+    """One call seen on `board`: `calls` and the tool's own counter move, and
+    the transcript path is kept so a transition can price the window."""
+    b = block_of(st, board)
+    b["calls"] += 1
+    if tool in KIND:
+        b[KIND[tool]] += 1
+    if data.get("transcript_path"):
+        st["transcript"] = str(data["transcript_path"])
+    save(session, st)
+    _LIVE.update(session=session, st=st, board=board)
+
+
 def deny(reason):
+    if _LIVE:
+        block_of(_LIVE["st"], _LIVE["board"])["refused"] += 1
+        save(_LIVE["session"], _LIVE["st"])
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "PreToolUse",
         "permissionDecision": "deny",
@@ -192,6 +297,106 @@ def manual(path):
     return ""
 
 
+# ── the skill tree ────────────────────────────────────────────────────────────
+# The install is links into this repo (@references/install.md), so a round on
+# any board on the machine that edits the skill edits this working tree —
+# prds/memos/the-install-is-live-symlinks.md counts what that cost. A write
+# under the skill root from a session whose board is another repo's is
+# refused; the same repo, or no board in scope, passes as before.
+SKILL = os.path.realpath(PEARDE)
+MEMO = "prds/memos/the-install-is-live-symlinks.md"
+
+
+def skill_file(path):
+    """The real path of a file in this skill's own tree, reached through any
+    install link or by name — or "". The board under it is not the skill:
+    `prds/` here is where another board files a PRD, which is the way in."""
+    real = os.path.realpath(path)
+    if not real.startswith(SKILL + os.sep):
+        return ""
+    if real.startswith(os.path.join(SKILL, "prds") + os.sep):
+        return ""
+    return real
+
+
+def another_boards_write(inp, cwd):
+    """`Edit|Write` into the skill tree from a round on another board —
+    refused, naming the real path the link resolves to, the memo, and the
+    two ways out. The session's board is the nearest `prds/` above its
+    working directory, as `find_board` reads it; none, or this repo's own,
+    and the write is not this rule's business."""
+    given = str(inp.get("file_path") or "")
+    real = skill_file(given)
+    if not real:
+        return
+    board = board_of(cwd)
+    if not board or os.path.realpath(os.path.dirname(board)) == SKILL:
+        return
+    via = (f"{given} resolves to {real}" if os.path.abspath(given) != real
+           else real)
+    deny(f"A round on another board does not write the skill: {via} — the "
+         f"pearde working tree — and this session's board is {board}. The "
+         f"install is links into that tree — {MEMO} — so the edit would land "
+         "uncommitted among hunks the sessions on that board are staging. "
+         "Two ways out: file a PRD on the skill's own board (`pearde add "
+         f"\"<title>\"` from {SKILL}), or hand the edit to a session "
+         "working it.")
+
+
+def fm_state(text):
+    """The `state:` value of a frontmatter block, or None."""
+    if not text.startswith("---"):
+        return None
+    end = text.find("\n---", 3)
+    m = STATE_RE.search(text[3:end] if end > 0 else "")
+    return m.group(1) if m else None
+
+
+def after_edit(path, tool, inp):
+    """(before, after): the file's text now, and as the tool would leave it.
+    `after` is None when the input does not say."""
+    try:
+        cur = open(path, encoding="utf-8").read()
+    except OSError:
+        cur = ""
+    if tool == "Write":
+        return cur, str(inp.get("content") or "")
+    old, new = inp.get("old_string"), inp.get("new_string")
+    if old is None or new is None or old not in cur:
+        return cur, None
+    return cur, (cur.replace(old, new) if inp.get("replace_all")
+                 else cur.replace(old, new, 1))
+
+
+def state_by_hand(tool, inp):
+    """`Edit|Write` on a `prd.md` that changes its `state:` line — refused,
+    naming the command. A body edit passes; the round file reminder is
+    `post`'s. `transitions.py` writes through edit.py, never through a
+    tool, so it is never here."""
+    path = os.path.abspath(str(inp.get("file_path") or ""))
+    if os.path.basename(path) != "prd.md":
+        return
+    board = board_of(os.path.dirname(path))
+    if not board:
+        return
+    before, after = after_edit(path, tool, inp)
+    if after is None or fm_state(before) == fm_state(after):
+        return
+    rel = os.path.relpath(os.path.dirname(path), board)
+    if not before:
+        deny(f"A PRD is made by a command, never written by hand: "
+             f"`pearde add \"<title>\"` for a new one, `pearde refine <prd> "
+             f"< split` for children — each arrives `state: open` from the "
+             f"template. Writing {rel}/prd.md with a `state:` of your own "
+             "skips the gate every command checks.")
+    deny(f"`state:` is written by the tool, never by hand — use `pearde set "
+         f"{rel} {fm_state(after) or '<state>'}`: it checks the gate of "
+         "@references/parts/states.md, prints the progress line and records "
+         "the row; `--force` writes any transition and says so on the line. "
+         "Every other transition has its own command — claim, release, "
+         "answer, specced, refine, collect, sweep.")
+
+
 def touches_board(cmd, board):
     return ("prds" in cmd or "prd.md" in cmd
             or os.path.basename(os.path.dirname(board)) + "/prds" in cmd)
@@ -200,15 +405,25 @@ def touches_board(cmd, board):
 def pre(data):
     tool = data.get("tool_name") or ""
     inp = data.get("tool_input") or {}
+    session = data.get("session_id") or ""
+    # an edit is counted on the board its file is in, or the cwd's when the
+    # file is outside every board; everything else on the cwd's board
     board = board_of(data.get("cwd"))
+    if tool in ("Edit", "Write"):
+        board = board_of(os.path.dirname(os.path.abspath(
+            str(inp.get("file_path") or "")))) or board
     if not board:
         ok()
-    session = data.get("session_id") or ""
     st = load(session)
+    count(session, st, board, tool, data)
+    if tool in ("Edit", "Write"):
+        another_boards_write(inp, data.get("cwd"))
+        state_by_hand(tool, inp)
+        ok()
 
     if tool == "Bash":
         cmd = str(inp.get("command") or "")
-        if any(w.search(cmd) for w in WALKS):
+        if any(w.search(data_free(cmd)) for w in WALKS):
             deny("The board is not walked by hand — loop step 1 is one call:\n"
                  f"    {SCAN}\n"
                  "It returns every state, gate, claim and acceptance count on "
@@ -216,7 +431,7 @@ def pre(data):
         # `scan` is the thing this guard sends you to. A round that lost its
         # context to a compaction has to be able to ask again, and the board
         # not having moved is exactly when the answer is cheapest.
-        if "plan.py" in cmd or "guard.py" in cmd:
+        if TOOLS.search(cmd):
             ok()
         if not (touches_board(cmd, board) and reads_only(cmd)):
             ok()
@@ -307,6 +522,214 @@ def check():
           f"  scan  {SCAN}")
 
 
+# ── the command ───────────────────────────────────────────────────────────────
+# `pearde guard on` is the reader asking for the block below in their own
+# settings file — doctor never writes one. `<repo>` defaults to the repo the
+# nearest board is in. The edit keeps every other key and its order, adds
+# only what is missing, and says each line it added; `off` removes exactly
+# those and leaves the env key, an emptied event list dropped and `hooks`
+# itself kept. A file that is not JSON is refused untouched.
+SELF = os.path.realpath(__file__)
+THINK = "8000"
+HOOKS = (("PreToolUse", "Bash|Read", "pre"),
+         ("PreToolUse", "Edit|Write", "pre"),
+         ("PostToolUse", "Edit|Write", "post"))
+ROW = "  %-11s %-7s %s"          # doctor.sh's row(), byte for byte
+
+
+class Refused(Exception):
+    pass
+
+
+def repo_of(args):
+    if args:
+        d = os.path.abspath(args[0])
+        if not os.path.isdir(d):
+            raise Refused(f"{args[0]} is not a directory")
+        return d
+    board = board_of(os.getcwd())
+    if not board:
+        raise Refused("no board above " + os.getcwd()
+                      + " — name the repo: pearde guard on <repo>")
+    return os.path.dirname(board)
+
+
+def settings_of(repo):
+    return os.path.join(repo, ".claude", "settings.json")
+
+
+def read_settings(path):
+    """(data, text) — {} and "" when the file is absent."""
+    try:
+        text = open(path, encoding="utf-8").read()
+    except FileNotFoundError:
+        return {}, ""
+    try:
+        data = json.loads(text)
+    except ValueError as e:
+        raise Refused(f"{path} is not JSON ({e}) — nothing written")
+    if not isinstance(data, dict):
+        raise Refused(f"{path} is not a JSON object — nothing written")
+    return data, text
+
+
+def write_settings(path, data):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+def hook_cmd(mode):
+    return f"python3 {SELF} {mode}"
+
+
+def is_guard(hook, mode):
+    return (isinstance(hook, dict)
+            and re.search(r"guard\.py\s+" + mode + r"\b",
+                          str(hook.get("command") or "")) is not None)
+
+
+def entries_of(hooks, event):
+    v = hooks.get(event)
+    if v is None:
+        return []
+    if not isinstance(v, list):
+        raise Refused(f"hooks.{event} is not a list — nothing written")
+    return v
+
+
+def guard_on(args):
+    """writes the hooks block into <repo>/.claude/settings.json, keeping every other key"""
+    path = settings_of(repo_of(args))
+    data, _ = read_settings(path)
+    added = []
+    env = data.get("env")
+    if env is None:
+        env = data["env"] = {}
+    if not isinstance(env, dict):
+        raise Refused("env is not an object — nothing written")
+    if "MAX_THINKING_TOKENS" not in env:
+        env["MAX_THINKING_TOKENS"] = THINK
+        added.append(f'env.MAX_THINKING_TOKENS = "{THINK}"')
+    hooks = data.get("hooks")
+    if hooks is None:
+        hooks = data["hooks"] = {}
+    if not isinstance(hooks, dict):
+        raise Refused("hooks is not an object — nothing written")
+    for event, matcher, mode in HOOKS:
+        entries = entries_of(hooks, event)
+        have = [h for e in entries if isinstance(e, dict)
+                and e.get("matcher") == matcher
+                for h in (e.get("hooks") or []) if is_guard(h, mode)]
+        if have:
+            continue
+        entries.append({"matcher": matcher,
+                        "hooks": [{"type": "command",
+                                   "command": hook_cmd(mode)}]})
+        hooks[event] = entries
+        added.append(f"{event} {matcher} → {hook_cmd(mode)}")
+    if not added:
+        print(f"guard on: {path} — already wired, nothing changed")
+        return 0
+    write_settings(path, data)
+    print(f"guard on: {path}")
+    for a in added:
+        print("  + " + a)
+    print("  a new settings file is read after /hooks or a restart")
+    return 0
+
+
+def guard_off(args):
+    """removes exactly the entries `on` wrote; the env key and every other key stay"""
+    path = settings_of(repo_of(args))
+    data, text = read_settings(path)
+    removed = []
+    hooks = data.get("hooks")
+    if isinstance(hooks, dict):
+        for event, matcher, mode in HOOKS:
+            entries = entries_of(hooks, event)
+            keep = []
+            for e in entries:
+                own = ([h for h in e["hooks"] if is_guard(h, mode)]
+                       if isinstance(e, dict) and e.get("matcher") == matcher
+                       and isinstance(e.get("hooks"), list) else [])
+                if not own:
+                    keep.append(e)
+                    continue
+                removed += [f"{event} {matcher} → {h['command']}" for h in own]
+                rest = [h for h in e["hooks"] if h not in own]
+                if rest:
+                    e["hooks"] = rest
+                    keep.append(e)
+            if len(keep) != len(entries):
+                if keep:
+                    hooks[event] = keep
+                else:
+                    del hooks[event]
+    if not removed:
+        print(f"guard off: {path} — not wired, nothing changed")
+        return 0
+    write_settings(path, data)
+    print(f"guard off: {path}")
+    for r in removed:
+        print("  - " + r)
+    return 0
+
+
+def guard_status(args):
+    """doctor's guard row, alone — ok, off or broken"""
+    import subprocess
+    import tempfile
+    repo = repo_of(args)
+    path = settings_of(repo)
+    # both probes keep their guard state in a temp dir — a probe carries no
+    # session, and its block would otherwise land as nosession.json in the
+    # real state dir on every status call
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {**os.environ, "PEARDE_GUARD_STATE": os.path.join(tmp, "state")}
+        probe = json.dumps({"tool_name": "Bash", "cwd": repo,
+                            "tool_input": {"command": "find prds -name prd.md"}})
+        out = subprocess.run([sys.executable, SELF, "pre"], input=probe,
+                             capture_output=True, text=True, env=env).stdout
+        if '"deny"' not in out:
+            print(ROW % ("guard", "broken",
+                         f"{SELF} does not refuse a hand-walked board"))
+            return 2
+        # the second rule, proved the same way: an Edit of this file from a
+        # board that is not this repo's — a temp one holding an empty prds/
+        os.makedirs(os.path.join(tmp, "prds"))
+        probe = json.dumps({"tool_name": "Edit", "cwd": tmp,
+                            "tool_input": {"file_path": SELF,
+                                           "old_string": "a", "new_string": "b"}})
+        out = subprocess.run([sys.executable, SELF, "pre"], input=probe,
+                             capture_output=True, text=True, env=env).stdout
+    if '"deny"' not in out:
+        print(ROW % ("guard", "broken",
+                     f"{SELF} does not refuse a write into the skill tree "
+                     "from another board"))
+        return 2
+    _, text = read_settings(path)
+    if "guard.py" in text:
+        m = re.search(r'MAX_THINKING_TOKENS"\s*:\s*"(\d*)', text)
+        tk = f" · MAX_THINKING_TOKENS={m.group(1)}" if m and m.group(1) else ""
+        print(ROW % ("guard", "ok", f"wired in {path}{tk} · skill tree guarded"))
+        return 0
+    print(ROW % ("guard", "off", f"not wired in {path}"))
+    print(ROW % ("", "", "fix: pearde guard on"))
+    return 1
+
+
+COMMAND = {"on": guard_on, "off": guard_off, "status": guard_status}
+
+
+def command(verb, args):
+    try:
+        return COMMAND[verb](args)
+    except Refused as e:
+        print(f"pearde guard {verb}: refused — {e}", file=sys.stderr)
+        return 1
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "pre"
     if mode == "check":
@@ -321,6 +744,8 @@ def main():
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] in COMMAND:
+        sys.exit(command(sys.argv[1], sys.argv[2:]))   # a command's error is its own
     try:
         main()
     except Exception:

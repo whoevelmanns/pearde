@@ -23,6 +23,11 @@ time:              # OPTIONAL. See @references/parts/order.md
        footprint: — paths this PRD touches. The overlap check
        workflow:  — the route a worker is handed, expanded into its brief
 
+     One sitting is the limit: specs summing `complexity` above `split-above`
+     or counting above `specs-above` (both in prds/settings.md, default 40 and
+     6) make the analyst's verdict REFINE, and `pearde refine` lands the split
+     under `## Children` here — the contract above it stays as written.
+
      A derived PRD states, in the body, which requested PRD it would otherwise
      get wrong. If it cannot, it is filed `state: deferred` — and if fixing it
      would change only how loudly the board notices, it is a memo, not a PRD.
@@ -48,11 +53,15 @@ let the analyst split it via refine.>
      ones, and `doctor`'s `questions` row runs it. -->
 
 <!-- `## Questions` — analyst-only, when blocked on the user: one round in the
-     format of drill.md — `### Q1: <title>`, the fork in 1-3 sentences ending
+     format of drill.md — `### Q1: <title>`, the fork in two sentences ending
      in "?", then exactly three prepared answers, each a complete decision,
      one `(recommended)`. Only real forks the user must settle (naming, scope,
      cost) — never facts a worker could look up, never the PRD restated. A PRD
-     parked on the user with no such round never says what it is asking. -->
+     parked on the user with no such round never says what it is asking.
+     Written in plain words for the person who asked, never for the board — no
+     backtick, no path, no PRD name, no board word, 60 words in the fork and 25
+     in an answer: the table in @references/drill.md is the whole rule, and
+     @resources/questions.py refuses a round that breaks it. -->
 
 <!-- `## Answers` — orchestrator-only (or the view), written after asking the
      user: `**Q1** — <the picked answer verbatim, or the user's own words>`,

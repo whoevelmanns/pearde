@@ -1,9 +1,9 @@
 ---
-state: open
+state: done
 origin: derived
 from: workflows-on-the-board/workflow-reader
 priority: 45
-complexity: 0
+complexity: 26
 blast-radius: mid
 repo: pearde
 needs:
@@ -12,9 +12,20 @@ footprint:
   - resources/workflows.py
   - resources/board/plan.py
   - references/workflow.md
+actual: 2.4h
 ---
 
 # check-crosses-member-boundaries — a master board's check reads its members' PRDs
+
+## Deferred 2026-08-28
+
+Parked by the user when @references/parts/derived.md's tripwire fired: three
+derived PRDs live against three requested, which is the board working on
+itself. The deliverable — the `workflows-on-the-board` tree — finishes first,
+and the derived tree comes back as its own round with nothing half-built.
+
+Nothing here is withdrawn. The finding stands as measured; only its place in
+the queue moved.
 
 When this is done, `python3 resources/workflows.py check` run on a master board
 reports a member PRD whose `workflow:` names no workflow, and a master board
@@ -99,6 +110,29 @@ than a dangling slug, and the Contract section names what the key holds
 without saying what a non-slug shape does. That sentence is what this PRD
 writes, and then both readers implement it.
 
+## Two more the readers get wrong, folded here rather than filed
+
+The tripwire was at parity when these were found, so they join the PRD that
+already owns `resources/workflows.py` and `resources/board/plan.py` instead of
+becoming new nodes.
+
+**`brief` glues a paragraph to the last bullet.** `resources/workflows.py:280`
+reduces `## Use when` with `[l for l in use if l.strip()]`, dropping every
+blank line, so a `## Use when` whose bullets are followed by a paragraph
+renders run-on — on the one page a worker actually reads. `reproduced` by the
+`workflow-seed` analyst: a draft of `probe-then-spec` with a trailing paragraph
+rendered glued, and it worked around it by making the citation a bullet, so no
+library file triggers it today. Gets `workflow-reader` wrong, and every future
+workflow whose `## Use when` needs more than a list.
+
+**A spec-level `workflow:` has no scan-line signal.** `plan.py scan` prints
+`wf <slug>` from the PRD's key alone, so `workflow-seed`'s line shows no route
+while all three of its specs carry one. @references/parts/workflows.md
+describes the mark in terms of the PRD's key only, so this may be intended —
+settle it here: either the mark means "the PRD's own key" and says so, or it
+means "a route is attached somewhere here" and reads the specs too. Gets
+`workflow-attach` wrong if the second reading was meant.
+
 ## Files
 
 | file                     | change                                                                                                      |
@@ -125,7 +159,18 @@ writes, and then both readers implement it.
 - A member PRD whose slug resolves in its **own** library but not the master's
   is not reported — the per-member resolution order holds.
 - A member PRD whose slug resolves in the **master's** library but not its own
-  is not reported either, whichever board `check` is pointed at. That is the
-  false positive above, and it is the half that makes `doctor` lie.
+  is not reported **when `check` is pointed at the master**. That is the false
+  positive above, and it is the half that makes `doctor` lie.
+- ~~whichever board `check` is pointed at~~ — **narrowed, measured
+  impossible.** Run against a member on its own, nothing on this board can
+  find that member's master: a member carries no `settings.md` naming one and
+  no back-reference, and `members:` is only ever read downward. `plan.py scan`
+  fails there identically — pointed at the member it marks the same slug
+  `wf mw?` — so the asymmetry is not `check` lagging `scan`, it is the
+  resolution order being implemented once, in the master's context, and from
+  below by nothing. The user's answer is the master direction only; a member
+  run alone is documented as unable to resolve its master's library rather
+  than made able to. `specs/spec01.md` carries the measurement, and
+  `probe/verify.sh` carries the checks.
 - `bash prds/workflows-on-the-board/workflow-reader/verify.sh` still passes, at
   whatever total it then carries.

@@ -6,8 +6,8 @@ description: Tell a broken install from an absent one, and repair what is unambi
 Read @references/parts/doctor.md. The scope is `@@doctor`.
 
 ```bash
-bash @resources/doctor.sh [board]         # report; exit 1 when a part is broken
-bash @resources/doctor.sh --fix [board]   # report, then repair
+python3 @resources/pearde.py doctor [board]         # report; exit 1 when a part is broken
+python3 @resources/pearde.py doctor --fix [board]   # report, then repair
 ```
 
 - **An install that is present and broken looks exactly like one that is

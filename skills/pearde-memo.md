@@ -14,8 +14,9 @@ one is owed. The scope is `@@memos`.
 - **One file, slugged from the subject** — lowercase, spaces to hyphens. The
   slug is both the filename and the `memo:` key, and `doctor` fails when they
   disagree. @references/templates/memo.md is the shape.
-- `python3 @resources/memos.py check <board>` reads them — the only reader of
-  that format. `list` and `show` are the other two verbs.
+- `python3 @resources/pearde.py memo check [board]` reads them — `memo`
+  forwards to `memos.py`, the only reader of that format. `memo list` and
+  `memo add <subject>` are the other two verbs.
 
 Memos live at `prds/memos/`, so a board is needed to file one. With none in
 scope, write the memo and say where it should go.
