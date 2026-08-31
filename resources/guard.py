@@ -15,7 +15,7 @@ three things it refuses.
     a hand-walked board          → `plan.py scan` says it in one call
     the same board read twice    → nothing changed since; the answer is unchanged
     the manual read three times  → it has not moved; the round file is the note
-    a state moved, nothing written → `prds/.round.md` is what survives a compaction
+    a state moved, nothing written → `.state/round.md` is what survives a compaction
     a `state:` written by hand   → `pearde set` checks the gate; an editor checks nothing
     the skill written from another board → the install is links into this tree; file a PRD here
 
@@ -36,13 +36,19 @@ PEARDE = os.path.dirname(ROOT)          # the repo this guard ships in
 # harness feeding hook JSON to a temp project must never write here.
 STATE = os.environ.get("PEARDE_GUARD_STATE") or os.path.join(
     ROOT, "board", "state", "guard")
+# Duplicated from @resources/board/plan.py's own BOARD_DIR/PRDS_DIR rather
+# than imported — same reason member_dirs() gives for reading settings.md by
+# hand: the guard imports nothing from the planner, so a broken planner
+# never blocks a tool call.
+BOARD_DIR = ".pearde"
+PRDS_DIR = "prds"
 ROUND_FILE = os.path.join(".state", "round.md")
 
 # The context budget. A round costs its context on every turn: 1,000 turns at
 # 500k is half a billion cache-read tokens for a session whose unique content
 # was 500k once. The orchestrator is meant to be slim — the board is on disk
-# and `prds/.round.md` is what it carries — so the budget is a ceiling, not a
-# window. `context-budget` in prds/settings.md moves it; `off` removes it.
+# and `.state/round.md` is what it carries — so the budget is a ceiling, not a
+# window. `context-budget` in .pearde/settings.md moves it; `off` removes it.
 BUDGET_DEFAULT = 100_000
 BUDGET_WARN = 0.70          # note once at 70%, once at 85%
 BUDGET_KEY = re.compile(r"^context-budget:[ \t]*(\S+)", re.M)
@@ -133,27 +139,34 @@ _GITBASH_DRIVE_RE = re.compile(r"^/([A-Za-z])(/.*)?$")
 
 
 def board_of(start):
-    """The nearest ancestor holding `prds/`, or None. The guard has no opinion
-    about a directory that is not a board."""
+    """The nearest ancestor holding `.pearde/`, or None — the same walk
+    @resources/board/plan.py `find_board` does, so the guard and `scan` name
+    the same board from the same cwd. The guard has no opinion about a
+    directory that is not a board."""
     start = start or os.getcwd()
     if os.name == "nt":
         # Git Bash's own `cwd` (and `pwd`/`dirname` output doctor.sh builds
         # from it) is POSIX-style, `/c/Users/...` — os.path.abspath under a
         # native Windows interpreter does not read that as a drive letter,
         # it prepends the current drive instead: `/c/Users/...` becomes
-        # `C:\c\Users\...`, a path that never exists, so `prds/` is never
-        # found and the guard silently no-ops on every real Bash tool call.
+        # `C:\c\Users\...`, a path that never exists, so `.pearde/` is
+        # never found and the guard silently no-ops on every real Bash tool
+        # call.
         m = _GITBASH_DRIVE_RE.match(start)
         if m:
             start = f"{m.group(1)}:{m.group(2) or '/'}"
     d = os.path.abspath(start)
     while True:
-        if os.path.isdir(os.path.join(d, "prds")):
-            return os.path.join(d, "prds")
+        if os.path.isdir(os.path.join(d, BOARD_DIR)):
+            return os.path.join(d, BOARD_DIR)
         parent = os.path.dirname(d)
         if parent == d:
             return None
         d = parent
+
+
+def prds_dir(board):
+    return os.path.join(board, PRDS_DIR)
 
 
 def member_dirs(board):
@@ -329,17 +342,17 @@ def manual(path):
 # under the skill root from a session whose board is another repo's is
 # refused; the same repo, or no board in scope, passes as before.
 SKILL = os.path.realpath(PEARDE)
-MEMO = "prds/memos/the-install-is-live-symlinks.md"
+MEMO = ".pearde/memos/the-install-is-live-symlinks.md"
 
 
 def skill_file(path):
     """The real path of a file in this skill's own tree, reached through any
     install link or by name — or "". The board under it is not the skill:
-    `prds/` here is where another board files a PRD, which is the way in."""
+    its `prds/` is where another board files a PRD, which is the way in."""
     real = os.path.realpath(path)
     if not real.startswith(SKILL + os.sep):
         return ""
-    if real.startswith(os.path.join(SKILL, "prds") + os.sep):
+    if real.startswith(os.path.join(SKILL, BOARD_DIR, PRDS_DIR) + os.sep):
         return ""
     return real
 
@@ -347,7 +360,7 @@ def skill_file(path):
 def another_boards_write(inp, cwd):
     """`Edit|Write` into the skill tree from a round on another board —
     refused, naming the real path the link resolves to, the memo, and the
-    two ways out. The session's board is the nearest `prds/` above its
+    two ways out. The session's board is the nearest `.pearde/` above its
     working directory, as `find_board` reads it; none, or this repo's own,
     and the write is not this rule's business."""
     given = str(inp.get("file_path") or "")
@@ -407,7 +420,7 @@ def state_by_hand(tool, inp):
     before, after = after_edit(path, tool, inp)
     if after is None or fm_state(before) == fm_state(after):
         return
-    rel = os.path.relpath(os.path.dirname(path), board)
+    rel = os.path.relpath(os.path.dirname(path), prds_dir(board))
     if not before:
         deny(f"A PRD is made by a command, never written by hand: "
              f"`pearde add \"<title>\"` for a new one, `pearde refine <prd> "
@@ -428,7 +441,7 @@ def touches_board(cmd, board):
 
 
 def budget_of(board):
-    """`context-budget` off prds/settings.md, in tokens. `off`/`0` disables
+    """`context-budget` off .pearde/settings.md, in tokens. `off`/`0` disables
     it. A bare number is tokens; `120k` is 120,000."""
     try:
         text = open(os.path.join(board, "settings.md"), encoding="utf-8",
@@ -497,7 +510,7 @@ def budget(data, st, session, board, tool, inp):
             st["budget_band"] = band
             save(session, st)
             note(f"Context {ctx // 1000}k of the {cap // 1000}k budget. Every "
-                 "turn from here re-reads all of it. Write prds/.round.md now "
+                 "turn from here re-reads all of it. Write .state/round.md now "
                  "— what is established, decided, asked and owed — so the "
                  "restart at the ceiling costs one scan and not a re-derivation.")
         return
@@ -511,7 +524,7 @@ def budget(data, st, session, board, tool, inp):
     deny(f"Context is {ctx // 1000}k, over the {cap // 1000}k budget — this "
          "round has stopped being cheap to continue.\nEvery turn now bills "
          f"{ctx // 1000}k of cache read for work the board already holds on "
-         "disk.\n\nEnd the round: write prds/.round.md whole — established, "
+         "disk.\n\nEnd the round: write .state/round.md whole — established, "
          "decided, asked, edits, owed — and say to the user that the round is "
          "at its budget and the next one resumes from that file. A fresh "
          f"session reads it, runs `{SCAN}`, and is where this one is for "
@@ -560,7 +573,7 @@ def pre(data):
         if prev and prev.get("stamp") == now:
             deny(f"You ran this at {clock(prev['at'])} and nothing on the board "
                  "has changed since — the output is byte-for-byte what you "
-                 "already have.\nCite it from prds/.round.md instead, or write "
+                 "already have.\nCite it from .state/round.md instead, or write "
                  "it there now if it is not in it.")
         st[key] = {"at": time.time(), "stamp": now}
         save(session, st)
@@ -587,12 +600,12 @@ def pre(data):
                 deny(f"Third read of this reference, unchanged since "
                      f"{clock(prev['at'])} — the manual does not move while a "
                      "round runs.\nWhat you needed from it belongs in "
-                     "prds/.round.md. The steps themselves are the exception: "
+                     ".state/round.md. The steps themselves are the exception: "
                      "references/parts/loop.md and references/parts/round.md "
                      "are always readable.")
             deny(f"Third read of this file, unchanged since {clock(prev['at'])}"
                  " — you have read it twice already and nothing has written to "
-                 "it since.\nWhat you needed from it belongs in prds/.round.md; "
+                 "it since.\nWhat you needed from it belongs in .state/round.md; "
                  f"board state comes from `{SCAN}`.")
         st[key] = {"n": n + 1, "at": time.time(), "mtime": mtime}
         save(session, st)
@@ -815,8 +828,8 @@ def guard_status(args):
                          f"{SELF} does not refuse a hand-walked board"))
             return 2
         # the second rule, proved the same way: an Edit of this file from a
-        # board that is not this repo's — a temp one holding an empty prds/
-        os.makedirs(os.path.join(tmp, "prds"))
+        # board that is not this repo's — a temp one holding an empty .pearde/
+        os.makedirs(os.path.join(tmp, BOARD_DIR))
         probe = json.dumps({"tool_name": "Edit", "cwd": tmp,
                             "tool_input": {"file_path": SELF,
                                            "old_string": "a", "new_string": "b"}})
