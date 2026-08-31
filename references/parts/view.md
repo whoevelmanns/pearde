@@ -141,10 +141,19 @@ rail and not a rule. It runs the axis it scales — up is the tall row, and the
 two end caps are the legend: two fat rows above, four thin ones below. Drag it
 anywhere, wheel over it, click an end, or arrow the thumb; hold shift for the
 fine grain. Hovering it, and every move of it, says the pitch in pixels and how
-many of the rows that puts on the screen. `fit` (or `f`) puts the horizontal
-half back after a zoom. Row height still has two clamps — a
+many of the rows that puts on the screen. Row height still has two clamps — a
 ceiling so four PRDs are not four fat stripes, and a floor below which a bar
 stops being a shape, past which the remainder scrolls.
+
+**The plan opens on the default view** — now at the plot's left edge, the
+vision at its right, and the rows scaled until every one of them is on the
+screen. It is what the page loads on, what a mode switch re-establishes on the
+new axis, and what a resize keeps; `d` puts it back. The `view` dropdown in the
+plan's toolbar holds it and every other framing: the axis's three named scales
+(`fine` `mid` `whole` on vision, `day` `week` `month` on dates), `fit all` (or
+`f`) for the whole track, landed weight included, and `custom`, which is not
+chosen — it is where a wheel, a `+`/`−` or a hand on the row rail lands, and it
+is in the list so the control can say the plot has left a framing.
 
 **Two cards, not one.** The plan and **focus** sit side by side with air
 between them, and focus pushes in and out from the right — `focus` (or `L`).
@@ -198,6 +207,8 @@ person.
 |---|---|
 | drag | pan |
 | ctrl/⌘+wheel | zoom at the pointer |
+| `d` | the default view — now to the vision, every row on the screen |
+| `f` | fit the whole track |
 | drag the column edge | widen the names, when `names` is on |
 | drag the left rail | row height — wheel it too, shift for fine |
 | `↑` `↓` | move the selection |

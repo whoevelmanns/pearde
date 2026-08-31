@@ -444,7 +444,8 @@ __CSS__</style>
   </span>
   <label class="lab" for="grp">group</label>
   <select id="grp"></select>
-  <span class="seg" id="zooms"></span>
+  <label class="lab" for="zsel">view</label>
+  <select id="zsel" title="how the plan is framed — default (d) is now at the left edge, the vision at the right, every row on the screen"></select>
   <span class="seg">
     <button id="zo" title="zoom out (−)">−</button>
     <button id="zi" title="zoom in (+)">+</button>
