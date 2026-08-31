@@ -974,8 +974,12 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    try:
-        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
-        pass
+    # Windows' console codepage (cp1252 on a German system) is not UTF-8 —
+    # left alone, `add --body -` reads a heredoc's UTF-8 bytes as cp1252 and
+    # writes back mojibake (ä -> Ã¤) for every non-ASCII character piped in.
+    for _s in (sys.stdin, sys.stdout):
+        try:
+            _s.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
     sys.exit(main(sys.argv))
