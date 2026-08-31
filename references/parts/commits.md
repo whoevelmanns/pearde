@@ -71,6 +71,15 @@ proved no other `claimed` PRD writes that footprint.
   it and says `rides <path>` on the line.
 - **A path the worker wrote outside its footprint is a wrong footprint.**
   Commit it with the rest and say so.
+- **The round that moves an interface runs the probes that assert it.** A
+  commit that changes what a tool prints, where a payload sits, or whether a
+  route exists can leave a landed PRD's `probe/verify.sh` red without the
+  commit going red — the probe lives in the PRD folder and nothing re-runs
+  it. Read the change backward: which harnesses name the moved thing in their
+  `want:` lines, and run those before landing (`bash resources/doctor.sh
+  --harnesses` is the whole census, one line per red harness). A probe whose
+  contract moved on purpose asserts the move — `/round`'s removal is
+  asserted as a 404 — rather than going quietly red.
 - **A workflow file a collect edited is added with the rest, and named in the
   message.** It is the one path in the commit that no `footprint:` declares:
   the library is the board's, not the PRD's, so the PRD's footprint does not
