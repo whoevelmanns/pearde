@@ -348,7 +348,7 @@ MEMO = ".pearde/memos/the-install-is-live-symlinks.md"
 def skill_file(path):
     """The real path of a file in this skill's own tree, reached through any
     install link or by name — or "". The board under it is not the skill:
-    its `prds/` is where another board files a PRD, which is the way in."""
+    its `.pearde/prds/` is where another board files a PRD, which is the way in."""
     real = os.path.realpath(path)
     if not real.startswith(SKILL + os.sep):
         return ""
@@ -493,10 +493,30 @@ def context_now(data):
     return 0
 
 
+def dispatched(data):
+    """True when this tool call belongs to a worker the orchestrator sent
+    out, not the round's own turn. session_id and transcript_path are the
+    SAME file for every worker and the orchestrator alike — the hook payload
+    shares one session across a whole round — so they cannot tell one from
+    the other. `agent_id`/`agent_type` can: the orchestrator's own tool
+    calls carry neither; a dispatched analyst, implementer or any other
+    subagent carries both. Confirmed empirically, not from documentation —
+    see the PRD's report."""
+    return bool(data.get("agent_id") or data.get("agent_type"))
+
+
 def budget(data, st, session, board, tool, inp):
     """Refuse the round that outgrew its own ceiling. Everything the restart
     needs stays open: the scan, the round file, and the two files that say
-    what a restart is."""
+    what a restart is.
+
+    Dispatched-only: a worker's own window is not the round's ceiling, so a
+    session carrying `agent_id`/`agent_type` never reaches the cap check, the
+    70%/85% notes, or the ESCAPE bypass below — which is also what keeps a
+    worker from ever being told, by the ceiling's own deny text, to write
+    the round file that is not its own."""
+    if dispatched(data):
+        return
     cap = budget_of(board)
     if not cap:
         return
