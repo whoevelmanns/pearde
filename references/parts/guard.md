@@ -38,6 +38,14 @@ skill from a shell, and a round that does is not stopped by this guard.
 
 ## What it counts
 
+The drill is one of the refusals the loop names where the guard is wired: a
+`claim` over an unput frontier — the scan printed a **drill** section and
+`## Asked` does not yet carry its questions — is refused by the command itself
+(`asking N — drill first`, @references/parts/loop.md step 2), and it lands in
+the transition window's `refused` count like every refused call, on the row the
+next transition writes. The scan's drill section is what the round reads
+instead of dispatching.
+
 The guard sees every tool call a session makes on a board, so it is where the
 round's cost is counted — no second hook, no second process. Per board, in
 the session's file under `boards`:

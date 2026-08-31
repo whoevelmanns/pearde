@@ -47,6 +47,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import memos as memolib  # noqa: E402 — the skill root, one dir up
+import questions as qlib  # noqa: E402 — the drill count, one reader with list
 import render as renderlib  # noqa: E402 — beside this script
 import workflows as wflib  # noqa: E402 — the skill root, one dir up
 
@@ -1845,6 +1846,33 @@ ANSWER_LINE_RE = re.compile(
     r"^\s*\*\*(Q?\d+[a-z]?)\*\*\s*"
     r"(?:\*?\(answered\s+([^)]*)\)\*?\s*)?[\u2014\u2013:-]*\s*(.*)$")
 
+
+def drill_questions(board):
+    """[(rel, qid, title, out)] \u2014 the drill, as data.
+
+    The unanswered questions `questions.unanswered` counts, each marked `out`
+    when the round file's `## Asked` already lists it \u2014 by title, normalized,
+    because that file holds the words the round put to the user and drill.md
+    sends a question there precisely so it is never re-put. Two entry points,
+    one reader: `cmd_scan`'s drill section prints the list, and
+    transitions.py `gate_claim` counts the ones still unput and refuses when
+    two or more stand \u2014 @references/drill.md \u00a7 The board's own frontier."""
+    un = qlib.unanswered(board)
+    if not un:
+        return un
+    try:
+        text = open(os.path.join(board, ROUND_FILE), encoding="utf-8").read()
+    except OSError:
+        text = ""
+    asked = re.sub(r"\s+", " ",
+                   "\n".join(_h2_sections(text, "Asked"))).lower().strip()
+    out = []
+    for rel, qid, title in un:
+        normed = re.sub(r"\s+", " ", title.lower()).strip()
+        out.append((rel, qid, title,
+                    bool(title) and normed in asked))
+    return out
+
 # `### Q1: the fork` — the question's own title, so an answer can be read
 # without opening the PRD it came out of.
 QUESTION_HEAD_RE = re.compile(r"(?m)^###\s+(Q?\d+[a-z]?)\s*[:.\u2014\u2013-]?\s*(.*)$")
@@ -2018,9 +2046,19 @@ def cmd_scan(board):
     if ax:
         on = sum(1 for x in t["live"] if ax["depth"].get(x) is not None)
         axis_note = f" · axis: {on} on · {len(t['live']) - on} off"
+    # the drill count — the second entry point of @references/drill.md § The
+    # board's own frontier: over one unanswered question, the drill section
+    # below stands first and nothing is dispatched until the round is out.
+    drill = drill_questions(board)
+    asking = ""
+    if drill:
+        askers = len({rel for rel, _q, _t, _o in drill})
+        asking = (f" · asking {len(drill)} over {askers} PRD"
+                  + ("s" if askers != 1 else ""))
     print(f"board: {board} · {len(prds)} PRDs"
           + (f" · master of {len(mem)}: " + ", ".join(mem) if mem else "")
           + (f" · workers={r['workers']}" if r else "")
+          + asking
           + axis_note)
     if vis and vis["vision"]:
         print(f"vision: {vis['vision']}")
@@ -2100,6 +2138,17 @@ def cmd_scan(board):
     ready = [x for x in free
              if not why[x] and not needs.get(x) and not after.get(x)]
     gated = [x for x in free if x not in ready]
+    # The drill section, FIRST — above collect, the pressure order's own head:
+    # the scan opens on the questions waiting on the user. A question already
+    # out — the round file's `## Asked` carries it — is marked `out`, carried
+    # and never re-put; `claim` counts the unput ones and refuses.
+    if len(drill) >= 2:
+        askers = len({rel for rel, _q, _t, _o in drill})
+        print(f"\ndrill — asking {len(drill)} over {askers} PRD"
+              + ("s" if askers != 1 else "")
+              + " · one round to the user before any claim")
+        for rel, qid, title, is_out in drill:
+            print(f"  {rel} · {qid} {title}" + (" · out" if is_out else ""))
     for title, group in (
             (f"collect — {len(collect)} finished, waiting to be closed",
              collect),

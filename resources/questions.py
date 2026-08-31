@@ -2,7 +2,7 @@
 """pearde questions — the round a PRD puts to the user, checked.
 
     python3 questions.py check [board]   one problem per line; silent when clean
-    python3 questions.py list  [board]   prd · questions · answered · state
+    python3 questions.py list  [board]   prd · open · answered · state
 
 A question round is `## Questions` in a `prd.md`, in the format
 @references/drill.md sets: each question is the fork, ending in `?`, with
@@ -75,7 +75,10 @@ WAITING = ("question", "hitl", "waiting", "blocked-on-user", "user")
 # Terminal: nothing waits on anyone. A closed PRD still flying a
 # waiting-on-a-human label is the label outliving the work, and it is why a
 # board reports someone as blocked on a node that closed months ago.
-CLOSED = ("done", "deferred", "out-of-scope")
+# `superseded` is terminal the same way the drill count is concerned —
+# work another PRD replaced cannot still be owed a question — so it sits
+# here beside `done` rather than in a second tuple every reader merges.
+CLOSED = ("done", "deferred", "superseded", "out-of-scope")
 
 
 def strip_comment(v):
@@ -387,13 +390,76 @@ def check(board):
     return bad
 
 
-def rows(board):
+# ── the drill count ──────────────────────────────────────────────────────────
+# An unanswered question is a `### Qn:` head under `## Questions` with no
+# matching `**Qn**` under `## Answers`, on any PRD whose state is not terminal
+# — `CLOSED` above — and this is the ONE count both readers take: `list`
+# prints it, `plan.py scan` prints it, gates by it and reads it beside the
+# round file's `## Asked`. Two readers sharing a rule here is how the scan
+# and the list stopped being able to disagree about what still stands.
+
+# An answer as the drill writes it: `**Q1** — …`, optionally stamped
+# `*(answered 2026-08-28 14:22)*`. Only the id matches, never the text.
+ANSWER_ID_RE = re.compile(r"(?m)^\s*\*\*\s*Q?\s*(\d{1,2}[a-z]?)\s*\*\*")
+
+# The question's own id in the round: `### Q1: <title>` — also `### 1. <t>` —
+# the two characters a prepared answer's `**Q1**` points back at.
+QHEAD_RE = re.compile(r"^###\s+(?:question\s+)?[Qq]?\s?(\d{1,2}[a-z]?)"
+                      r"\s*[:.—–-]?\s*(.*)$")
+
+
+def unanswered(board):
+    """[(rel, qid, title)] — every question still on the board's frontier.
+
+    A question is unanswered when a `### Qn:` head stands under `## Questions`
+    with no matching `**Qn**` under `## Answers`, on any PRD whose state is
+    not `CLOSED`. One reader: `questions.py list` prints it and `plan.py`
+    counts it — `drill_questions` there reads the round file beside it — so
+    the two can never disagree about how many questions the board owes.
+
+    A `### Qn:` head with no `###`-in-shape match (prose, a note) is not part
+    of this count, and neither is a head whose block is not asking or is
+    settled in place — `check` and `settled` are the rules it keeps to."""
+    out = []
     for rel, path in prds(board):
         fm, body = parse(path)
-        nq = sum(len([q for q in questions_in(t) if is_question(q)])
-                 for _h, t in sections(body, Q_RE) if t.strip())
+        if str(fm.get("state", "")).strip().lower() in CLOSED:
+            continue
+        answered = {"Q" + m.group(1).upper()
+                    for _h, atext in sections(body, A_RE)
+                    for m in ANSWER_ID_RE.finditer(atext)}
+        for _head, text in sections(body, Q_RE):
+            if re.search(r"\banswered\b", _head, re.I):
+                continue
+            for q in questions_in(text):
+                if not is_question(q) or settled(q):
+                    continue
+                first = q.strip().splitlines()[0]
+                m = QHEAD_RE.match(first)
+                if not m:
+                    continue
+                qid = "Q" + m.group(1).upper()
+                if qid in answered:
+                    continue          # answered — not on the frontier
+                title = m.group(2).strip()
+                if not title:
+                    title = " ".join(q.strip().splitlines()[1:]).strip()[:72]
+                out.append((rel, qid, title))
+    return out
+
+
+def rows(board):
+    """(rel, open, answers, state) per PRD — the `list` line. `open` is the
+    drill count (`unanswered`), so a PRD whose round is answered prints its
+    state out of the way: it holds an answer, not a question."""
+    open_qs = {}
+    for rel, _qid, _title in unanswered(board):
+        open_qs[rel] = open_qs.get(rel, 0) + 1
+    for rel, path in prds(board):
+        fm, body = parse(path)
         na = sum(1 for _h, t in sections(body, A_RE) if t.strip())
-        yield rel, nq, na, str(fm.get("state", "-"))
+        if open_qs.get(rel, 0) or na:
+            yield rel, open_qs.get(rel, 0), na, str(fm.get("state", "-"))
 
 
 # Duplicated from @resources/board/plan.py's own BOARD_DIR rather than
@@ -430,8 +496,7 @@ def main(argv):
         return 1 if bad else 0
     if cmd == "list":
         for rel, nq, na, state in rows(board):
-            if nq or na:
-                print(f"{rel:44} {nq:2} asked  {na:2} answered  {state}")
+            print(f"{rel:44} {nq:2} open  {na:2} answered  {state}")
         return 0
     print(__doc__.strip(), file=sys.stderr)
     return 2

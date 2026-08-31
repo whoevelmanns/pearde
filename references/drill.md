@@ -139,10 +139,18 @@ round is history and is left alone.
 
 ## The board's own frontier
 
-A blocked board is a drill whose questions are already written down. Step 7 of
+A blocked board is a drill whose questions are already written down. Step 8 of
 @references/parts/loop.md is that entry point: nothing dispatchable means every
 remaining PRD waits on a person, and the round's last act is one drill round
 over all of them rather than a report naming them.
+
+The count on the scan is the second entry point: when `pearde scan` prints the
+**drill** section — more than one unanswered question on the board, the header
+saying `asking N over M PRDs` — the round opens on that drill before anything
+is dispatched, even though the rest of the board is moving. The drill is the
+orchestrator's, so `pearde claim` refuses with `asking N — drill first` until
+the questions are out; one question standing is not a gate, and is put as any
+round is. Zero prints nothing.
 
 Round one's frontier is the board itself — every unanswered `## Questions`,
 every PRD parked on a person with no round written, every `refine` with no

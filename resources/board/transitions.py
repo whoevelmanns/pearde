@@ -160,14 +160,24 @@ def gate_claim(board, prds, prd, holder=None):
     """`plan.dispatchable` is the gate — the one predicate the scan's ready
     band reads too, so what `scan` offers is what `claim` takes. The reason
     arrives with its gate word in front (`unclaimed:`, `leaf:`, `container:`,
-    `needs:`, `footprint:`, `workflow:`) and is raised as it stands.
+    `needs:`, `footprint:`, `workflow:`, `asking`) and is raised as it stands.
 
     `holder` names the worker asking, so a claim it already holds is not
     the `unclaimed` gate — every caller but `brief` briefing a named worker
-    leaves it `None`, which is `dispatchable`'s original, stricter test."""
+    leaves it `None`, which is `dispatchable`'s original, stricter test.
+
+    After the dispatchable gates, the drill: two or more unanswered questions
+    not yet out — `@plan.drill_questions` reading the round file's `## Asked`
+    beside the count — and nothing is dispatched, `asking N — drill first`,
+    because the drill is the orchestrator's and a worker has no user to ask.
+    One question left is step 2's ordinary put, not a gate."""
     why = planlib.dispatchable(prd, prds, board, holder=holder)
     if why:
         raise Refused(why)
+    pending = [q for q in planlib.drill_questions(board) if not q[3]]
+    if len(pending) >= 2:
+        raise Refused(f"asking {len(pending)} — drill first; the unanswered "
+                      "questions go to the user before anything is dispatched")
 
 
 def gate_release(board, prds, prd, to):
