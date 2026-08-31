@@ -2900,7 +2900,13 @@ class PeardeBoard extends LitElement {
     const out = [];
     for (const [st, rowsIn] of cols) {
       if (!rowsIn.length && !STATE_ORDER.includes(st)) continue;
-      rowsIn.sort((p, q) => q.prio - p.prio || p.rel.localeCompare(q.rel));
+      // done ordered by when it last changed, most recent first — priority
+      // stops mattering the moment a PRD is finished, and "what landed
+      // recently" is what a person opening this column actually wants.
+      // Every other column keeps the dispatch order: priority, then name.
+      rowsIn.sort(st === "done"
+        ? (p, q) => q.mtime - p.mtime
+        : (p, q) => q.prio - p.prio || p.rel.localeCompare(q.rel));
       out.push(this.column(st, rowsIn));
     }
     return out;

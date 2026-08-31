@@ -1075,6 +1075,12 @@ def gantt_payload(board, prds, mp, settings):
             "boxes": [closed, total],
             "collect": collect,
             "kids": len(p.get("children") or []),
+            # prd.md's own mtime — cheap (one stat, no git call), unlike the
+            # archive's done_at which needs `git log --follow` per PRD and is
+            # deliberately kept out of this per-second-rebuilt payload. Used
+            # by the board view to sort the done column by how recently each
+            # PRD last changed.
+            "mtime": os.path.getmtime(os.path.join(p["dir"], "prd.md")),
         })
     land, repos = landing(board, everything)
     return {
