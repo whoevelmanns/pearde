@@ -16,8 +16,9 @@ the language it defaulted and the command that changes it. `--example`
 copies the example board instead of writing an empty one — the quickstart's.
 
 Idempotent: on a board that already has `settings.md` nothing is written and
-the same four lines close the output. `memos/` and `workflows/` are not
-made — a folder appears when its first file does.
+the same four lines close the output. `prds/`, `memos/`, `wiki/`,
+`workflows/` and `.state/` are made empty on the first run regardless —
+the five a board has even with nothing in them yet.
 
 `settings` writes one key of `.pearde/settings.md` through edit.py — one
 frontmatter line, every other line byte for byte — and is how any key is
@@ -46,7 +47,7 @@ import edit as editlib          # noqa: E402 — the one writer of bytes
 import plan as planlib          # noqa: E402 — every read
 import transitions as trlib     # noqa: E402 — the flag parser
 
-EXAMPLE = os.path.join(HERE, "example", "prds")   # the seed PRDs, copied into <board>/prds/
+EXAMPLE = os.path.join(HERE, "example")   # the seed board
 VISION_TEMPLATE = os.path.join(SKILL, "references", "templates", "vision.md")
 SERVE = os.path.join(HERE, "serve.py")
 DOCTOR = os.path.join(RES, "doctor.sh")
@@ -112,13 +113,17 @@ def settings_text(language, name):
 def write_board(board, args):
     """Steps 1–3: the board directory, `settings.md` and `vision.md`. Each
     file is written only when it is not there, so a hand-made `.pearde/` keeps
-    what it has and gains what it lacks."""
+    what it has and gains what it lacks. Also makes the five directories a
+    board has even when empty — `prds/`, `memos/`, `wiki/`, `workflows/`,
+    `.state/` — so `scan` and the daemon find them from the first run,
+    whether or not `--example` seeded any of them with content."""
     settings = os.path.join(board, "settings.md")
     if "example" in args.flags:
         if os.path.isdir(board) and os.listdir(board):
             raise Refused(f"{board} exists and holds no settings.md — "
-                          "--example copies into an empty or missing .pearde/prds/")
-        shutil.copytree(EXAMPLE, board, dirs_exist_ok=True)
+                          "--example copies into an empty or missing .pearde/")
+        shutil.copytree(EXAMPLE, board, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("README.md"))
         for key in ("language", "name"):
             if args.opt.get(key, "").strip():
                 editlib.set_key(settings, key, args.opt[key].strip())
@@ -130,6 +135,13 @@ def write_board(board, args):
     vision = os.path.join(board, "vision.md")
     if not os.path.exists(vision):
         shutil.copyfile(VISION_TEMPLATE, vision)
+    # Literal ".state" here, not planlib.STATE_DIR — plan.py reassigns that
+    # name at module level (~line 1296, the calibration dir), so by import
+    # time it no longer holds the per-board ".state" it is declared as near
+    # BOARD_DIR/PRDS_DIR. See the report for prds/init-writes-a-board-on-
+    # the-pearde-layout — plan.state_dir() is affected too, out of scope here.
+    for name in (planlib.PRDS_DIR, "memos", "wiki", "workflows", ".state"):
+        os.makedirs(os.path.join(board, name), exist_ok=True)
 
 
 def in_git(d):
