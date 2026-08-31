@@ -16,6 +16,10 @@
 #   <skills-dir>/<name>/SKILL.md -> references/skills/<name>.md
 #                       README.md · index.md · references · resources
 #
+# Two Obsidian plugins the knowledge vault needs are fetched here rather than
+# vendored — pinned versions, downloaded into resources/board/obsidian/plugins/
+# where `pearde init` copies them into each board's vault.
+#
 # Links, never copies — one source of truth. A real file or directory already
 # sitting where a link goes is reported and never replaced: it may hold your
 # edits.
@@ -153,6 +157,49 @@ for f in "$ROOT"/references/agents/*.md; do
     mkdir -p "$AGENTS" && ln -sfn "$f" "$at" && did "$at -> references/agents/$name.md"
   else
     say "$name" missing "$at"
+  fi
+done
+
+# The Obsidian plugins the knowledge vault needs — dataview for the live views
+# and local-rest-api for the port a tool reads the vault through. They are
+# third-party bundles of a few megabytes, so they are fetched here rather than
+# vendored: the repo carries the version to fetch and nothing else, and
+# `init.py` copies whatever this step left in the preset into each board's
+# vault. Pinned, because a vault that opens is worth more than the newest
+# plugin. `--apply` downloads; the report mode only says what is missing.
+PLUGIN_DIR="$ROOT/resources/board/obsidian/plugins"
+PLUGINS=(
+  "dataview blacksmithgu/obsidian-dataview 0.5.68"
+  "obsidian-local-rest-api coddingtonbear/obsidian-local-rest-api 5.1.0"
+)
+for row in "${PLUGINS[@]}"; do
+  set -- $row
+  name="$1"; repo="$2"; ver="$3"
+  at="$PLUGIN_DIR/$name"
+  if [ -s "$at/main.js" ] && [ -s "$at/manifest.json" ]; then
+    have="$(sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' "$at/manifest.json" | head -1)"
+    if [ "$have" = "$ver" ]; then say "$name" ok "$at · $ver"; continue; fi
+    say "$name" stale "$at · $have, want $ver"
+  fi
+  if [ "$MODE" = remove ]; then
+    rm -f "$at/main.js" "$at/manifest.json" "$at/styles.css"
+    did "removed the $name bundle — data.json kept"
+    continue
+  fi
+  if [ "$MODE" != apply ]; then say "$name" missing "$at · $ver"; continue; fi
+  mkdir -p "$at"
+  ok=1
+  for f in main.js manifest.json styles.css; do
+    url="https://github.com/$repo/releases/download/$ver/$f"
+    curl -fsSL --retry 2 -o "$at/$f.part" "$url" || { ok=0; break; }
+    mv -f "$at/$f.part" "$at/$f"
+  done
+  if [ "$ok" = 1 ]; then
+    did "$name $ver -> $at"
+  else
+    rm -f "$at"/*.part
+    say "$name" failed "could not fetch $ver from $repo"
+    stop "the vault installs without it — re-run --apply when the network is back"
   fi
 done
 

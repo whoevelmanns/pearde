@@ -59,13 +59,16 @@ DEFAULTS = (("language", "English"), ("workers", "3"), ("pipeline", "3"),
 # Machine-local per board — regenerable. What this repo's own .gitignore
 # holds for the same names.
 # One line covers the whole machine-local corner now that it is one directory.
-IGNORED = (".pearde/.state/", ".pearde/wiki/", ".obsidian/")
+IGNORED = (".pearde/.state/", ".pearde/wiki/", ".obsidian/", "/board")
 
 # The Obsidian requirement: dataview (the live views) and local-rest-api
-# (the port a tool reads the vault through), vendored with the preset at
-# resources/board/obsidian/. `init` copies the tree to <dir>/.obsidian when
-# the board's parent is the vault it seeds, and mints the REST key fresh —
-# one per board, never shipped in the template.
+# (the port a tool reads the vault through). The preset at
+# resources/board/obsidian/ carries the settings; the plugin bundles are not
+# vendored — `pearde install --apply` fetches them at pinned versions into
+# the preset's plugins/, and this file copies whatever it finds there to
+# <dir>/.obsidian when the board's parent is the vault it seeds. A bundle the
+# install never fetched is reported, not silently skipped. The REST key is
+# minted fresh — one per board, never shipped in the template.
 OBSIDIAN_PRESET = os.path.join(HERE, "obsidian")
 OBSIDIAN_PLUGINS = ("dataview", "obsidian-local-rest-api")
 
@@ -138,17 +141,47 @@ def in_git(d):
     return p.returncode == 0
 
 
+def write_board_link(d):
+    """Obsidian will not show a dot-directory. It skips every path whose name
+    starts with a `.` before any setting is read, and `userIgnoreFilters` only
+    adds ignores — there is nothing to switch off. So a board at `<d>/.pearde`
+    is invisible in a vault opened at `<d>`, which is the whole of the read
+    layer gone.
+
+    The way through is a visible name beside it: `<d>/board` -> `.pearde`, a
+    relative symlink, so the vault walks into the board under a name it will
+    show and every note keeps its real path on disk. Machine-local and
+    gitignored — nothing in the history depends on it. Returns the link's name
+    when it made one."""
+    board = os.path.join(d, ".pearde")
+    at = os.path.join(d, "board")
+    if not os.path.isdir(board):
+        return None
+    if os.path.islink(at):
+        return None if os.readlink(at) == ".pearde" else None
+    if os.path.exists(at):
+        return None                               # a real `board/` wins
+    try:
+        os.symlink(".pearde", at)
+    except OSError:
+        return None
+    return "board"
+
+
 def write_obsidian(d):
     """Step 4b: the vault. Copies the vendored preset and plugins to
     `<dir>/.obsidian/` — dataview, obsidian-local-rest-api, the graph and app
     configuration — and mints a fresh REST key into the plugin's data.json,
     mirrored at `.pearde/wiki/.obsidian-api-key` where the loop's tools
     read it. Everything is already there is kept (a hand-tuned vault wins).
-    Returns the names of the plugins it installed."""
+    A plugin whose bundle is not in the preset — the install has not run, or
+    could not reach the network — is returned in the second list and named on
+    the console, because a vault missing dataview renders no view at all.
+    Returns (installed, missing, key)."""
     dest = os.path.join(d, ".obsidian")
-    plugins = []
+    plugins, missing = [], []
     if not os.path.isdir(OBSIDIAN_PRESET):
-        return [], None
+        return [], list(OBSIDIAN_PLUGINS), None
     os.makedirs(os.path.join(d, ".obsidian"), exist_ok=True)
     for entry in sorted(os.listdir(OBSIDIAN_PRESET)):
         src = os.path.join(OBSIDIAN_PRESET, entry)
@@ -159,6 +192,9 @@ def write_obsidian(d):
                 dst_p = os.path.join(dst, plugin)
                 if os.path.isdir(os.path.join(d, ".obsidian", "plugins", plugin)):
                     continue                      # already installed wins
+                if not os.path.isfile(os.path.join(src_p, "main.js")):
+                    missing.append(plugin)        # install never fetched it
+                    continue
                 shutil.copytree(src_p, dst_p, dirs_exist_ok=True)
                 plugins.append(plugin)
         elif not os.path.exists(dst):
@@ -176,7 +212,7 @@ def write_obsidian(d):
     if not os.path.exists(key_path):
         os.makedirs(os.path.dirname(key_path), exist_ok=True)
         editlib.write_atomic(key_path, key + "\n")
-    return plugins, key
+    return plugins, missing, key
 
 
 def write_gitignore(d):
@@ -264,13 +300,21 @@ def cmd_init(argv):
             added = write_gitignore(d)
             if added:
                 print(f"init: .gitignore += {' '.join(added)}")
-        plugins, _ = write_obsidian(d)
+        link = write_board_link(d)
+        if link:
+            print(f"init: {link}/ -> .pearde/ — Obsidian hides a "
+                  "dot-directory, and this is the name it will show")
+        plugins, missing, _ = write_obsidian(d)
         if plugins:
             print(f"init: obsidian vault at .obsidian/ — plugins: "
                   f"{', '.join(plugins)} · dataview serves the live views "
                   "from the first open, local-rest-api (local-rest-api with MCP) answers on "
                   "127.0.0.1:27124 (key: .pearde/wiki/.obsidian-api-key) "
                   "after Obsidian loads the vault once")
+        if missing:
+            print(f"init: no bundle for {', '.join(missing)} — the vault "
+                  "opens without them and renders no view. Fetch them with: "
+                  "pearde install --apply <skills-dir>")
     url = ensure(board)
     if not existing:
         doctor(d)

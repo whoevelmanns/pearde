@@ -8,7 +8,8 @@ second location — the vault is this repo seen through Obsidian's index, and
 its link resolution, backlinks and graph view are a person's read layer for
 the board's own data.
 
-Two plugins are the requirement, vendored at `@resources/board/obsidian/` and
+Two plugins are the requirement, their settings at `@resources/board/obsidian/`
+and their bundles fetched by `install.sh --apply` at pinned versions, and
 seeded by `@resources/board/init.py` into any new board's `.obsidian/`:
 
 - **dataview** — executes the DQL/DataviewJS views in `Dashboard.md` and the
@@ -83,7 +84,7 @@ Dataview's DQL, which runs in-app.
 ## What pearde guarantees
 
 - **`init` seeds it.** A new board's `.obsidian/` ships with both plugins
-  vendored (`@resources/board/obsidian/`), a fresh API key minted in the v5
+  from the preset the install fetched (`@resources/board/obsidian/`), a fresh API key minted in the v5
   schema, mirrored at `prds/knowledge/.obsidian-api-key`. One manual step
   remains, unavoidable: Obsidian loads a vault's plugins when the person
   opens it the first time — until then the port is silent.

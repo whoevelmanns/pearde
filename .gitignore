@@ -7,6 +7,12 @@ resources/board/state/
 .obsidian/
 
 
+# third-party bundles, fetched by `pearde install --apply` and pinned there.
+# The vault's own settings (data.json, the .json presets) stay tracked.
+resources/board/obsidian/plugins/*/main.js
+resources/board/obsidian/plugins/*/manifest.json
+resources/board/obsidian/plugins/*/styles.css
+
 # machine-local per board — regenerable
 graphify-out/
 .pearde/
@@ -15,3 +21,5 @@ graphify-out/
 /report.md
 /report-*.md
 /handover.md
+
+/board
