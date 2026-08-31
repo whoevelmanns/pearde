@@ -44,15 +44,16 @@ let arg = process.argv[2];
 let scratch = null;
 if (arg === "--example") {
   scratch = fs.mkdtempSync(path.join(os.tmpdir(), "pearde-example-"));
-  fs.cpSync(path.join(__dirname, "example"), scratch, { recursive: true });
+  fs.cpSync(path.join(__dirname, "example"), path.join(scratch, ".pearde"), { recursive: true });
   const r = spawnSync("python3", [path.join(__dirname, "plan.py"), "gantt", scratch],
                       { encoding: "utf8" });
-  if (r.status !== 0) {
+  const printed = [...(r.stdout || "").matchAll(/^gantt: (.+\.html)$/mg)].pop();
+  if (r.status !== 0 || !printed) {
     console.error("viewtest: could not render the example copy\n" + (r.stderr || r.stdout));
     fs.rmSync(scratch, { recursive: true, force: true });
     process.exit(2);
   }
-  arg = path.join(scratch, "prds", ".view.html");
+  arg = printed[1].trim();
   process.on("exit", () => fs.rmSync(scratch, { recursive: true, force: true }));
 }
 const served = /^https?:\/\//.test(arg || "");
