@@ -46,4 +46,4 @@ python3 "$REPO/resources/questions.py" check "$REPO" > "$DIR/board.txt" 2>&1 \
   && ok "every round on this board passes" \
   || { no "a round on this board fails"; cat "$DIR/board.txt"; }
 
-exit $fail
+[ "$fail" -eq 0 ]
