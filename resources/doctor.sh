@@ -66,7 +66,7 @@ echo
 # knows which directory their agent scans, and there is deliberately no list
 # of agents here. @references/install.md is that step.
 SKN=0; SKBAD=""
-for f in "$SKILL_ROOT"/skills/*.md; do
+for f in "$SKILL_ROOT"/references/skills/*.md; do
   [ -e "$f" ] || continue
   SKN=$((SKN + 1))
   base="$(basename "$f" .md)"
@@ -75,11 +75,11 @@ for f in "$SKILL_ROOT"/skills/*.md; do
   ds=$(awk 'NR==1 && $0 !~ /^---/ {exit} /^---/ {n++; if (n==2) exit; next}
             n==1 && $1=="description:" {print "y"; exit}' "$f")
   if [ -z "$nm" ]; then SKBAD="$SKBAD
-skills/$base.md has no name: in frontmatter — it is not a skill"
+references/skills/$base.md has no name: in frontmatter — it is not a skill"
   elif [ "$nm" != "$base" ]; then SKBAD="$SKBAD
-skills/$base.md says name: $nm — an install would build it as $nm/"
+references/skills/$base.md says name: $nm — an install would build it as $nm/"
   elif [ -z "$ds" ]; then SKBAD="$SKBAD
-skills/$base.md has no description: — nothing decides when it fires"
+references/skills/$base.md has no description: — nothing decides when it fires"
   fi
 done
 # One name, one module. pearde.py discovers resources/board/*.py and says
@@ -89,7 +89,7 @@ CLASH=$(python3 "$SKILL_ROOT/resources/pearde.py" help 2>&1 >/dev/null | sed -n 
 [ -n "$CLASH" ] && SKBAD="$SKBAD
 $CLASH"
 if [ "$SKN" -eq 0 ]; then
-  row skills broken "skills/ holds no .md file — there is nothing to install"
+  row skills broken "references/skills/ holds no .md file — there is nothing to install"
   fix "one file per skill, frontmatter name: matching the file name, and description:"
 elif [ -n "$SKBAD" ]; then
   NS=$(printf '%s' "$SKBAD" | grep -c . )
@@ -97,7 +97,7 @@ elif [ -n "$SKBAD" ]; then
   printf '%s\n' "$SKBAD" | while IFS= read -r l; do [ -n "$l" ] && note "$l"; done
   fix "frontmatter is what makes a skill findable — @references/install.md; one name per module under resources/board/ — python3 $SKILL_ROOT/resources/pearde.py help"
 else
-  NAMES=$(for f in "$SKILL_ROOT"/skills/*.md; do basename "$f" .md; done | tr '\n' ' ')
+  NAMES=$(for f in "$SKILL_ROOT"/references/skills/*.md; do basename "$f" .md; done | tr '\n' ' ')
   row skills ok "$SKN well-formed · $NAMES"
   note "installed where your agent looks — @references/install.md, then: bash $DIR/install.sh --apply <skills-dir>"
 fi
