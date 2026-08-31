@@ -5,7 +5,7 @@
     python3 memos.py list  [board]      slug · kind · status · date · subject
     python3 memos.py add   <subject> [board]  slug it, write the memo from the template, print the path
 
-A memo is `prds/memos/<slug>.md`. It is not a PRD: no state, never claimed,
+A memo is `.pearde/memos/<slug>.md`. It is not a PRD: no state, never claimed,
 never dispatched, invisible to the loop and to the progress line. It records
 what was decided and what it beat. @references/memo.md is the format. This
 file is its only reader, so the format has one home.
@@ -73,7 +73,7 @@ def parse(path):
 
 
 def memos_dir(board):
-    """(path, external). `prds/memos/` unless `memos:` in prds/settings.md
+    """(path, external). `.pearde/memos/` unless `memos:` in .pearde/settings.md
     points elsewhere — a repo whose decisions already live in another system
     mirrors that dir read-only instead of moving files another tool owns.
     External means foreign contract: the strict frontmatter gate applies only
@@ -88,7 +88,7 @@ def memos_dir(board):
 
 
 def scan(board):
-    """{slug: memo} for every prds/memos/*.md. Sorted by date descending, then
+    """{slug: memo} for every .pearde/memos/*.md. Sorted by date descending, then
     slug — newest decision first, which is the order a reader wants."""
     d, _ = memos_dir(board)
     if not os.path.isdir(d):

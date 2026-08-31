@@ -1,9 +1,9 @@
 # Obsidian — talking to the vault natively
 
 The repo is the vault. Obsidian sits on top of the repo root and renders what
-pearde already writes: `prds/**/prd.md` (through the generated board notes),
-`prds/memos/`, `prds/workflows/`, the knowledge layer under
-`prds/knowledge/`, every reference and spec. Nothing is duplicated into a
+pearde already writes: `.pearde/prds/**/prd.md` (through the generated board notes),
+`.pearde/memos/`, `.pearde/workflows/`, the knowledge layer under
+`.pearde/wiki/`, every reference and spec. Nothing is duplicated into a
 second location — the vault is this repo seen through Obsidian's index, and
 its link resolution, backlinks and graph view are a person's read layer for
 the board's own data.
@@ -37,7 +37,7 @@ Obsidian app — the files remain, the port does not.
 ```
 https://127.0.0.1:27124              base URL (HTTPS, self-signed certificate)
 Authorization: Bearer <key>          every call, no exceptions
-<vault>/prds/knowledge/.obsidian-api-key   the key a tool reads — mirrors
+<vault>/.pearde/wiki/.obsidian-api-key   the key a tool reads — mirrors
                                      .obsidian/plugins/obsidian-local-rest-api/data.json
 GET  /                               alive? -> {"status": "OK", "authenticated": …}
 GET  /vault/<path>                   one note's bytes
@@ -54,8 +54,8 @@ GET  /open/<filename>                open one in the app
 /mcp                                 the plugin's MCP server endpoint
 ```
 
-The key rides at `prds/knowledge/.obsidian-api-key` on every board
-(`init` mints it fresh, in the v5 schema the plugin reads). `prds/knowledge/`
+The key rides at `.pearde/wiki/.obsidian-api-key` on every board
+(`init` mints it fresh, in the v5 schema the plugin reads). `.pearde/wiki/`
 is gitignored — the key is machine-local, like the vault itself.
 
 ## Queries that matter to the board
@@ -63,19 +63,19 @@ is gitignored — the key is machine-local, like the vault itself.
 One-liners, real against this vault:
 
 ```sh
-K=$(cat prds/knowledge/.obsidian-api-key)
+K=$(cat .pearde/wiki/.obsidian-api-key)
 # every open PRD, through Obsidian's own frontmatter index
 curl -sk -X POST https://127.0.0.1:27124/search/ -H "Authorization: Bearer $K" \
   -H "Content-Type: application/vnd.olrapi.jsonlogic+json" \
   -d '{"==": [{"var": "frontmatter.state"}, "open"]}'
 
 # read the dashboard a person sees
-curl -sk https://127.0.0.1:27124/vault/prds/knowledge/Dashboard.md \
+curl -sk https://127.0.0.1:27124/vault/.pearde/wiki/Dashboard.md \
   -H "Authorization: Bearer $K"
 ```
 
-The deep views stay in Dataview (DQL over `prds/knowledge/board`,
-`prds/memos`, `prds/workflows` — see `Dashboard.md`); the REST `search/`
+The deep views stay in Dataview (DQL over `.pearde/wiki/board`,
+`.pearde/memos`, `.pearde/workflows` — see `Dashboard.md`); the REST `search/`
 answers one flat predicate per call. A round that needs joins uses
 `knowledge.py` and `plan.py` directly; REST is the door for everything a
 vault-shaped question needs — backlinks via `file.inlinks` stay in
@@ -85,7 +85,7 @@ Dataview's DQL, which runs in-app.
 
 - **`init` seeds it.** A new board's `.obsidian/` ships with both plugins
   from the preset the install fetched (`@resources/board/obsidian/`), a fresh API key minted in the v5
-  schema, mirrored at `prds/knowledge/.obsidian-api-key`. One manual step
+  schema, mirrored at `.pearde/wiki/.obsidian-api-key`. One manual step
   remains, unavoidable: Obsidian loads a vault's plugins when the person
   opens it the first time — until then the port is silent.
 - **Already-installed wins.** `init` never overwrites a plugin, a key, or a

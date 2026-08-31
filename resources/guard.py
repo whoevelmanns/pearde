@@ -338,7 +338,7 @@ def manual(path):
 # ── the skill tree ────────────────────────────────────────────────────────────
 # The install is links into this repo (@references/install.md), so a round on
 # any board on the machine that edits the skill edits this working tree —
-# prds/memos/the-install-is-live-symlinks.md counts what that cost. A write
+# .pearde/memos/the-install-is-live-symlinks.md counts what that cost. A write
 # under the skill root from a session whose board is another repo's is
 # refused; the same repo, or no board in scope, passes as before.
 SKILL = os.path.realpath(PEARDE)

@@ -19,12 +19,12 @@ whose scope it changed. Nothing else points at it.
 | @index.md | the map — the `@` and `@@` syntaxes, and every scope |
 | @.gitignore | what git leaves alone |
 
-## `agents/` — dispatch
+## `references/agents/` — dispatch
 
 | file | what it is |
 |------|------------|
-| @agents/pearde-analyst.md | the analyst worker type — model and return contract |
-| @agents/pearde-implementer.md | the implementer worker type — model and return contract |
+| @references/agents/pearde-analyst.md | the analyst worker type — model and return contract |
+| @references/agents/pearde-implementer.md | the implementer worker type — model and return contract |
 
 ## `references/` — read
 
@@ -50,7 +50,7 @@ whose scope it changed. Nothing else points at it.
 |---|---|
 | @references/parts/loop.md | the seven steps, in order |
 | @references/parts/board.md | the layout the scan walks |
-| @references/parts/round.md | `prds/.round.md` — what the session holds, across a compaction |
+| @references/parts/round.md | `.pearde/.state/round.md` — what the session holds, across a compaction |
 | @references/parts/guard.md | the loop's rules as a hook that refuses the waste |
 | @references/parts/contract.md | the frontmatter keys, and their defaults |
 | @references/parts/states.md | the nine states, and what a tenth means |
@@ -107,7 +107,7 @@ whose scope it changed. Nothing else points at it.
 | @resources/index.py | read + check the map — the only reader of that format |
 | @resources/questions.py | read + check a PRD's question round — the only reader of that format |
 | @resources/graph/graph.sh | graphify rounds — extract, update, query, path, explain, god-nodes, vault open |
-| @resources/knowledge.py | the research loop — query, enqueue, remember, conclude, relink, wiki, dashboard, doctor — over `prds/knowledge/` |
+| @resources/knowledge.py | the research loop — query, enqueue, remember, conclude, relink, wiki, dashboard, doctor — over `.pearde/wiki/` |
 | @resources/board/serve.py | the live service |
 | @resources/board/plan.py | read + order the board |
 | @resources/board/render.py | the page — markup, and the arithmetic behind it |
@@ -126,7 +126,7 @@ whose scope it changed. Nothing else points at it.
 | @resources/board/example/ | the example board — eight PRDs, one per band; copied by `plan.py example`, never run in place |
 | @resources/board/obsidian/ | the vault preset — `.obsidian` root files (app, graph colors, community/core plugin lists, appearance) and the two required plugins' settings; copied by `init` to any new board, an existing install wins. The plugin bundles (`main.js`, `manifest.json`, `styles.css`) are **not** in the repo: `install.sh` fetches them at pinned versions and `.gitignore` holds them out |
 
-## `skills/` — one file per skill
+## `references/skills/` — one file per skill
 
 Frontmatter, and a body that points into `references/`. One per feature: a
 scope a person or an agent **invokes** gets a skill, a scope the loop **reads
@@ -135,20 +135,20 @@ command, and @references/install.md is the naming rule and the install.
 
 | anchor | is | scope |
 |---|---|---|
-| @skills/pearde.md | the round, and every handle that moves a PRD | `@@loop` |
-| @skills/pearde-drill.md | asking until the request is a contract | `@@drill` |
-| @skills/pearde-memo.md | recording a decision, and checking the record | `@@memos` |
-| @skills/pearde-view.md | the timeline, the order, and editing through it | `@@view` |
-| @skills/pearde-report.md | the board written for a person, one rolling state | `@@report` |
-| @skills/pearde-master.md | one plan across several repositories | `@@master` |
-| @skills/pearde-doctor.md | a broken install against an absent one | `@@doctor` |
-| @skills/pearde-persona.md | who is working, and switching for the round | `@@personas` |
-| @skills/pearde-persona-ask.md | one problem, one colleague, nothing written | `@@consult` |
-| @skills/pearde-persona-create.md | composing one for a field the roster misses | `@@personas` |
-| @skills/pearde-scout.md | ranked discovery, the route index, and the quality gates | `@@scout` |
-| @skills/pearde-workflow.md | how a kind of job is done, and improved on every run | `@@workflows` |
-| @skills/pearde-graph.md | knowledge-graph rounds over any folder, Obsidian vault out | `@@graph` |
-| @skills/pearde-knowledge.md | the research layer — query, capture, conclude, link | `@@knowledge` |
+| @references/skills/pearde.md | the round, and every handle that moves a PRD | `@@loop` |
+| @references/skills/pearde-drill.md | asking until the request is a contract | `@@drill` |
+| @references/skills/pearde-memo.md | recording a decision, and checking the record | `@@memos` |
+| @references/skills/pearde-view.md | the timeline, the order, and editing through it | `@@view` |
+| @references/skills/pearde-report.md | the board written for a person, one rolling state | `@@report` |
+| @references/skills/pearde-master.md | one plan across several repositories | `@@master` |
+| @references/skills/pearde-doctor.md | a broken install against an absent one | `@@doctor` |
+| @references/skills/pearde-persona.md | who is working, and switching for the round | `@@personas` |
+| @references/skills/pearde-persona-ask.md | one problem, one colleague, nothing written | `@@consult` |
+| @references/skills/pearde-persona-create.md | composing one for a field the roster misses | `@@personas` |
+| @references/skills/pearde-scout.md | ranked discovery, the route index, and the quality gates | `@@scout` |
+| @references/skills/pearde-workflow.md | how a kind of job is done, and improved on every run | `@@workflows` |
+| @references/skills/pearde-graph.md | knowledge-graph rounds over any folder, Obsidian vault out | `@@graph` |
+| @references/skills/pearde-knowledge.md | the research layer — query, capture, conclude, link | `@@knowledge` |
 
 ### `resources/board/knowledge/` — the layer's seed template, not yet wired to `init`
 
@@ -156,11 +156,11 @@ Not the same thing as @resources/board/obsidian/: that preset is the
 `.obsidian` app config (dataview + local-rest-api), copied by `init.py`'s
 `write_obsidian` into `<dir>/.obsidian` on every fresh board. This folder is
 the knowledge-layer's *content* seed — dashboard, workflow config, empty
-indexes — meant for a new board's `prds/knowledge/`. As of this writing
+indexes — meant for a new board's `.pearde/wiki/`. As of this writing
 `init.py` never references `resources/board/knowledge/` at all: no
 `write_knowledge` step exists, and `resources/knowledge.py`'s `Store` reads
-and writes `prds/knowledge/` directly without ever copying this preset into
-it. So today a fresh `prds/knowledge/` starts from whatever `knowledge.py`
+and writes `.pearde/wiki/` directly without ever copying this preset into
+it. So today a fresh `.pearde/wiki/` starts from whatever `knowledge.py`
 creates on first use, not from this template — these files are a seed
 nothing plants. Keep them (a future `init` step is the obvious fix, not
 deletion), but don't read the row below as describing current `init`
@@ -168,7 +168,7 @@ behavior.
 
 | anchor | is |
 |---|---|
-| @resources/board/knowledge/ | template for a new board's `prds/knowledge/` — dashboard, workflow, indexes, the empty pending/graphs/absorbed scaffolds; not currently copied by any command (see note above) |
+| @resources/board/knowledge/ | template for a new board's `.pearde/wiki/` — dashboard, workflow, indexes, the empty pending/graphs/absorbed scaffolds; not currently copied by any command (see note above) |
 | @resources/board/knowledge/Dashboard.md | the dashboard template — Dataview views, vault-relative |
 | @resources/board/knowledge/WORKFLOW.md | the configuration template — focus, rules, routing |
 | @resources/board/knowledge/_index.md | the conclusions index template |
@@ -177,7 +177,7 @@ behavior.
 | @resources/board/knowledge/sources/.absorbed/_index.md | the absorbed-sources marker |
 | @resources/board/knowledge/.graphifyignore | the extract-scope template |
 
-### `prds/knowledge/` — data, not source
+### `.pearde/wiki/` — data, not source
 
 One folder, gitignored, the layer's whole: notes, graph, wiki, and its own
 Obsidian vault. No rows — the folder is machine-local output of
@@ -190,7 +190,7 @@ Nothing outside it links in past `@@scout`. Its docs ship with it.
 
 | anchor | is |
 |---|---|
-| @resources/scout/README.md | the scout manual — what @skills/pearde-scout.md is a door to |
+| @resources/scout/README.md | the scout manual — what @references/skills/pearde-scout.md is a door to |
 | @resources/scout/scout.sh | sweep / delta / trending |
 | @resources/scout/toolscout.sh | one-off dependency ranker |
 | @resources/scout/route.sh | call one ranking page by id — reader of the route index |

@@ -6,7 +6,7 @@
     python3 workflows.py brief <slug> [board] the workflow as one page, atomics inlined
     python3 workflows.py check [board]        one problem per line; silent when clean
 
-A workflow is `prds/workflows/<slug>.md`. It is not a PRD: no state, never
+A workflow is `.pearde/workflows/<slug>.md`. It is not a PRD: no state, never
 claimed, never dispatched, invisible to the loop and to the progress line. It
 records how a job is done and gets better every time it is followed.
 @references/workflow.md is the format. This file is its only reader, so the
@@ -95,8 +95,8 @@ def find_board(arg):
 
 
 def workflows_dir(board):
-    """(path, external). `prds/workflows/` unless `workflows:` in
-    prds/settings.md points elsewhere. Unlike `memos:`, elsewhere is not a
+    """(path, external). `.pearde/workflows/` unless `workflows:` in
+    .pearde/settings.md points elsewhere. Unlike `memos:`, elsewhere is not a
     mirror of a foreign system — it is the library itself, shared by several
     boards, so it gets the whole check wherever it lives."""
     st = os.path.join(board, "settings.md")

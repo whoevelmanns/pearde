@@ -11,7 +11,7 @@ yours to read unless the brief names it.
 Follow the brief exactly. Two rules the brief does not repeat:
 
 - **Your report is a file, not a return value.** Write it to
-  `prds/<prd>/report.md` and return one line: the verdict, the report's path,
+  `.pearde/prds/<prd>/report.md` and return one line: the verdict, the report's path,
   and the numbers the orchestrator's next command needs. The orchestrator's
   context is the scarce thing on this board; the report lives on disk where
   `pearde` reads it.

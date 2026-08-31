@@ -7,7 +7,7 @@ and outlives the work it governed. @references/memo.md is the format, the
 closed frontmatter set, and the argument for putting it on the board.
 
 ```
-prds/memos/<slug>.md
+.pearde/memos/<slug>.md
 ```
 
 - No `state`. Never claimed, specced, or dispatched — invisible to scan and to

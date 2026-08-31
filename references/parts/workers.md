@@ -6,15 +6,15 @@ Hand each worker the output of `pearde brief <prd>` — one command, nothing
 composed. `@` and `@@` resolve in @index.md.
 
 **Dispatch to the named type, never to a general one.** An analyst is
-`pearde-analyst`, an implementer is `pearde-implementer` — `agents/` in this
-repo, installed alongside the skills. The type carries the model: an analyst
+`pearde-analyst`, an implementer is `pearde-implementer` — `references/agents/`
+in this repo, installed alongside the skills. The type carries the model: an analyst
 writes specs off a settled contract and runs on the cheaper one; an
 implementer writes the code and does not. A worker dispatched as
 `general-purpose` runs the orchestrator's own model on a job that never
 needed it, and the board has no way to tell afterwards.
 
 **A report is a file. What comes back is one line.** Every brief ends by
-saying so: the worker writes `prds/<prd>/report.md` and returns the verdict,
+saying so: the worker writes `.pearde/prds/<prd>/report.md` and returns the verdict,
 that path, and the numbers the next command takes — under fifteen lines. The
 orchestrator reads the file only where the line is not enough to move the
 PRD, and never to re-read what `pearde collect` already parses. A report
@@ -36,7 +36,7 @@ Rules for every worker:
   | the contract is user flow, product shape, or a user-facing name | `designer` |
   | re-checking finished work, or a `failed` post-mortem            | `skeptic`  |
   | anything else — every ordinary analyst and implementer          | `engineer` |
-- Write per `@@language`, in the board `language` from `prds/settings.md` —
+- Write per `@@language`, in the board `language` from `.pearde/settings.md` —
   named in the brief. On a master board, the language of the PRD's **own**
   board.
 - A report that is incomplete, or a worker stopped mid-task: continue THAT
@@ -56,9 +56,9 @@ Rules for every worker:
 
 <!-- brief:every -->
 > Write in `<language>`, per @references/language.md. Never edit frontmatter,
-> never touch another PRD, never write outside `prds/<prd>/` and the
+> never touch another PRD, never write outside `.pearde/prds/<prd>/` and the
 > footprint. A defect outside your scope goes in the report, not into a fix.
-> Write your report to `prds/<prd>/report.md` and return one line — the
+> Write your report to `.pearde/prds/<prd>/report.md` and return one line — the
 > verdict, that path, and the numbers the orchestrator's command takes. Under
 > fifteen lines back, whatever the report holds.
 <!-- /brief -->
@@ -73,7 +73,7 @@ is the `doctor` row `briefs`.
 | `<prd>` | the PRD's real path under `prds/` — never `@<member>/…` |
 | `<repo>` | the PRD's `repo:` when it is a directory, else the member's repo root, else the board's |
 | `<language>` | `language` in the PRD's own board's `settings.md` |
-| `<probe>` | `prds/<prd>/probe/` — where probe code lives |
+| `<probe>` | `.pearde/prds/<prd>/probe/` — where probe code lives |
 | `<board>` | the board whose library holds the slug, for `workflows.py brief` |
 | `<split_above>` | `split-above` in the PRD's own board's `settings.md`, default 40 — @references/settings.md |
 | `<specs_above>` | `specs-above` there, default 6 |
@@ -126,7 +126,7 @@ decides the state, and a `stopped` row does not.
 **Analyst** — one per `open` PRD being probed:
 
 <!-- brief:analyst -->
-> Read `prds/<prd>/prd.md`, including `## Answers`. Then **build it** — never
+> Read `.pearde/prds/<prd>/prd.md`, including `## Answers`. Then **build it** — never
 > spec from reading. Attempt the implementation in `<repo>` and keep going
 > until it works or until it hits something undefined. The attempt is the
 > analysis: whatever the build passes through needs no question, and whatever
@@ -238,7 +238,7 @@ report, so the sweep reads it as pass one and not as damage.
 **Implementer** — one per `specced` PRD dispatched:
 
 <!-- brief:implementer -->
-> Read `prds/<prd>/prd.md` and every file in `specs/`. The tree already
+> Read `.pearde/prds/<prd>/prd.md` and every file in `specs/`. The tree already
 > holds the probe's uncommitted code — continue it, it is pass one; the specs
 > were written from it. Implement the specs in `<repo>`. Run each spec's `## Verify and Proof` block and the repo's own gate. Tick a
 > box `[x]` only for a check you actually ran, quoting output — and tick it

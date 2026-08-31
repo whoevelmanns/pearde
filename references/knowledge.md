@@ -6,7 +6,7 @@ holds conclusions and the sources they stand on. One question, one home — a
 decision goes to a memo per @references/memo.md, knowledge here.
 
 ```
-prds/knowledge/          one folder, the whole layer — the wiki, the vault, the graph
+.pearde/wiki/          one folder, the whole layer — the wiki, the vault, the graph
     sources/             external findings, one file per topic; raw, arguing nothing of ours
     conclusions/         synthesized answers, each derived from named sources
     pending/             research questions queued, priority-tagged, not yet run
@@ -17,7 +17,7 @@ prds/knowledge/          one folder, the whole layer — the wiki, the vault, th
     Dashboard.md         live Dataview views over all of it
 ```
 
-The folder is the Obsidian vault: open `prds/knowledge` in Obsidian and the
+The folder is the Obsidian vault: open `.pearde/wiki` in Obsidian and the
 dashboard renders, the graph view colors sources and conclusions, nothing
 from outside needs to be open. The folder is gitignored — machine-local
 data, not source. The tool that runs the loop is @resources/knowledge.py:
@@ -40,7 +40,7 @@ follows the same contract.
   refuses: a hunch, not a conclusion.
 - **Wikilinks hold the graph together.** `[[their-slug]]` from conclusion to
   source and conclusion to conclusion; `relink` resolves them, symmetrizes
-  `related:`, and writes `prds/knowledge/.graphify/graph.json`. Links are by
+  `related:`, and writes `.pearde/wiki/.graphify/graph.json`. Links are by
   slug or title — a note id like `260831-cbe9` and its human title both
   resolve. The graph is hand-built, no LLM pass, so no backend key is needed
   and no note orphans.
@@ -59,10 +59,10 @@ follows the same contract.
 
 ## Where the tools end and the repo starts
 
-The verbs write only under `prds/knowledge/` — the folder is machine-local
+The verbs write only under `.pearde/wiki/` — the folder is machine-local
 (gitignored) and the tool's default root is the repo it sits in; pass
 `--root` to run the loop on another board's folder. Inside pearde the scope
-is `@@knowledge` and its door is @skills/pearde-knowledge.md.
+is `@@knowledge` and its door is @references/skills/pearde-knowledge.md.
 
 `WORKFLOW.md` is the configuration: `active_focus` biases `query`, `min_sources_per_conclusion`
 guards `conclude`, `auto_enqueue` decides whether a gap queues itself. The
@@ -79,7 +79,7 @@ verbs re-read it on every call.
   distilled takeaway is the note; the sweep is the citation.
 - **`@@graph` maps the repo; the note graph maps the KB.** Two graphs, two
   questions. `@resources/graph/graph.sh extract` reads the corpus and can
-  also run semantic passes; `knowledge.py relink` reads `prds/knowledge/`
+  also run semantic passes; `knowledge.py relink` reads `.pearde/wiki/`
   only, hand-built from the wikilinks, never an LLM call.
 - **The dashboard is the view a person opens.** A round queries the KB
   through the tools, never by reading `Dashboard.md`.

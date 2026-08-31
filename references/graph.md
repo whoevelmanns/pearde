@@ -64,7 +64,7 @@ edit the corpus and re-extract instead.
 
 ## Relationship to the rest
 
-- The `prds/knowledge/` KB is the research layer with its own graph of
+- The `.pearde/wiki/` KB is the research layer with its own graph of
   conclusions, hand-built by @resources/knowledge.py; graphify's graph is
   the corpus map. Different questions, kept in different vaults.
 - One commit per PRD holds @references/files.md and @index.md; `graphify-out/`

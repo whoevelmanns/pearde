@@ -7,7 +7,7 @@ complexity: 0      # analyst, at spec time — 1-100. THE WEIGHT the board sched
 blast-radius:      # analyst, at spec time — high|mid|low. What breaks if this is wrong
 repo:              # the sub-repo the code lands in; delete if n/a
 # workflow:        # OPTIONAL — how this kind of job is done: a slug in
-#                  #   prds/workflows/. @references/workflow.md.
+#                  #   .pearde/workflows/. @references/workflow.md.
 #                  #   Absent = the brief alone, as before workflows
 time:              # OPTIONAL. See @references/parts/order.md
   est:             # the weight, only when complexity is absent. Not a duration
@@ -24,7 +24,7 @@ time:              # OPTIONAL. See @references/parts/order.md
        workflow:  — the route a worker is handed, expanded into its brief
 
      One sitting is the limit: specs summing `complexity` above `split-above`
-     or counting above `specs-above` (both in prds/settings.md, default 40 and
+     or counting above `specs-above` (both in .pearde/settings.md, default 40 and
      6) make the analyst's verdict REFINE, and `pearde refine` lands the split
      under `## Children` here — the contract above it stays as written.
 

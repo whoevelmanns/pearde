@@ -45,14 +45,14 @@ A step that stops writes nothing after it. The worker's word is never taken
 for the verify: `--trust` is the orchestrator's word, said on the line.
 
 **The baseline.** "The claim predates it" is answered by what `claim`
-recorded under `prds/.claims/<prd>/` — the tracked diff, the untracked
+recorded under `.pearde/.claims/<prd>/` — the tracked diff, the untracked
 list, the gate's output — through `snapshot()` here. With no record, a
 file's mtime against the claim's timestamp decides for the whole file, and
 the gate has no baseline to be measured against, so it has to exit 0.
 
 **Board state written between transitions rides.** `answer` writes a
 `prd.md` no collect is about to commit; `owe()` lists that path in
-`prds/.claims/riders` and the next collect on the board adds it and names
+`.pearde/.claims/riders` and the next collect on the board adds it and names
 it on the line. What collect itself writes never rides — it is in the
 commit it makes.
 

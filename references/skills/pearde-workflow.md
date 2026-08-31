@@ -21,6 +21,6 @@ python3 @resources/pearde.py workflow check [board]        # what doctor reports
 format. `brief` is what a worker is handed and exits 1 on an atomic slug — an
 atomic is shown, not briefed.
 
-Workflows live at `prds/workflows/`, so a board is needed to read one. With
+Workflows live at `.pearde/workflows/`, so a board is needed to read one. With
 none in scope, say where the library would be; adding a file and attaching a
 slug to a PRD are orchestrator writes, and neither happens uninvited.

@@ -20,7 +20,7 @@ feature is made of, not a reading list.
   person: put its whole open frontier as one drill round, per `@@drill`, rather
   than reporting what is stuck. `@@board` is what the scan walks. `@@states` is what a state
   means and what may set it.
-- **Settings** — `language`, `workers`, `pipeline` live in `prds/settings.md`.
+- **Settings** — `language`, `workers`, `pipeline` live in `.pearde/settings.md`.
   Read it before working the board. Write it when the user changes one.
   Missing means first run: `pearde init` — English by default, said on its
   first line; `pearde settings language=<l>` changes it.
@@ -45,7 +45,7 @@ feature is made of, not a reading list.
   handed to that worker expanded. A run returns its edits; only the
   orchestrator writes the library, and only from a run. `@@workflows`.
 - **Deciding** — a call the code will not explain goes in
-  `prds/memos/<slug>.md`, never in a PRD. `@@memos` is the format.
+  `.pearde/memos/<slug>.md`, never in a PRD. `@@memos` is the format.
 - **Dispatching** — `@@workers` is the brief for an analyst and an
   implementer, verbatim. It also holds the single-agent mode.
 - **Not wired up?** `@@install` says what installed means. `@@doctor` tells a

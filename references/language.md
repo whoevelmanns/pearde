@@ -1,7 +1,7 @@
 # Language
 
 Governs this definition, PRDs, specs, memos, and worker reports. Written in the
-board `language` from `prds/settings.md`. Every rule holds in any language.
+board `language` from `.pearde/settings.md`. Every rule holds in any language.
 
 Reader: an agent, cold, without the conversation that produced the document.
 

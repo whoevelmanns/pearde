@@ -72,7 +72,7 @@ bash @resources/install.sh --remove <skills-dir> # take it back out
   this repo's working tree through them — so `@resources/guard.py`, where it
   is wired, refuses an `Edit` or `Write` through a link from a round whose
   board is not this repo's, naming the real path and
-  `prds/memos/the-install-is-live-symlinks.md`; @references/parts/guard.md
+  `.pearde/memos/the-install-is-live-symlinks.md`; @references/parts/guard.md
   is the row.
 - **Windows** needs Developer Mode or Administrator for a symlink. Without
   it, `ln -s` in Git Bash silently *copies*. Either turn it on
@@ -182,7 +182,7 @@ board is listed at `/`.
 - `resources/board/state/` holds the registry and the log — machine-local,
   gitignored.
 - No service at all? `python3 @resources/board/plan.py gantt --open` writes
-  the same render to `prds/.view.html` as one self-contained file.
+  the same render to `.pearde/.state/view.html` as one self-contained file.
 
 ## A master board
 
@@ -190,7 +190,7 @@ Optional, nothing to install: a board becomes the parent of several others by
 naming them.
 
 ```yaml
-# <parent-repo>/prds/settings.md
+# <parent-repo>/.pearde/settings.md
 members:
   - ../mitosys/prds
   - ../model/prds
@@ -204,8 +204,8 @@ members:
 
 ## The first run
 
-`pearde init` — one command, and a board exists: `prds/settings.md` with every
-knob named, `language: English` said on its first line, `prds/vision.md` from
+`pearde init` — one command, and a board exists: `.pearde/settings.md` with every
+knob named, `language: English` said on its first line, `.pearde/vision.md` from
 the template, the daemon watching it, `doctor` once, and the three lines to
 run next — each runs as printed, with the two lines above in the shell. It
 asks nothing; `pearde settings <key>=<value>` changes a knob, per
@@ -222,6 +222,6 @@ file is yours. Drop the alias from your shell file — it was yours to add.
 
 `prds/` is your data: untouched by installing, and it survives uninstalling.
 The view stops with `python3 @resources/board/serve.py stop`. Nothing else of
-this system lives outside this folder except `prds/.plan.json`,
-`prds/.history.jsonl` and `prds/.view.html` on each board — machine-local and
+this system lives outside this folder except `.pearde/.state/plan.json`,
+`.pearde/.state/history.jsonl` and `.pearde/.state/view.html` on each board — machine-local and
 regenerable.

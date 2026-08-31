@@ -1,7 +1,7 @@
 # The round file
 
-`prds/.round.md` — the session's own memory, fifteen lines, rewritten at every
-transition. Machine-local and git-ignored, like `prds/.plan.json`: it is what
+`.pearde/.state/round.md` — the session's own memory, fifteen lines, rewritten at every
+transition. Machine-local and git-ignored, like `.pearde/.state/plan.json`: it is what
 one session is holding, not what the board is.
 
 A context window ends without warning. When it does, everything the round

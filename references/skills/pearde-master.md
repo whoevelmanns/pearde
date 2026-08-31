@@ -12,7 +12,7 @@ named. The scopes are `@@master` and `@@settings`.
 python3 @resources/pearde.py members [board]   # every member, its path, MISSING where it is not on disk
 ```
 
-`master <path> …` appends to `members:` in the parent's `prds/settings.md`;
+`master <path> …` appends to `members:` in the parent's `.pearde/settings.md`;
 every round from then on is worked in the parent. A missing member is the
 failure that matters — the plan loses a whole project silently, and the board
 reads as smaller rather than broken — so `pearde doctor` grows a `members` row

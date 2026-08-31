@@ -356,7 +356,7 @@ if [ -n "$BOARD" ] && grep -qE '^[[:space:]]*members:' "$BOARD/settings.md" 2>/d
 fi
 
 # ── vision: where the board says it is going, and whether the names hold ─────
-# `prds/vision.md` names the PRDs whose completion is the destination, and the
+# `.pearde/vision.md` names the PRDs whose completion is the destination, and the
 # plan orders toward them. A terminal or an edge end that names no PRD is a
 # silent failure: the PRD it meant is off the axis, and the scan just says so
 # in a number. `plan.py vision --check` is the one reader.

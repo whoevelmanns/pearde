@@ -153,7 +153,7 @@ after every answer, and the drill ends when it is empty.
 - **One round for the board, never one per PRD.** Five stuck PRDs are one
   numbered round, not five conversations.
 - **A question already out is carried, not re-put** — `## Asked` in
-  `prds/.round.md` is what is out. Widen instead: ask what the stalled question
+  `.pearde/.state/round.md` is what is out. Widen instead: ask what the stalled question
   depends on. A frontier that is entirely already out is where the round stops.
 - **Answers go back where they were asked** — `## Answers` in each PRD, numbers
   matching, then `open`; a `refine` answer becomes children per step 3 of the

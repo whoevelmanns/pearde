@@ -13,17 +13,17 @@ is the same three rules where ignoring them is not possible.
 | the call | what it says |
 |---|---|
 | a board walked by hand — `find … prd.md`, `grep -r state:`, `ls prds/*/prd.md` | step 1 is `plan.py scan`, and it already answers this. A walk carried as data — inside a heredoc body or a quoted string a script or an editor is given — is not a walk and passes; the string a walker itself or `sh -c` runs is |
-| a board-reading command run twice with nothing changed since | the output is byte-for-byte what you have; cite it from `prds/.round.md` |
+| a board-reading command run twice with nothing changed since | the output is byte-for-byte what you have; cite it from `.pearde/.state/round.md` |
 | a third read of the same file, unchanged since the first | what you needed from it belongs in the round file |
 | a third read of a **reference** file — this manual, through any install link | the manual does not move while a round runs. @references/parts/loop.md and @references/parts/round.md are exempt, because a compacted round has to be able to re-read the steps |
 | an `Edit` or `Write` that changes the `state:` line of a `prd.md` — or writes a new `prd.md` carrying one | `use pearde set <prd> <state>`: the command checks the gate of @references/parts/states.md, and a new PRD is `pearde add` or `pearde refine`. A body edit passes. @resources/board/transitions.py writes through @resources/board/edit.py, never through a tool call, so it is never matched — and a worker's shell passes every gate a command has, which is why "never run a transition" stays a sentence in the brief |
-| an `Edit` or `Write` whose `file_path` resolves — through any install link, or by name — to a file under this skill's own root, from a session whose board is not this repo's | the install is links into this working tree, per `prds/memos/the-install-is-live-symlinks.md`: the refusal names the real path the link resolves to, the memo, and the two ways out — file a PRD on the skill's own board, or hand the edit to a session working it. The same repo passes, a session with no board in scope passes, and a write under this repo's `prds/` passes — that is how another board files a PRD here |
+| an `Edit` or `Write` whose `file_path` resolves — through any install link, or by name — to a file under this skill's own root, from a session whose board is not this repo's | the install is links into this working tree, per `.pearde/memos/the-install-is-live-symlinks.md`: the refusal names the real path the link resolves to, the memo, and the two ways out — file a PRD on the skill's own board, or hand the edit to a session working it. The same repo passes, a session with no board in scope passes, and a write under this repo's `prds/` passes — that is how another board files a PRD here |
 
 And two it only comments on:
 
 - The first read of a spec says the boxes are counted for you — `boxes c/t` in
   the scan. The spec is read for its contract, never to count.
-- A `prd.md` written while `prds/.round.md` is older than it says the round
+- A `prd.md` written while `.pearde/.state/round.md` is older than it says the round
   file is owed. A command is never a tool edit, so every transition command
   says the same on its own line — `round file owed`, before `as`.
 

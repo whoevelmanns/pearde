@@ -20,13 +20,13 @@ on a folded one opens it.
 
 | # | section       | answers                                                        |
 |---|---------------|------------------------------------------------------------------|
-| 1 | **what's up** | what the board is doing and what is next, in prose — `prds/report.md`'s title, lede, `## In work` and `## Planned`, each cut to two or three whole sentences. A renderer, never an author. Beside it, how old the file is, off its modification time and not the dateline inside it; past a day the line says `stale` and carries the class. No file, one line naming `pearde report` |
+| 1 | **what's up** | what the board is doing and what is next, in prose — `.pearde/report.md`'s title, lede, `## In work` and `## Planned`, each cut to two or three whole sentences. A renderer, never an author. Beside it, how old the file is, off its modification time and not the dateline inside it; past a day the line says `stale` and carries the class. No file, one line naming `pearde report` |
 | 2 | **timeline**  | what is in front of us — see below                                |
 | 3 | **board**     | what is where — kanban by state; drag a card to write `state:`    |
 | 4 | **analytics** | how this is going — where the work and weight sit, the est/actual records, the machine-wide hours-per-weight fit, weight left over time, and what a transition costs: calls per transition over the last thirty, refusals per session, both off the guard's count (@references/parts/guard.md). Calls are the proxy for tokens, named as such; no guard state at all reads `no guard`, never zero |
 | 5 | **asks**      | what is waiting on *you* — every `question` and `blocked` PRD, and beside them the answered panel. A round in `@references/drill.md`'s format renders as picks: the fork, its three prepared answers as buttons (recommended pre-selected), and an own-answer box per question. An answered question leaves the cards at once and appears in the panel, newest first |
 | 6 | **list**      | all of it — sortable, filterable, one row per PRD                 |
-| 7 | **memos**     | what the board decided — `prds/memos/`, rendered                  |
+| 7 | **memos**     | what the board decided — `.pearde/memos/`, rendered                  |
 | 8 | **report**    | the same file in full, folded — section 1 is its opening. ⌘7 |
 
 **Three of those fold.** `list`, `memos` and `report` are archives, not
@@ -46,8 +46,8 @@ the same shape on every board and the eye learns where to land. When a worker
 in flight has gone silent the door says how many.
 
 **Nothing that is git-ignored is rendered for a person.**
-A file git ignores is machine scratch: `prds/.round.md` is one session's own
-memory (@references/parts/round.md), `prds/.plan.json` and `prds/.history.jsonl`
+A file git ignores is machine scratch: `.pearde/.state/round.md` is one session's own
+memory (@references/parts/round.md), `.pearde/.state/plan.json` and `.pearde/.state/history.jsonl`
 are the board's. Each is true only at the instant it was written and each is
 written in the board's own vocabulary — states, footprints, commit shas — which
 is the one register @@report forbids in the document a person reads. The view
@@ -72,7 +72,7 @@ is behind you. Once `calibrate` has fitted the machine's hours-per-weight
 real hours — header, tiles, vision pill, axis, drawer; before the first fit
 they print as raw weight units. Parked PRDs — `failed`, `deferred`, the user's own states — sit
 at zero: visible, weighed, and scheduled by nothing. Under the numbers the
-page prints the one sentence `prds/vision.md` declares — the payload's
+page prints the one sentence `.pearde/vision.md` declares — the payload's
 `vision.purpose`, empty on a board with no vision, and then no line.
 
 - **★ critical** marks the chain that sets the finish. Weight cut there moves
@@ -255,7 +255,7 @@ person.
   atomically, frontmatter and body never in the same write.
 - A worker's report lands via `POST /report` (`{"board","prd","text"}` →
   `## Report`).
-- `GET /report` serves `prds/report.md` as `{"text": <file or null>}`, read
+- `GET /report` serves `.pearde/report.md` as `{"text": <file or null>}`, read
   from disk on each call like `/prd`. `/round` is gone: the page dropped the
   panel, and a route nothing fetches is a door to nowhere.
 
@@ -271,7 +271,7 @@ python3 @resources/board/plan.py status       # the board, its members, its memo
 python3 @resources/board/serve.py wait        # block until the board moves
 ```
 
-`gantt` writes `prds/.view.html` — the same render, self-contained, no service
+`gantt` writes `.pearde/.state/view.html` — the same render, self-contained, no service
 needed. It loses only what needs the service: the detail pane's live read and
 every edit.
 
@@ -279,18 +279,18 @@ every edit.
 the moment anything on the board moves, printing what did. Park it in the
 background at session start, and whenever a round ends with work still open.
 
-**What the board keeps.** `prds/.plan.json` is the last plan.
-`prds/.history.jsonl` is one row a day — the only memory the board has, and
-what the burn-down draws. `prds/.transitions.jsonl` is one row a transition,
+**What the board keeps.** `.pearde/.state/plan.json` is the last plan.
+`.pearde/.state/history.jsonl` is one row a day — the only memory the board has, and
+what the burn-down draws. `.pearde/.state/transitions.jsonl` is one row a transition,
 appended by the transition commands, carrying the guard's count for the window
 before it — what the cost series draw. All are machine-local, so gitignore
 them:
 
 ```
-prds/.plan.json
-prds/.history.jsonl
-prds/.transitions.jsonl
-prds/.view.html
+.pearde/.state/plan.json
+.pearde/.state/history.jsonl
+.pearde/.state/transitions.jsonl
+.pearde/.state/view.html
 ```
 
 **Extending it.** A board styles and scripts its own view. Two optional files
@@ -298,8 +298,8 @@ at the board root, inlined into the page after everything the skill ships:
 
 | file                 | is                                              |
 |----------------------|-------------------------------------------------|
-| `prds/view.user.css` | rules that win the cascade over the skill's own  |
-| `prds/view.user.js`  | a script that runs against a built page          |
+| `.pearde/view.user.css` | rules that win the cascade over the skill's own  |
+| `.pearde/view.user.js`  | a script that runs against a built page          |
 
 - They belong to the **board**, never to the skill — a skill upgrade leaves
   them untouched, and two boards extend differently.
@@ -320,7 +320,7 @@ at the board root, inlined into the page after everything the skill ships:
 | `onHold(f)` | hold live updates while `f()` returns true                |
 
 ```js
-// prds/view.user.js — pause the live swap while a dialog of your own is open
+// .pearde/view.user.js — pause the live swap while a dialog of your own is open
 pearde.onHold(() => document.body.classList.contains("my-dialog-open"));
 ```
 
@@ -343,7 +343,7 @@ element goes.
 - Registering after the page has painted works.
 
 ```js
-// prds/view.user.js — a panel of your own, fed by the board
+// .pearde/view.user.js — a panel of your own, fed by the board
 import { LitElement, html } from "lit";
 
 class BoardAge extends LitElement {
@@ -361,7 +361,7 @@ a board cannot define its own `pearde-list` over the page's. It registers an
 element of its own and takes the view instead:
 
 ```js
-// prds/view.user.js — this board draws its own list
+// .pearde/view.user.js — this board draws its own list
 import { LitElement, html } from "lit";
 class MyList extends LitElement {
   static properties = { data: {} };
@@ -381,7 +381,7 @@ pearde.replace("list", "my-list");
 - A replaced view gets the payload as `data` on every swap, like a seam.
 - An unreplaceable name is ignored, never an error.
 
-**Checking a change.** `node @resources/board/viewtest.js prds/.view.html`
+**Checking a change.** `node @resources/board/viewtest.js .pearde/.state/view.html`
 opens the rendered page in a real browser and reports what it built — Lit
 bound, every seam, every view. It needs `playwright-core` installed where you
 run it, and exits 2 saying so when it is absent.

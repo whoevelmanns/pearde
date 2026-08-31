@@ -18,8 +18,8 @@ each skill file says what it does with no board in scope.
 | report only, change nothing  | `status` — `@resources/board/plan.py scan` plus the progress line. Changes nothing, reads no file the scan already read | `pearde status` |
 | the board as one page        | `scan` — `@resources/board/plan.py scan`: counts, progress terms, collect, in flight, waiting on you, ready, gated. Loop step 1, run on its own | `pearde scan` |
 | one round, then stop         | `once`                                                                                                   | — |
-| more implementers            | `workers=5` — written to `prds/settings.md`, persists                                                    | — |
-| deeper spec pipeline         | `pipeline=5` — written to `prds/settings.md`, persists                                                   | — |
+| more implementers            | `workers=5` — written to `.pearde/settings.md`, persists                                                    | — |
+| deeper spec pipeline         | `pipeline=5` — written to `.pearde/settings.md`, persists                                                   | — |
 | new PRD                      | `add <title>` — dir + `prd.md` from `@references/templates/prd.md`, `state: open`, `origin: requested`. Runs as printed: with no `--as` and no `PEARDE_AS` it files the PRD `· as engineer (default)`, the one transition that does — a new PRD has no earlier line to rewrite | `pearde add [--dry]` |
 | park a derived PRD           | `defer <prd>` — `state: deferred`, per @references/parts/derived.md; `release <prd> open` is its inverse, the one way back from any parked state | `pearde defer [--dry]` |
 | work out what is wanted      | `drill <prd>` — interview per `@references/drill.md`. With no `<prd>`: the board's own open frontier where there is one, else a new tree | — |
@@ -27,8 +27,8 @@ each skill file says what it does with no board in scope.
 | a blocked PRD's event landed | `unblock <prd>` — re-runs only the open boxes; `done` when they close                                    | `pearde unblock [--dry]` |
 | close what is finished       | `collect` — every PRD whose acceptance boxes are all `[x]`: verify, commit, `done`. Loop step 6, run on its own | `pearde collect [--dry]` |
 | run one PRD to done          | `run <prd>` — the loop scoped to that PRD's subtree                                                      | — |
-| the state, for a person      | `report` — rewrites `prds/report.md` whole: planned, in work, undecided or failing, in plain words per `@@report` | — |
-| record a decision            | `memo <subject>` — `prds/memos/<slug>.md` from `@references/templates/memo.md`                            | `pearde memo add <subject>` |
+| the state, for a person      | `report` — rewrites `.pearde/report.md` whole: planned, in work, undecided or failing, in plain words per `@@report` | — |
+| record a decision            | `memo <subject>` — `.pearde/memos/<slug>.md` from `@references/templates/memo.md`                            | `pearde memo add <subject>` |
 | the workflow library         | `workflow` — `@resources/workflows.py list`: slug · kind · runs · updated · subject, per `@@workflows` | `pearde workflow list` |
 | one, as a worker sees it     | `workflow <slug>` — `@resources/workflows.py brief`: the `## Use when`, then every step with its atomic inlined. `show` when the slug is an atomic — an atomic is shown, not briefed, and `brief` exits 1 on one | `pearde workflow brief <slug>` |
 | a new atomic                 | `workflow add atomic <subject>` — a file from `@references/templates/atomic.md`, slugged as a memo is, at `runs: 0`. An orchestrator write, and only from a job that recurred | — |
@@ -39,10 +39,10 @@ each skill file says what it does with no board in scope.
 | one persona's read on one problem | `ask <id> <question>` — calls that persona, pointed at this session for context, and talks to it until the question is settled. It answers and writes nothing; the session keeps its own persona. The board calls one on its own judgment too, unasked | — |
 | a persona for a new field    | `persona create <topic>` — research the field and its real practitioners, compose one from the best of them, per `@@personas` | — |
 | pre-plan the dispatch order  | `plan` — `@resources/board/plan.py plan`; print the frontier and queue it returns                                       | `pearde plan` |
-| the local timeline           | `gantt` — `@resources/board/plan.py gantt --open`: the plan as `prds/.view.html`, x = distance to the vision | `pearde gantt --open` |
+| the local timeline           | `gantt` — `@resources/board/plan.py gantt --open`: the plan as `.pearde/.state/view.html`, x = distance to the vision | `pearde gantt --open` |
 | weight in real hours         | `calibrate` — `@resources/board/plan.py calibrate`: fit hours-per-weight from every done PRD with an `actual:` across every registered board; the view prints real hours from it | `pearde calibrate` |
 | open the board               | `view` — `@resources/board/serve.py ensure`, then the URL it prints                                          | `pearde view` |
-| plan across projects         | `master <path> …` — writes `members:` in `prds/settings.md`, asks the group's `name:` the first time. This board is then the parent every round works in | — |
+| plan across projects         | `master <path> …` — writes `members:` in `.pearde/settings.md`, asks the group's `name:` the first time. This board is then the parent every round works in | — |
 | what a master merges         | `master` with no path — `@resources/board/plan.py members`: every member, its path, `MISSING` when not on disk | `pearde members` |
 | re-order after anything moved| `reconcile` — `@resources/board/plan.py reconcile`: schedule recomputed, anchor kept. The live service already does it, on every board | `pearde reconcile` |
 | is this thing wired?         | `doctor` — `@resources/doctor.sh --fix`, per @@doctor; print every line | `pearde doctor --fix` |
@@ -53,7 +53,7 @@ each skill file says what it does with no board in scope.
 | validate the specs, sum the weight| `specced` | `pearde specced [--dry]` |
 | children from the analyst's split| `refine` | `pearde refine [--dry]` |
 | print a worker's brief       | `brief <prd> [--role <role>] [--as <id>] [--force]` — `@resources/board/brief.py`: header line, persona line, workflow block, the role's brief from `@references/parts/workers.md` with the placeholders filled; the role follows the state, `--role` overrides. `brief --consult <id> --question "<q>" [--transcript <path>]` is the consultant's | `pearde brief` |
-| sweep the stale claims       | `sweep [--apply]` — every claim silent past `claim-ttl` (@references/settings.md), one line each with what `--apply` does: `analyzing → open`, `claimed → failed` with `## Failure` written; never a claim `prds/.round.md` names, never an analyst whose specs are on disk. Loop step 1, once per session | `pearde sweep [--dry]` |
+| sweep the stale claims       | `sweep [--apply]` — every claim silent past `claim-ttl` (@references/settings.md), one line each with what `--apply` does: `analyzing → open`, `claimed → failed` with `## Failure` written; never a claim `.pearde/.state/round.md` names, never an analyst whose specs are on disk. Loop step 1, once per session | `pearde sweep [--dry]` |
 | a board, registered and planned| `init` | `pearde init [--dry]` |
 | the board's settings         | `settings` | `pearde settings [--dry]` |
 | the vision and its axis      | `vision` | `pearde vision` |
@@ -101,7 +101,7 @@ exit 2 — and `pearde <cmd> --help` prints that same list.
 `run <prd>` filters the board to that PRD and its children:
 
 - Scan still parses everything, for the sweep and the progress line, but only
-  PRDs inside `prds/<prd>/` change state.
+  PRDs inside `.pearde/prds/<prd>/` change state.
 - The user named it, so a `failed` target or child is reopened first, as
   `retry` would.
 - A `done` target is reported and left alone. No match: list the near-misses,
@@ -112,4 +112,4 @@ exit 2 — and `pearde <cmd> --help` prints that same list.
 One writer per file, sequenced between sessions. On start, fresh `analyzing`
 / `claimed` claims you did not make may be another session's live workers:
 say so and run `status` only. `sweep` lists them and `--apply` leaves any
-claim `prds/.round.md` names.
+claim `.pearde/.state/round.md` names.

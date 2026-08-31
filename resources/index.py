@@ -24,7 +24,7 @@ catches all five ways it drifts, and `doctor` runs it:
 
 A row whose anchor ends in `/` names a directory and covers every path beneath
 it — one row for a place the tools keep writing to, where the count of files
-is data rather than structure (`prds/memos/a-manifest-row-can-name-a-directory.md`).
+is data rather than structure (`.pearde/memos/a-manifest-row-can-name-a-directory.md`).
 A directory row naming no directory on disk is still reported: the row is a
 claim about the tree, and an empty claim is the same defect the other way.
 """

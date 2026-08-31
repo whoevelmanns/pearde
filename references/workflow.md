@@ -6,7 +6,7 @@ board keeps state and memos keep decisions; without this folder every worker
 re-derives the *how*, and what the last one learned dies with its context.
 
 ```
-prds/workflows/<slug>.md
+.pearde/workflows/<slug>.md
 ```
 
 | kind         | file says      | is                                                                    |
@@ -21,7 +21,7 @@ equals the slug.
 - `workflows/` holds no `prd.md`, so scan walks past it as it walks past
   `memos/`, and the progress line never counts it.
 - One flat directory, no nesting. A file is found by its slug.
-- `workflows:` in `prds/settings.md` points elsewhere, default `workflows/` —
+- `workflows:` in `.pearde/settings.md` points elsewhere, default `workflows/` —
   several boards share one library.
 
 A PRD or a spec routes itself by carrying `workflow: <slug>` in its own
@@ -172,7 +172,7 @@ atomic is a worker sent nowhere.
 
 ## Why the board, and the shapes rejected
 
-`prds/workflows/` is one directory deeper on a path the session already walks
+`.pearde/workflows/` is one directory deeper on a path the session already walks
 — the argument @references/memo.md makes for `memos/`. A `workflow:` on a PRD
 then names a sibling the check can verify.
 

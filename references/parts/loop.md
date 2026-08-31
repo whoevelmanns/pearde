@@ -13,7 +13,7 @@ and it is the only thing the round thinks about. Three rules keep it there:
   scan` is step 1 — the whole board on one page, box counts included. Walking
   the tree by hand or opening a `prd.md` for its state is the same information
   at a hundred times the tokens.
-- **Write down what the tool cannot know.** `prds/.round.md`, rewritten at
+- **Write down what the tool cannot know.** `.pearde/.state/round.md`, rewritten at
   every transition — @references/parts/round.md. Context does not survive a
   compaction; that file does. Every command's line ends `round file owed`
   until it is rewritten.
@@ -26,7 +26,7 @@ and it is the only thing the round thinks about. Three rules keep it there:
   board is on disk and the round file is what this session carries, so there
   is nothing in a large window worth paying for twice. The guard notes the
   crossing at 70% and refuses everything but the round file, the steps and
-  the board's own commands at the ceiling: write `prds/.round.md` whole, say
+  the board's own commands at the ceiling: write `.pearde/.state/round.md` whole, say
   the round is at its budget, and let the next session resume from it.
 
 Where @references/parts/guard.md is wired, none of this is advice: a
@@ -36,26 +36,26 @@ and the refusal names the command that answers instead.
 
 | step | command | the orchestrator decides |
 |---|---|---|
-| 1 scan | `pearde scan` · `pearde sweep` once per session · read `prds/.round.md` · `pearde init` when there is no board | nothing — read |
+| 1 scan | `pearde scan` · `pearde sweep` once per session · read `.pearde/.state/round.md` · `pearde init` when there is no board | nothing — read |
 | 2 answer | `pearde answer <prd> Q<n> "<text>"` per answer | what to put to the user, per @references/drill.md, and what they said |
 | 3 refine | `pearde refine <prd> < report` | whether the analyst's `## Split` table is usable; a drill when it is not |
 | 4 spec ahead | `pearde claim <prd> <worker>` · `pearde brief <prd>` → dispatch as `pearde-analyst` | which persona the job wears |
 | 5 implement | the same two commands, dispatched as `pearde-implementer` | which persona the job wears |
 | 6 collect | read the returned line · apply or refuse `## Workflow` edits · `pearde collect <prd>` | whether to believe the report; whether an edit was the atomic's |
-| 7 drill, then stop | one drill round over the frontier · rewrite `prds/report.md` and `prds/.round.md` · `pearde view wait` | the forks and their three answers |
+| 7 drill, then stop | one drill round over the frontier · rewrite `.pearde/report.md` and `.pearde/.state/round.md` · `pearde view wait` | the forks and their three answers |
 
 **1 · Scan.** The sections come out in the pressure order of
 @references/parts/order.md — collect, waiting on you, in flight, ready, gated
 — and the cut is after `waiting on you`: above it is this round's, below it is
 already somebody's. Open a file only for what the scan does not print, and
-only when about to act on it. `prds/.round.md` missing means no round yet. No `prds/settings.md` means first run: `pearde init` —
+only when about to act on it. `.pearde/.state/round.md` missing means no round yet. No `.pearde/settings.md` means first run: `pearde init` —
 English by default, said on its first line. `master of <n>` with no `name:`:
 ask the user and write it. The persona is session state, `engineer` until
 switched — @references/parts/personas.md.
 
 `pearde sweep` lists every claim silent past `claim-ttl`
 (@references/settings.md) and what `--apply` would do; a claim
-`prds/.round.md` names is a session's live work and stays. Before `--apply`,
+`.pearde/.state/round.md` names is a session's live work and stays. Before `--apply`,
 read the swept worker's output off the scan: a PRD in **collect** is an
 implementer that finished — step 6; `analyzing` with specs on disk is an
 analyst that finished — `pearde specced`.
@@ -92,7 +92,7 @@ never reaches a member's PRDs. Run `check` on the board the PRD lives on.
 **6 · Collect.** Results are pushed, never polled: a finished analyst refills
 the pipeline, a finished implementer frees a slot. What a worker returns is
 one line naming its verdict and its report file — @references/parts/workers.md.
-Act on the line. Open `prds/<prd>/report.md` only for what the line does not
+Act on the line. Open `.pearde/prds/<prd>/report.md` only for what the line does not
 carry and the transition needs, and never for what a command already parses:
 a report read whole is in the window for the rest of the session. The
 report's verdict maps to a command in @references/parts/workers.md — SPECCED → `pearde specced`,
@@ -127,6 +127,6 @@ a question `## Asked` already lists. Answers land as step 2 lands them, and the
 round returns to step 1. Stop when the whole frontier is already out: report
 per-state counts, every `question` / `refine` / `failed` PRD with what it
 needs, the requested PRDs not `done` with their `complexity`, every `deferred`
-derived PRD by name; rewrite `prds/report.md` per `@@report` and
-`prds/.round.md`; then park `pearde view wait` so an answer written in the
+derived PRD by name; rewrite `.pearde/report.md` per `@@report` and
+`.pearde/.state/round.md`; then park `pearde view wait` so an answer written in the
 view wakes the round that acts on it.

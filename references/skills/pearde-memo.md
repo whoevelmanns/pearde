@@ -19,5 +19,5 @@ Write one at the moment the call is made, not when the work lands: a memo
 exists because a future reader will ask "why is it like this" and the code
 will not answer.
 
-Memos live at `prds/memos/`, so a board is needed to file one. With none in
+Memos live at `.pearde/memos/`, so a board is needed to file one. With none in
 scope, write the memo and say where it should go.

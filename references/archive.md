@@ -8,12 +8,12 @@ work it describes stops being current, using the same trick the board
 already uses to hide `memos/` and `workflows/` from itself.
 
 ```
-prds/archive/
+.pearde/prds/archive/
     <name>.md             a former top-level PRD, flattened
     <parent>--<child>.md  a former child PRD, flattened, parent-prefixed
 ```
 
-- One flat directory, no nesting — the same shape as `prds/memos/`
+- One flat directory, no nesting — the same shape as `.pearde/memos/`
   (@references/memo.md).
 - A file here is `prd.md`'s frontmatter, title and body, unchanged, just
   renamed and moved. Nothing new is required in it — no `archived_at:`, no
@@ -22,16 +22,16 @@ prds/archive/
 ## Why scan already ignores it
 
 `_scan_one` (@resources/board/plan.py) finds a PRD by one test: `"prd.md" in
-files`. `prds/memos/` and `prds/workflows/` are already invisible to `scan`
+files`. `.pearde/memos/` and `.pearde/workflows/` are already invisible to `scan`
 for the same reason `references/parts/board.md` gives — they hold no file
-literally named `prd.md`. `prds/archive/` needs no line added to `scan`'s
+literally named `prd.md`. `.pearde/prds/archive/` needs no line added to `scan`'s
 `dirs[:] = [d for d in dirs if d not in ("specs",)]` prune, because it is
 never a directory *of* PRDs, only a directory *of* their remains: every file
 in it is `<name>.md`, never `prd.md`. That is also why the shape has to be a
-flat file and not a moved *directory* — `prds/archive/<name>/prd.md` still
+flat file and not a moved *directory* — `.pearde/prds/archive/<name>/prd.md` still
 matches the same test, and the walk (and the count) go right on including it.
 
-The consequence: nothing under `prds/archive/` is counted in the progress
+The consequence: nothing under `.pearde/prds/archive/` is counted in the progress
 line, offered to `claim`, or walked by `doctor`'s PRD census. Moving 20 done
 PRDs there is 20 fewer directories `scan` opens on every round.
 
@@ -50,7 +50,7 @@ finished — `release <prd> open` exists precisely to bring one back
 (`a-parked-prd-comes-back`), and archiving one would move the very file that
 path reads.
 
-Check first: `grep -rl '<name>' prds/*/prd.md prds/*/*/prd.md` for a
+Check first: `grep -rl '<name>' .pearde/prds/*/prd.md .pearde/prds/*/*/prd.md` for a
 `needs:` or `footprint:` still naming it. This should rarely fire —
 `dispatchable` already requires every `needs:` to be `done`
 (@references/parts/states.md) — but a stale mention would go dangling
@@ -61,25 +61,25 @@ silently otherwise.
 A leaf, done PRD:
 
 ```
-git mv prds/<name>/prd.md prds/archive/<name>.md
-git rm -r prds/<name>
+git mv .pearde/prds/<name>/prd.md .pearde/prds/archive/<name>.md
+git rm -r .pearde/prds/<name>
 ```
 
 `specs/` goes with it. A done PRD's specs are already history `scan` never
 reads back (`resources/board/plan.py`, "boxes for live PRDs only"); the whole
-tree survives forever at `git log --follow -- prds/<name>` up to the `git
+tree survives forever at `git log --follow -- .pearde/prds/<name>` up to the `git
 rm` — the same tool `plan.py` already reaches for when a done PRD's history
 (its `done_at`) is wanted but not worth a stat-cheap read on every rebuild.
 
 A container whose children are all `done` (already `collect`ed): archive
-bottom-up so `prds/archive/` never collides on a bare child name:
+bottom-up so `.pearde/prds/archive/` never collides on a bare child name:
 
 ```
-git mv prds/<parent>/<child>/prd.md prds/archive/<parent>--<child>.md
-git rm -r prds/<parent>/<child>
+git mv .pearde/prds/<parent>/<child>/prd.md .pearde/prds/archive/<parent>--<child>.md
+git rm -r .pearde/prds/<parent>/<child>
 # … repeat per child, then the parent itself:
-git mv prds/<parent>/prd.md prds/archive/<parent>.md
-git rm -r prds/<parent>
+git mv .pearde/prds/<parent>/prd.md .pearde/prds/archive/<parent>.md
+git rm -r .pearde/prds/<parent>
 ```
 
 ## When
@@ -93,7 +93,7 @@ prose-driven.
 
 ## Finding one again
 
-`grep -l <name> prds/archive/*.md`, or `git log --follow -- prds/<name>` for
+`grep -l <name> .pearde/prds/archive/*.md`, or `git log --follow -- .pearde/prds/<name>` for
 everything before the move.
 
 ## Rejected

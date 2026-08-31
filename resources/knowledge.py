@@ -570,7 +570,7 @@ def cmd_board(store, args):
     """board/ — one generated note per PRD, the board as a linkable graph.
 
     Reads the board beside the KB (the parent of the KB folder): every
-    prds/<name>/prd.md's frontmatter (state, origin, priority, complexity,
+    .pearde/prds/<name>/prd.md's frontmatter (state, origin, priority, complexity,
     blast-radius, needs, from, workflow, footprint), the memos, the
     workflows. Writes <KB>/board/<slug>.md per PRD — frontmatter carries the
     state fields as Dataview fields, the body carries the wikilinks: needs,

@@ -13,7 +13,7 @@ python3 @resources/pearde.py view           # start it, register this board, pri
 python3 @resources/pearde.py view status    # what it is watching
 python3 @resources/pearde.py view stop      # end it
 python3 @resources/pearde.py plan           # the frontier and the queue, no service
-python3 @resources/pearde.py gantt --open   # prds/.view.html, self-contained
+python3 @resources/pearde.py gantt --open   # .pearde/.state/view.html, self-contained
 python3 @resources/pearde.py reconcile      # recompute after anything moved
 ```
 

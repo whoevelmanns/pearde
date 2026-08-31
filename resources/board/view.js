@@ -3402,7 +3402,7 @@ function drawNow() {
 }
 
 /* ── what's up: the board in a person's words, and how old they are ───────
-   `prds/report.md` over `GET /report` — the file `pearde report` rewrites
+   `.pearde/report.md` over `GET /report` — the file `pearde report` rewrites
    whole, already in the register @@report asks for.
 
    This section is a RENDERER, not an author. Sentences generated from the
@@ -3478,7 +3478,7 @@ class PeardeWhatsup extends LitElement {
         open this board through the service to see them</div>`;
     if (!this.text)
       return html`<div class="blank">no report yet — <code>pearde report</code>
-        writes <code>prds/report.md</code>, the board in plain words</div>`;
+        writes <code>.pearde/report.md</code>, the board in plain words</div>`;
     const p = reportParts(this.text);
     const age = REPORT_MTIME == null ? null
       : Math.max(0, Date.now() / 1000 - REPORT_MTIME);
@@ -3486,7 +3486,7 @@ class PeardeWhatsup extends LitElement {
     return html`
       <div class="hd"><h2>${p.title || "what's up"}</h2>
       ${age === null ? "" : html`<span class="age${stale ? " stale" : ""}"
-        title="how long since prds/report.md was last written — the file's own
+        title="how long since .pearde/report.md was last written — the file's own
                modification time, not the dateline inside it"
         >written ${ago(age)}${stale ? " · stale" : ""}</span>`}</div>
       ${p.lede ? html`<p class="lede">${inline(firstSentences(p.lede, 2))}</p>`
@@ -3529,7 +3529,7 @@ const inline = s => {
 };
 
 /* ── the report view: the board for a person ──────────────────────────────
-   `prds/report.md` as the seventh view — prose, so it gets the few marks
+   `.pearde/report.md` as the seventh view — prose, so it gets the few marks
    prose needs and nothing a PRD body gets. Read on every draw; the file is
    rewritten whole by `pearde report`, and a swap redraws the open view. */
 function md(text) {
@@ -3559,7 +3559,7 @@ class PeardeReport extends LitElement {
         through the service to see it</div>`;
     if (!this.text)
       return html`<div class="blank">no report yet — <code>pearde report</code>
-        writes <code>prds/report.md</code>, the board in plain words</div>`;
+        writes <code>.pearde/report.md</code>, the board in plain words</div>`;
     return html`<article class="prose">${md(this.text)}</article>`;
   }
 }

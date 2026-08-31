@@ -82,7 +82,7 @@ never reads `off` — the map is either right or wrong.
   total on record was a person remembering to type it. **Opt-in, because it
   is slow**: this is the one row measured in tens of seconds where the rest
   answer in one, and a gate nobody can afford to run is the defect it fixes,
-  repeated. `harnesses: on` in `prds/settings.md`, default off, or
+  repeated. `harnesses: on` in `.pearde/settings.md`, default off, or
   `--harnesses` for a single run whatever the key says.
 - **The expected count is the harness's own — no ledger.** A recorded total
   is a second copy of a number the file already carries, and this board has

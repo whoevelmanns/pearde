@@ -6,7 +6,7 @@ A **master board** merges other boards to plan across projects: one scan, one
 plan, one timeline, one progress line over several repos.
 
 ```yaml
-# prds/settings.md, at the master
+# .pearde/settings.md, at the master
 ---
 name: master
 language: English
@@ -32,7 +32,7 @@ members:
 cannot collide with the master's own PRDs. Every handle takes it: `run
 @model/nucleus`, `needs: @model/nucleus`.
 
-**The vision.** `prds/vision.md` at the master writes `terminals:` and
+**The vision.** `.pearde/vision.md` at the master writes `terminals:` and
 `edges:` the way `needs:` is written — a member PRD is `@<member>/<rel>` —
 plus the one form `needs:` lacks: `@<name>/<rel>`, with the `name:` from the
 master's `settings.md`, is the master's own PRD, so its own terminals stand
