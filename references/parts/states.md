@@ -10,7 +10,7 @@ The nine states, what sets each, and what a tenth one means.
 | `question`  | blocked on the user                       | orchestrator (analyst verdict) | answers written → `open`                       | `release <prd> question` — gate: a `## Questions` round `questions.py check` accepts |
 | `specced`   | specs exist, ready to implement           | orchestrator                   | implementer dispatched → `claimed`             | `specced <prd> --blast <x>` — gate: every `specs/*.md` accepted, weight summed · `unblock <prd>` — gate: `needs:` all `done` |
 | `claimed`   | implementer working it                    | orchestrator                   | returns → `done` \| `failed`                   | `claim <prd> <worker>` · `sweep --apply` → `failed` when silent past `claim-ttl` |
-| `blocked`   | work done, boxes waiting on a named event | orchestrator                   | the event lands → `claimed` \| `done`          | `release <prd> blocked` — gate: `needs:` |
+| `blocked`   | work done, boxes waiting on a named event | orchestrator                   | the event lands → `specced`                     | `release <prd> blocked` — gate: `needs:` |
 | `done`      | specs implemented and verified            | orchestrator                   | terminal                                       | `collect <prd>` — gate: every box closed in both files, every `## Verify and Proof` block and the board's `gate:` green |
 | `failed`    | attempt failed, needs revisit             | orchestrator                   | `retry <prd>` → `open`                         | `release <prd> failed` — gate: `## Failure` |
 

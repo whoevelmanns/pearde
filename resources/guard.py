@@ -36,7 +36,18 @@ PEARDE = os.path.dirname(ROOT)          # the repo this guard ships in
 # harness feeding hook JSON to a temp project must never write here.
 STATE = os.environ.get("PEARDE_GUARD_STATE") or os.path.join(
     ROOT, "board", "state", "guard")
-ROUND_FILE = ".round.md"
+ROUND_FILE = os.path.join(".state", "round.md")
+
+# The context budget. A round costs its context on every turn: 1,000 turns at
+# 500k is half a billion cache-read tokens for a session whose unique content
+# was 500k once. The orchestrator is meant to be slim — the board is on disk
+# and `prds/.round.md` is what it carries — so the budget is a ceiling, not a
+# window. `context-budget` in prds/settings.md moves it; `off` removes it.
+BUDGET_DEFAULT = 100_000
+BUDGET_WARN = 0.70          # note once at 70%, once at 85%
+BUDGET_KEY = re.compile(r"^context-budget:[ \t]*(\S+)", re.M)
+# What stays allowed at the ceiling — everything the restart itself needs.
+ESCAPE = re.compile(r"\.round\.md$|/(loop|round)\.md$")
 
 # The manual does not change mid-round, so a repeat read of one of its files
 # returns the bytes already in the window. These two are the exception:
@@ -416,6 +427,99 @@ def touches_board(cmd, board):
             or os.path.basename(os.path.dirname(board)) + "/prds" in cmd)
 
 
+def budget_of(board):
+    """`context-budget` off prds/settings.md, in tokens. `off`/`0` disables
+    it. A bare number is tokens; `120k` is 120,000."""
+    try:
+        text = open(os.path.join(board, "settings.md"), encoding="utf-8",
+                    errors="replace").read()
+    except OSError:
+        return BUDGET_DEFAULT
+    m = BUDGET_KEY.search(text)
+    if not m:
+        return BUDGET_DEFAULT
+    v = m.group(1).strip().lower()
+    if v in ("off", "none", "0"):
+        return 0
+    try:
+        return int(float(v[:-1]) * 1000) if v.endswith("k") else int(float(v))
+    except ValueError:
+        return BUDGET_DEFAULT
+
+
+def context_now(data):
+    """The window this turn was billed for, off the transcript's last
+    assistant usage. 0 when there is no transcript to read — the guard never
+    guesses a number it would then refuse on."""
+    path = data.get("transcript_path") or ""
+    if not path or not os.path.isfile(path):
+        return 0
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            size = fh.tell()
+            fh.seek(max(0, size - 262144))
+            tail = fh.read().decode("utf-8", "replace").splitlines()
+    except OSError:
+        return 0
+    for line in reversed(tail):
+        line = line.strip()
+        if not line.startswith("{") or '"usage"' not in line:
+            continue
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if d.get("type") != "assistant":
+            continue
+        u = ((d.get("message") or {}).get("usage")) or {}
+        n = (u.get("input_tokens", 0) + u.get("cache_read_input_tokens", 0)
+             + u.get("cache_creation_input_tokens", 0))
+        if n:
+            return n
+    return 0
+
+
+def budget(data, st, session, board, tool, inp):
+    """Refuse the round that outgrew its own ceiling. Everything the restart
+    needs stays open: the scan, the round file, and the two files that say
+    what a restart is."""
+    cap = budget_of(board)
+    if not cap:
+        return
+    ctx = context_now(data)
+    if not ctx:
+        return
+    if ctx < cap:
+        band = 0.85 if ctx >= cap * 0.85 else (
+            BUDGET_WARN if ctx >= cap * BUDGET_WARN else 0)
+        if band and st.get("budget_band", 0) < band:
+            st["budget_band"] = band
+            save(session, st)
+            note(f"Context {ctx // 1000}k of the {cap // 1000}k budget. Every "
+                 "turn from here re-reads all of it. Write prds/.round.md now "
+                 "— what is established, decided, asked and owed — so the "
+                 "restart at the ceiling costs one scan and not a re-derivation.")
+        return
+    path = str(inp.get("file_path") or "")
+    if tool in ("Edit", "Write", "Read") and ESCAPE.search(path):
+        return
+    if tool == "Bash" and TOOLS.search(str(inp.get("command") or "")):
+        return
+    if tool in ("TodoWrite", "AskUserQuestion"):
+        return
+    deny(f"Context is {ctx // 1000}k, over the {cap // 1000}k budget — this "
+         "round has stopped being cheap to continue.\nEvery turn now bills "
+         f"{ctx // 1000}k of cache read for work the board already holds on "
+         "disk.\n\nEnd the round: write prds/.round.md whole — established, "
+         "decided, asked, edits, owed — and say to the user that the round is "
+         "at its budget and the next one resumes from that file. A fresh "
+         f"session reads it, runs `{SCAN}`, and is where this one is for "
+         "one percent of the window.\n\nStill allowed: the round file, "
+         "references/parts/loop.md, references/parts/round.md, and the "
+         "board's own commands.")
+
+
 def pre(data):
     tool = data.get("tool_name") or ""
     inp = data.get("tool_input") or {}
@@ -430,6 +534,7 @@ def pre(data):
         ok()
     st = load(session)
     count(session, st, board, tool, data)
+    budget(data, st, session, board, tool, inp)
     if tool in ("Edit", "Write"):
         another_boards_write(inp, data.get("cwd"))
         state_by_hand(tool, inp)

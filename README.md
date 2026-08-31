@@ -137,9 +137,12 @@ other boards as members and plans across them; `doctor` says of every part
 whether it is `ok`, `off` or `broken`, with the command that fixes it; the
 `guard` is a hook that refuses a hand-written `state:` and a board walked by
 hand; the status line puts the progress terms in your terminal; `scout` finds
-what is worth studying; `install` is the first line above, explained. Open
-`@@master`, `@@doctor`, `@@guard`, `@@statusline`, `@@scout` or `@@install`
-when one of them is in your way.
+what is worth studying; `graph` maps a folder into a queryable knowledge graph
+with an Obsidian vault out; `knowledge` keeps what was learned from outside —
+sources and conclusions with provenance, queried before anything new is
+researched; `install` is the first line above, explained. Open `@@master`,
+`@@doctor`, `@@guard`, `@@statusline`, `@@scout`, `@@graph`, `@@knowledge` or
+`@@install` when one of them is in your way.
 
 ## Glossary
 

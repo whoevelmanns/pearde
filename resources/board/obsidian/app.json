@@ -1,0 +1,19 @@
+{
+  "alwaysUpdateLinks": true,
+  "newLinkFormat": "shortest",
+  "useMarkdownLinks": false,
+  "attachmentFolderPath": "attachments",
+  "showLineNumber": true,
+  "promptDelete": false,
+  "userIgnoreFilters": [
+    ".claude/",
+    "graphify-out/",
+    "prds/.plan.json",
+    "prds/knowledge/.graphify/",
+    "prds/knowledge/Dashboard.report.md",
+    "prds/knowledge/graphs/",
+    "prds/knowledge/pending/",
+    "prds/knowledge/sources/.absorbed/",
+    "resources/board/state/"
+  ]
+}

@@ -17,8 +17,14 @@ whose scope it changed. Nothing else points at it.
 | @SKILL.md | the installer — invocable before the skills are, retired once they exist |
 | @README.md | the manual — board, states, loop, briefs, view |
 | @index.md | the map — the `@` and `@@` syntaxes, and every scope |
-| @TODO.md | the open loop |
 | @.gitignore | what git leaves alone |
+
+## `agents/` — dispatch
+
+| file | what it is |
+|------|------------|
+| @agents/pearde-analyst.md | the analyst worker type — model and return contract |
+| @agents/pearde-implementer.md | the implementer worker type — model and return contract |
 
 ## `references/` — read
 
@@ -33,7 +39,10 @@ whose scope it changed. Nothing else points at it.
 | @references/report.md | the board written for a person |
 | @references/drill.md | how to ask |
 | @references/graph.md | the knowledge-graph feature — graphify rounds, the ollama backend, the Obsidian vault |
+| @references/knowledge.md | the research layer — sources, conclusions, the ask→capture→conclude loop, the tool behind it |
 | @references/system.md | drop-in instructions block for `AGENTS.md` |
+| @references/plugins.md | the curated plugin list — what to install alongside pearde, what not to, and why |
+| @references/obsidian.md | the vault and its native access — REST + MCP from the same port, the two required plugins, how a round uses them |
 
 ### `references/parts/` — the workflow, one part per step
 
@@ -98,6 +107,7 @@ whose scope it changed. Nothing else points at it.
 | @resources/index.py | read + check the map — the only reader of that format |
 | @resources/questions.py | read + check a PRD's question round — the only reader of that format |
 | @resources/graph/graph.sh | graphify rounds — extract, update, query, path, explain, god-nodes, vault open |
+| @resources/knowledge.py | the research loop — query, enqueue, remember, conclude, relink, wiki, dashboard, doctor — over `prds/knowledge/` |
 | @resources/board/serve.py | the live service |
 | @resources/board/plan.py | read + order the board |
 | @resources/board/render.py | the page — markup, and the arithmetic behind it |
@@ -105,15 +115,16 @@ whose scope it changed. Nothing else points at it.
 | @resources/board/view.js | the page's script, inlined at render |
 | @resources/board/viewtest.js | the view's gate — a rendered page in a real browser |
 | @resources/board/hotreload-test.js | the view's hot-reload gate — one live page, a view source moved under it (`node hotreload-test.js <served-board-url>`) |
-| @resources/board/adapters/claude.json | the Start button's default launch target — one JSON per adapter (`{"name","command","prompt"}`), read live by serve.py |
+| @resources/board/adapters/claude.json | the Start button's default launch target — one JSON per adapter (`{"name","command","prompt"}`, optional `"plugins"` list of suggestions), read live by serve.py; doctor reports missing ones |
 | @resources/board/lit-core.min.js | Lit 3, vendored — the page's component base |
 | @resources/board/edit.py | the writers — one line at a time |
 | @resources/board/collect.py | `collect` — verify, commit the footprint, `done`, one call |
 | @resources/board/brief.py | `brief` — a worker's or a consultant's brief, one command's output; the text is the marker blocks of workers.md, this fills them and holds no copy |
 | @resources/board/transitions.py | the eight transition commands — the one writer of `state:` |
 | @resources/board/specs.py | `specced` and `refine` — the two transitions a spec set decides |
-| @resources/board/init.py | `init` and `settings` — a board after one command, no question; one key of settings.md |
+| @resources/board/init.py | `init` and `settings` — a board after one command, no question; one key of settings.md; seeds the Obsidian vault (`.obsidian/` — dataview + local-rest-api vendored, fresh REST key minted at `prds/knowledge/.obsidian-api-key`) |
 | @resources/board/example/ | the example board — eight PRDs, one per band; copied by `plan.py example`, never run in place |
+| @resources/board/obsidian/ | the vault preset, vendored — `.obsidian` root files (app, graph colors, community/core plugin lists, appearance) plus the two required plugins (`dataview`, `local-rest-api`); copied by `init` to any new board, an existing install wins |
 
 ## `skills/` — one file per skill
 
@@ -137,6 +148,41 @@ command, and @references/install.md is the naming rule and the install.
 | @skills/pearde-scout.md | ranked discovery, the route index, and the quality gates | `@@scout` |
 | @skills/pearde-workflow.md | how a kind of job is done, and improved on every run | `@@workflows` |
 | @skills/pearde-graph.md | knowledge-graph rounds over any folder, Obsidian vault out | `@@graph` |
+| @skills/pearde-knowledge.md | the research layer — query, capture, conclude, link | `@@knowledge` |
+
+### `resources/board/knowledge/` — the layer's seed template, not yet wired to `init`
+
+Not the same thing as @resources/board/obsidian/: that preset is the
+`.obsidian` app config (dataview + local-rest-api), copied by `init.py`'s
+`write_obsidian` into `<dir>/.obsidian` on every fresh board. This folder is
+the knowledge-layer's *content* seed — dashboard, workflow config, empty
+indexes — meant for a new board's `prds/knowledge/`. As of this writing
+`init.py` never references `resources/board/knowledge/` at all: no
+`write_knowledge` step exists, and `resources/knowledge.py`'s `Store` reads
+and writes `prds/knowledge/` directly without ever copying this preset into
+it. So today a fresh `prds/knowledge/` starts from whatever `knowledge.py`
+creates on first use, not from this template — these files are a seed
+nothing plants. Keep them (a future `init` step is the obvious fix, not
+deletion), but don't read the row below as describing current `init`
+behavior.
+
+| anchor | is |
+|---|---|
+| @resources/board/knowledge/ | template for a new board's `prds/knowledge/` — dashboard, workflow, indexes, the empty pending/graphs/absorbed scaffolds; not currently copied by any command (see note above) |
+| @resources/board/knowledge/Dashboard.md | the dashboard template — Dataview views, vault-relative |
+| @resources/board/knowledge/WORKFLOW.md | the configuration template — focus, rules, routing |
+| @resources/board/knowledge/_index.md | the conclusions index template |
+| @resources/board/knowledge/conclusions/_index.md | the conclusions index, under conclusions/ |
+| @resources/board/knowledge/sources/_index.md | the sources index template |
+| @resources/board/knowledge/sources/.absorbed/_index.md | the absorbed-sources marker |
+| @resources/board/knowledge/.graphifyignore | the extract-scope template |
+
+### `prds/knowledge/` — data, not source
+
+One folder, gitignored, the layer's whole: notes, graph, wiki, and its own
+Obsidian vault. No rows — the folder is machine-local output of
+@resources/knowledge.py, the row above is its intended contract (see the
+note there — not yet how a fresh board actually gets it).
 
 ### `resources/scout/` — a self-contained tool
 

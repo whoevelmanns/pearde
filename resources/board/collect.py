@@ -74,7 +74,10 @@ import plan as planlib  # noqa: E402 — beside this script
 import edit as editlib  # noqa: E402 — beside this script
 import transitions as translib  # noqa: E402 — the one printer of the line
 
-HISTORY_FILE = translib.TRANSITIONS_FILE   # the transition log, never the daemon's burn-down
+# collect writes done/failed transitions straight to the same log
+# transitions.py record() appends to — never to .history.jsonl, the
+# daemon's one-row-a-day burn-down.
+TRANSITION_FILE = translib.TRANSITIONS_FILE
 CLAIMS_DIR = ".claims"
 RIDERS_FILE = "riders"
 # The declaration — transitions.py `Args` is the parser, shared with every
@@ -689,14 +692,17 @@ def dry_line(board, prds, rel, prd, persona, paths, out=print):
     line = translib.dry_line(board, prds, rel, frm, "done", persona)
     head, _, tail = line.rpartition(" · as ")
     translib.say_dry(board, f"{head} · round file owed · as {tail}",
-                     paths + [os.path.join(prd["board_path"], HISTORY_FILE)],
+                     paths + [os.path.join(prd["board_path"], TRANSITION_FILE)],
                      out)
 
 
-def history_row(board, rel, frm, to, now):
+def transition_row(board, rel, frm, to, now):
+    """A `{t,prd,from,to}` row appended to `.transitions.jsonl` — the same
+    shape and file transitions.py record() writes for every CLI-driven
+    move; this is the one collect makes on its own for done/failed."""
     row = {"t": now.strftime("%Y-%m-%d %H:%M"), "prd": rel, "from": frm,
            "to": to}
-    with open(os.path.join(board, HISTORY_FILE), "a", encoding="utf-8") as f:
+    with open(os.path.join(board, TRANSITION_FILE), "a", encoding="utf-8") as f:
         f.write(json.dumps(row, sort_keys=True) + "\n")
 
 
@@ -883,7 +889,7 @@ def collect_one(board, rel, opts, out=print):
                     editlib.append_section(pmd, "Failure", text)
                     editlib.del_key(pmd, "claim")
                     editlib.set_key(pmd, "state", "failed")
-                    history_row(board, rel, prd["state"], "failed", now)
+                    transition_row(board, rel, prd["state"], "failed", now)
                     out(progress_line(board, rel, prd["state"], "failed",
                                       opts["as"], "round file owed"))
                     return 1
@@ -1021,7 +1027,7 @@ def collect_one(board, rel, opts, out=print):
       settle_shared(board_root, [pmd_rel])
 
     # 7 — the line, the row
-    history_row(board, rel, prd["state"], "done", now)
+    transition_row(board, rel, prd["state"], "done", now)
     extra = " · ".join(x for x in [
         "trusted" if trusted else "", "gate red, known" if known else "",
         f"commit {' '.join(shas)}", *said, posted, "round file owed"] if x)
@@ -1108,7 +1114,7 @@ def close_container(board, rel, prd, prds, board_root, opts, now, out=print):
             raise Stop(f"{rel}: git commit failed in {board_root} — the "
                        f"record put back, nothing written: {e}")
         settle_shared(board_root, [pmd_rel])
-    history_row(board, rel, prd["state"], "done", now)
+    transition_row(board, rel, prd["state"], "done", now)
     extra = " · ".join([f"container, {len(kids)} children",
                         f"commit {sha}", f"record {own}", posted,
                         "round file owed"])

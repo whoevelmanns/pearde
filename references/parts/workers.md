@@ -5,6 +5,22 @@ The exact text to hand an analyst and an implementer.
 Hand each worker the output of `pearde brief <prd>` — one command, nothing
 composed. `@` and `@@` resolve in @index.md.
 
+**Dispatch to the named type, never to a general one.** An analyst is
+`pearde-analyst`, an implementer is `pearde-implementer` — `agents/` in this
+repo, installed alongside the skills. The type carries the model: an analyst
+writes specs off a settled contract and runs on the cheaper one; an
+implementer writes the code and does not. A worker dispatched as
+`general-purpose` runs the orchestrator's own model on a job that never
+needed it, and the board has no way to tell afterwards.
+
+**A report is a file. What comes back is one line.** Every brief ends by
+saying so: the worker writes `prds/<prd>/report.md` and returns the verdict,
+that path, and the numbers the next command takes — under fifteen lines. The
+orchestrator reads the file only where the line is not enough to move the
+PRD, and never to re-read what `pearde collect` already parses. A report
+returned whole is pinned in the orchestrator's window for the rest of the
+session, and every turn after it pays for it again.
+
 Rules for every worker:
 
 - Never edit frontmatter, never touch other PRDs, never write outside the PRD
@@ -42,6 +58,9 @@ Rules for every worker:
 > Write in `<language>`, per @references/language.md. Never edit frontmatter,
 > never touch another PRD, never write outside `prds/<prd>/` and the
 > footprint. A defect outside your scope goes in the report, not into a fix.
+> Write your report to `prds/<prd>/report.md` and return one line — the
+> verdict, that path, and the numbers the orchestrator's command takes. Under
+> fifteen lines back, whatever the report holds.
 <!-- /brief -->
 
 **Placeholders.** `pearde brief` fills these and nothing else. A placeholder

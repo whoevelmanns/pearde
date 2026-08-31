@@ -52,21 +52,44 @@ import workflows as wflib  # noqa: E402 — the skill root, one dir up
 
 # ── board ─────────────────────────────────────────────────────────────────────
 
+# The board is one directory at a project root, beside `.obsidian/` — it holds
+# `prds/`, `memos/`, `wiki/` and `workflows/`, so a reader can see what the tool
+# keeps without being told. `.state/` inside it is the machine-local corner:
+# the plan, the two journals, the round file and the rendered view, none of them
+# committed, all of them regenerable.
+BOARD_DIR = ".pearde"
+STATE_DIR = ".state"
+PRDS_DIR = "prds"
+
+
+def state_dir(board):
+    """`<board>/.state`, made if it is not there. Every writer goes through
+    this — the board is a directory a person creates by hand, so the corner
+    the tool writes into cannot be assumed to exist."""
+    d = os.path.join(board, STATE_DIR)
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+def prds_dir(board):
+    return os.path.join(board, PRDS_DIR)
+
+
 def find_board(arg):
     if arg:
         p = os.path.abspath(arg)
-        if os.path.basename(p) == "prds" and os.path.isdir(p):
+        if os.path.basename(p) == BOARD_DIR and os.path.isdir(p):
             return p
-        if os.path.isdir(os.path.join(p, "prds")):
-            return os.path.join(p, "prds")
-        die(f"no prds/ board at {arg}")
+        if os.path.isdir(os.path.join(p, BOARD_DIR)):
+            return os.path.join(p, BOARD_DIR)
+        die(f"no {BOARD_DIR}/ board at {arg}")
     d = os.getcwd()
     while True:
-        if os.path.isdir(os.path.join(d, "prds")):
-            return os.path.join(d, "prds")
+        if os.path.isdir(os.path.join(d, BOARD_DIR)):
+            return os.path.join(d, BOARD_DIR)
         nxt = os.path.dirname(d)
         if nxt == d:
-            die("no prds/ board found walking up from the cwd")
+            die(f"no {BOARD_DIR}/ board found walking up from the cwd")
         d = nxt
 
 
@@ -192,10 +215,11 @@ def qualify_paths(prd, paths):
 
 def _scan_one(board, prefix="", bname=None):
     prds = {}
-    for root, dirs, files in os.walk(board):
+    scan_root = prds_dir(board)
+    for root, dirs, files in os.walk(scan_root):
         dirs[:] = [d for d in dirs if d not in ("specs",)]
-        if "prd.md" in files and root != board:
-            local = os.path.relpath(root, board)
+        if "prd.md" in files and root != scan_root:
+            local = os.path.relpath(root, scan_root)
             rel = prefix + local
             fm, title, body = parse_prd(os.path.join(root, "prd.md"))
             prds[rel] = {
@@ -212,7 +236,7 @@ def _scan_one(board, prefix="", bname=None):
                 # where a reader finds the file: the real path for a member,
                 # the contract path for the board's own
                 "footer": (os.path.join(root, "prd.md") if bname
-                           else f"prds/{local}/prd.md"),
+                           else f"{BOARD_DIR}/{PRDS_DIR}/{local}/prd.md"),
             }
     return prds
 
@@ -613,7 +637,7 @@ def fmt_age(minutes):
 # The round's own memory — @references/parts/round.md. Fifteen lines the
 # orchestrator rewrites at every transition, so a compacted session recovers
 # by reading one file instead of re-deriving the round from the tree.
-ROUND_FILE = ".round.md"
+ROUND_FILE = os.path.join(STATE_DIR, "round.md")
 
 
 # The states the loop moves work through. A board state outside LIVE_STATES is
@@ -960,7 +984,7 @@ def landing(board, everything):
 # ── map file ──────────────────────────────────────────────────────────────────
 
 def load_map(board):
-    path = os.path.join(board, ".plan.json")
+    path = os.path.join(state_dir(board), "plan.json")
     if os.path.isfile(path):
         return json.load(open(path, encoding="utf-8")), path
     return {"after": {}, "schedule": {}}, path
@@ -1117,7 +1141,7 @@ def gantt_payload(board, prds, mp, settings):
     }
 
 
-HISTORY_FILE = ".history.jsonl"
+HISTORY_FILE = os.path.join(STATE_DIR, "history.jsonl")
 
 
 def read_history(board):
@@ -1139,7 +1163,7 @@ def read_history(board):
     return rows[-400:]
 
 
-TRANSITIONS_FILE = ".transitions.jsonl"
+TRANSITIONS_FILE = os.path.join(STATE_DIR, "transitions.jsonl")
 
 
 def read_transitions(board, last=30):
@@ -1251,6 +1275,7 @@ def write_history(board, prds=None):
             row["left"] += 1
             row["hleft"] += h
     row["hleft"], row["hdone"] = round(row["hleft"], 2), round(row["hdone"], 2)
+    state_dir(board)   # the burn-down is the first thing a fresh board writes
     path = os.path.join(board, HISTORY_FILE)
     rows = [r for r in read_history(board) if r.get("d") != today] + [row]
     tmp = path + ".tmp"

@@ -20,6 +20,14 @@ and it is the only thing the round thinks about. Three rules keep it there:
 - **An established fact is cited, never re-established.** A count verified at
   12:19 is in the round file with the time on it. Re-running the check buys
   nothing and costs the check.
+- **The round has a ceiling.** `context-budget` in @references/settings.md,
+  100k by default. Context is billed on every turn, so a window that grew to
+  half a million is that much again on the next turn and the one after — the
+  board is on disk and the round file is what this session carries, so there
+  is nothing in a large window worth paying for twice. The guard notes the
+  crossing at 70% and refuses everything but the round file, the steps and
+  the board's own commands at the ceiling: write `prds/.round.md` whole, say
+  the round is at its budget, and let the next session resume from it.
 
 Where @references/parts/guard.md is wired, none of this is advice: a
 hand-walked board, a board-reading command repeated over an unchanged board,
@@ -31,9 +39,9 @@ and the refusal names the command that answers instead.
 | 1 scan | `pearde scan` · `pearde sweep` once per session · read `prds/.round.md` · `pearde init` when there is no board | nothing — read |
 | 2 answer | `pearde answer <prd> Q<n> "<text>"` per answer | what to put to the user, per @references/drill.md, and what they said |
 | 3 refine | `pearde refine <prd> < report` | whether the analyst's `## Split` table is usable; a drill when it is not |
-| 4 spec ahead | `pearde claim <prd> <worker>` · `pearde brief <prd>` → dispatch | which persona the job wears |
-| 5 implement | the same two commands | which persona the job wears |
-| 6 collect | read the report · apply or refuse `## Workflow` edits · `pearde collect <prd>` | whether to believe the report; whether an edit was the atomic's |
+| 4 spec ahead | `pearde claim <prd> <worker>` · `pearde brief <prd>` → dispatch as `pearde-analyst` | which persona the job wears |
+| 5 implement | the same two commands, dispatched as `pearde-implementer` | which persona the job wears |
+| 6 collect | read the returned line · apply or refuse `## Workflow` edits · `pearde collect <prd>` | whether to believe the report; whether an edit was the atomic's |
 | 7 drill, then stop | one drill round over the frontier · rewrite `prds/report.md` and `prds/.round.md` · `pearde view wait` | the forks and their three answers |
 
 **1 · Scan.** The sections come out in the pressure order of
@@ -82,8 +90,12 @@ the same round. `pearde workflow check` names the file, but on a master it
 never reaches a member's PRDs. Run `check` on the board the PRD lives on.
 
 **6 · Collect.** Results are pushed, never polled: a finished analyst refills
-the pipeline, a finished implementer frees a slot. The report's verdict maps
-to a command in @references/parts/workers.md — SPECCED → `pearde specced`,
+the pipeline, a finished implementer frees a slot. What a worker returns is
+one line naming its verdict and its report file — @references/parts/workers.md.
+Act on the line. Open `prds/<prd>/report.md` only for what the line does not
+carry and the transition needs, and never for what a command already parses:
+a report read whole is in the window for the rest of the session. The
+report's verdict maps to a command in @references/parts/workers.md — SPECCED → `pearde specced`,
 REFINE → `pearde refine`, DONE → `pearde collect`, BLOCKED → `pearde release
 <prd> blocked`, less → `pearde release <prd> failed` with `## Failure` first,
 or answer the worker and let it finish. `collect` runs the verify blocks and

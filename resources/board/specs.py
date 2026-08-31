@@ -22,9 +22,9 @@ undeclared one is refused with the list, exit 2, before the board is read;
 paths, and writes nothing.
 
 `plan.py` does the reading, `edit.py` the writing, and `transitions.py` prints
-the progress line and records the row in `.history.jsonl` — the same three
-every other transition goes through. The model creates no directory and sums
-no number.
+the progress line and records the row in `.transitions.jsonl` — the same
+three every other transition goes through. The model creates no directory
+and sums no number.
 
 Python 3 stdlib only.
 """

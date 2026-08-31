@@ -67,7 +67,7 @@ import questions as qlib        # noqa: E402 — the round check `release … qu
 
 TEMPLATE = os.path.join(os.path.dirname(ROOT), "references", "templates",
                         "prd.md")
-TRANSITIONS_FILE = ".transitions.jsonl"
+TRANSITIONS_FILE = os.path.join(".state", "transitions.jsonl")
 
 # The states of @references/parts/states.md, and the one parked state a
 # handle writes. Anything else is the user's own and only `--force` writes it.
@@ -421,6 +421,7 @@ def record(prd, frm, to):
            "prd": prd["local"], "from": frm, "to": to}
     row.update(hand_over(prd["board_path"]))
     path = os.path.join(prd["board_path"], TRANSITIONS_FILE)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(row, sort_keys=True) + "\n")
 
@@ -554,7 +555,7 @@ def add(board, title, persona, priority=0, body="", parent=None, out=print,
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60]
     if not slug:
         raise Refused("add: the title has no letters to slug")
-    base = board
+    base = planlib.prds_dir(board)
     if parent:
         prds = planlib.scan(board)
         base = prds[resolve(prds, parent)]["dir"]

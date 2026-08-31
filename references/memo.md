@@ -66,6 +66,11 @@ one parser reads all three.
 | `## Alternatives considered`| what lost, and on what count. Never empty          |
 | `## Consequences`           | what this costs, including what it does not fix    |
 
+Where the decision rests on recorded knowledge, `Why` wikilinks the
+conclusion — `[[<slug>]]`, the note under `prds/knowledge/conclusions/`. The
+memo cites, the KB holds the provenance; no frontmatter key for it, the body
+is the only place a reference can be argued with.
+
 `Why` and `Alternatives considered` are the one place on the board where
 paragraphs are correct, per @references/language.md. Compress them.
 

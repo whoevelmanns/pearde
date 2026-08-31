@@ -4,7 +4,7 @@
     init.py init [<dir>] [--language <l>] [--name <n>] [--example] [--dry]
     init.py settings <key>=<value> [--board <path>] [--dry]
 
-`init` leaves `<dir>/prds/` (default: the working directory) on the
+`init` leaves `<dir>/.pearde/` (default: the working directory) on the
 contract: a `settings.md` naming the five knobs by name, a `vision.md` from
 @references/templates/vision.md with `terminals:` commented out, the four
 machine-local names in `.gitignore` when `<dir>` is inside a git repo, the
@@ -19,7 +19,7 @@ Idempotent: on a board that already has `settings.md` nothing is written and
 the same four lines close the output. `memos/` and `workflows/` are not
 made — a folder appears when its first file does.
 
-`settings` writes one key of `prds/settings.md` through edit.py — one
+`settings` writes one key of `.pearde/settings.md` through edit.py — one
 frontmatter line, every other line byte for byte — and is how any key is
 set, `workers=N` and `pipeline=N` included.
 
@@ -32,6 +32,7 @@ and the paths it would write — and starts no daemon, runs no doctor.
 list after the command name and returns the exit code. Python 3 stdlib only.
 """
 import os
+import json
 import re
 import shutil
 import subprocess
@@ -45,7 +46,7 @@ import edit as editlib          # noqa: E402 — the one writer of bytes
 import plan as planlib          # noqa: E402 — every read
 import transitions as trlib     # noqa: E402 — the flag parser
 
-EXAMPLE = os.path.join(HERE, "example", "prds")
+EXAMPLE = os.path.join(HERE, "example", "prds")   # the seed PRDs, copied into <board>/prds/
 VISION_TEMPLATE = os.path.join(SKILL, "references", "templates", "vision.md")
 SERVE = os.path.join(HERE, "serve.py")
 DOCTOR = os.path.join(RES, "doctor.sh")
@@ -57,8 +58,23 @@ DEFAULTS = (("language", "English"), ("workers", "3"), ("pipeline", "3"),
 
 # Machine-local per board — regenerable. What this repo's own .gitignore
 # holds for the same names.
-IGNORED = ("prds/.plan.json", "prds/.round.md", "prds/.history.jsonl",
-           "prds/.view.html")
+# One line covers the whole machine-local corner now that it is one directory.
+IGNORED = (".pearde/.state/", ".pearde/wiki/", ".obsidian/")
+
+# The Obsidian requirement: dataview (the live views) and local-rest-api
+# (the port a tool reads the vault through), vendored with the preset at
+# resources/board/obsidian/. `init` copies the tree to <dir>/.obsidian when
+# the board's parent is the vault it seeds, and mints the REST key fresh —
+# one per board, never shipped in the template.
+OBSIDIAN_PRESET = os.path.join(HERE, "obsidian")
+OBSIDIAN_PLUGINS = ("dataview", "obsidian-local-rest-api")
+
+# Not the same thing as resources/board/knowledge/, and not copied from
+# here: that folder is the knowledge-layer's *content* seed (Dashboard.md,
+# WORKFLOW.md, empty indexes) for .pearde/wiki/, the vault this preset's
+# .obsidian/ points at. No step in this file reads it — knowledge.py's
+# Store builds .pearde/wiki/ directly on first use instead. See
+# references/files.md's `resources/board/knowledge/` entry.
 
 KEY_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 
@@ -72,6 +88,10 @@ FLAGS = {
     "init":     trlib.Flags(("language", "name"), ("example",) + trlib.DRY),
     "settings": trlib.Flags(("board",), trlib.DRY),
 }
+
+
+def json_text(obj):
+    return json.dumps(obj, indent=2, ensure_ascii=False) + "\n"
 
 
 # ── init ──────────────────────────────────────────────────────────────────────
@@ -88,13 +108,13 @@ def settings_text(language, name):
 
 def write_board(board, args):
     """Steps 1–3: the board directory, `settings.md` and `vision.md`. Each
-    file is written only when it is not there, so a hand-made `prds/` keeps
+    file is written only when it is not there, so a hand-made `.pearde/` keeps
     what it has and gains what it lacks."""
     settings = os.path.join(board, "settings.md")
     if "example" in args.flags:
         if os.path.isdir(board) and os.listdir(board):
             raise Refused(f"{board} exists and holds no settings.md — "
-                          "--example copies into an empty or missing prds/")
+                          "--example copies into an empty or missing .pearde/prds/")
         shutil.copytree(EXAMPLE, board, dirs_exist_ok=True)
         for key in ("language", "name"):
             if args.opt.get(key, "").strip():
@@ -118,10 +138,51 @@ def in_git(d):
     return p.returncode == 0
 
 
+def write_obsidian(d):
+    """Step 4b: the vault. Copies the vendored preset and plugins to
+    `<dir>/.obsidian/` — dataview, obsidian-local-rest-api, the graph and app
+    configuration — and mints a fresh REST key into the plugin's data.json,
+    mirrored at `.pearde/wiki/.obsidian-api-key` where the loop's tools
+    read it. Everything is already there is kept (a hand-tuned vault wins).
+    Returns the names of the plugins it installed."""
+    dest = os.path.join(d, ".obsidian")
+    plugins = []
+    if not os.path.isdir(OBSIDIAN_PRESET):
+        return [], None
+    os.makedirs(os.path.join(d, ".obsidian"), exist_ok=True)
+    for entry in sorted(os.listdir(OBSIDIAN_PRESET)):
+        src = os.path.join(OBSIDIAN_PRESET, entry)
+        dst = os.path.join(d, ".obsidian", entry)
+        if entry == "plugins":
+            for plugin in OBSIDIAN_PLUGINS:
+                src_p = os.path.join(src, plugin)
+                dst_p = os.path.join(dst, plugin)
+                if os.path.isdir(os.path.join(d, ".obsidian", "plugins", plugin)):
+                    continue                      # already installed wins
+                shutil.copytree(src_p, dst_p, dirs_exist_ok=True)
+                plugins.append(plugin)
+        elif not os.path.exists(dst):
+            shutil.copyfile(src, dst)
+    # the key: fresh per board, in the v5 schema the plugin reads, both
+    # where the plugin reads it and where a tool looks it up
+    key = os.urandom(24).hex()
+    cfg = {"port": 27124, "insecurePort": 27123, "enableInsecureServer": False,
+           "apiKey": key}
+    cfg_path = os.path.join(d, ".obsidian", "plugins",
+                            "obsidian-local-rest-api", "data.json")
+    if not os.path.exists(cfg_path):
+        editlib.write_atomic(cfg_path, json_text(cfg))
+    key_path = os.path.join(d, ".pearde", "wiki", ".obsidian-api-key")
+    if not os.path.exists(key_path):
+        os.makedirs(os.path.dirname(key_path), exist_ok=True)
+        editlib.write_atomic(key_path, key + "\n")
+    return plugins, key
+
+
 def write_gitignore(d):
-    """Step 4: the four names, appended to `<dir>/.gitignore` — the board's
-    parent, where `prds/…` is the right spelling — when they are not already
-    there. Returns the names it added."""
+    """Step 4: the machine-local names, appended to `<dir>/.gitignore` — the
+    board's parent, where `.pearde/…` is the right spelling — when they are not
+    already there. Returns the names it added."""
     path = os.path.join(d, ".gitignore")
     text = open(path, encoding="utf-8").read() if os.path.isfile(path) else ""
     have = {l.strip() for l in text.splitlines()}
@@ -167,7 +228,7 @@ def cmd_init(argv):
     if len(args.pos) > 1:
         raise Refused("init [<dir>] [--language <l>] [--name <n>] [--example]")
     d = os.path.abspath(args.pos[0] if args.pos else os.getcwd())
-    board = os.path.join(d, "prds")
+    board = os.path.join(d, ".pearde")
     existing = os.path.isfile(os.path.join(board, "settings.md"))
     if args.dry:
         if existing:
@@ -183,6 +244,7 @@ def cmd_init(argv):
                  os.path.join(board, "vision.md")]
         if in_git(d):
             paths.append(os.path.join(d, ".gitignore"))
+        paths.append(os.path.join(d, ".obsidian", "plugins", "dataview"))
         print(f"dry · board {name} · language {language} — pearde settings "
               "language=<l> changes it")
         print("  would write: " + " · ".join(paths)
@@ -202,6 +264,13 @@ def cmd_init(argv):
             added = write_gitignore(d)
             if added:
                 print(f"init: .gitignore += {' '.join(added)}")
+        plugins, _ = write_obsidian(d)
+        if plugins:
+            print(f"init: obsidian vault at .obsidian/ — plugins: "
+                  f"{', '.join(plugins)} · dataview serves the live views "
+                  "from the first open, local-rest-api (local-rest-api with MCP) answers on "
+                  "127.0.0.1:27124 (key: .pearde/wiki/.obsidian-api-key) "
+                  "after Obsidian loads the vault once")
     url = ensure(board)
     if not existing:
         doctor(d)
@@ -215,7 +284,7 @@ def cmd_init(argv):
 # ── settings ──────────────────────────────────────────────────────────────────
 
 def cmd_settings(argv):
-    """<key>=<value> [--board <path>] — write one key of prds/settings.md,
+    """<key>=<value> [--board <path>] — write one key of .pearde/settings.md,
     every other line kept byte for byte."""
     args = trlib.Args(argv, FLAGS["settings"], "settings")
     if len(args.pos) != 1 or "=" not in args.pos[0]:

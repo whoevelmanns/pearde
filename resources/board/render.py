@@ -37,7 +37,7 @@ import json
 import os
 import re
 
-VIEW_FILE = ".view.html"
+VIEW_FILE = os.path.join(".state", "view.html")
 
 
 def cpm(tasks):
@@ -356,6 +356,7 @@ def render_shell(payload, board=None, base="", vstamp=""):
 
 def write(board, payload):
     path = os.path.join(board, VIEW_FILE)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(render(payload, board))
     return path

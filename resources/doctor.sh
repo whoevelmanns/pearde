@@ -11,6 +11,8 @@
 # `broken` (installed and not working — the failure that otherwise runs
 # straight past). A broken part carries its exact fix on the next line.
 # `skills`, `index`, `statusline`, `board` and `briefs` always report.
+# `plugins` reports when an adapter carries a `plugins:` list — suggestions
+# for the machine, never a failure.
 # `memos`, `workflows`, `view` and `plan` need a board in scope, `origin`
 # needs PRDs in it, and `members` only exists on a master board.
 #
@@ -98,6 +100,93 @@ else
   NAMES=$(for f in "$SKILL_ROOT"/skills/*.md; do basename "$f" .md; done | tr '\n' ' ')
   row skills ok "$SKN well-formed · $NAMES"
   note "installed where your agent looks — @references/install.md, then: bash $DIR/install.sh --apply <skills-dir>"
+fi
+
+# ── plugins: what the adapters suggest for this machine ───────────────────────
+# An adapter may carry a `plugins:` list — the extensions its agent runs the
+# round with (`claude.json` ships one; see references/plugins.md for why these
+# four). Plugins are Claude-Code-only today, so the list lives on the adapter
+# that names that agent — an adapter for any other runtime simply carries no
+# list and this row stays silent. The install record lives in the agent's own
+# config dir ($CLAUDE_CONFIG_DIR, falling back to ~/.claude), which is this
+# machine's data and nothing this checklist can repair — so the row is `off`,
+# never `broken`, and every missing plugin carries the exact two commands
+# that install it. A round runs without them; they make it cheaper.
+PKEYS=""
+if [ -d "$DIR/board/adapters" ]; then
+  PIP=$(python3 - "$DIR/board/adapters" <<'PYEOF'
+import json, os, sys
+ad = sys.argv[1]
+for fn in sorted(os.listdir(ad)):
+    if not fn.endswith(".json"):
+        continue
+    try:
+        with open(os.path.join(ad, fn), encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        continue
+    for p in data.get("plugins") or []:
+        if not isinstance(p, dict) or not p.get("name"):
+            continue
+        name = p["name"]
+        mkt = p.get("marketplace") or name
+        repo = p.get("repo") or ""
+        print("%s\t%s\t%s\t%s" % (fn[:-5], name, mkt, repo))
+PYEOF
+)
+fi
+if [ -n "${PIP:-}" ]; then
+  PKEYS=$(printf '%s\n' "$PIP" | awk -F'\t' '{print $2 "@" $3}' | sort -u | tr '\n' ' ')
+  PINST=$(python3 - "$PKEYS" <<'PYEOF'
+import json, os, sys
+keys = [k for k in sys.argv[1].split() if "@" in k]
+dirs = [os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"),
+        os.path.expanduser("~/.claude")]
+have = set()
+for d in dict.fromkeys(dirs):
+    p = os.path.join(d, "plugins", "installed_plugins.json")
+    if not os.path.isfile(p):
+        continue
+    try:
+        with open(p, encoding="utf-8") as f:
+            have |= set((json.load(f).get("plugins") or {}).keys())
+    except Exception:
+        pass
+for k in keys:
+    print("%s\t%s" % (k, "y" if k in have else "n"))
+PYEOF
+)
+  PMISS=""
+  PN=$(printf '%s\n' "$PIP" | grep -c .)
+  POKN=0
+  while IFS=$'\t' read -r padapter pname pmkt prepo; do
+    [ -n "$pname" ] || continue
+    if printf '%s\n' "$PINST" | awk -F'\t' -v k="$pname@$pmkt" '$1==k && $2=="y" {found=1} END{exit !found}'; then
+      POKN=$((POKN + 1))
+    else
+      PMISS="$PMISS
+$padapter|$pname|$pmkt|$prepo"
+    fi
+  done <<EOF
+$PIP
+EOF
+  if [ -z "$(printf '%s' "$PMISS" | tr -d '\n')" ]; then
+    row plugins ok "$POKN suggested · all installed on this machine"
+  else
+    PNMISS=$(printf '%s\n' "$PMISS" | grep -c .)
+    ROWNAMES=$(printf '%s\n' "$PMISS" | grep . | cut -d'|' -f2 | tr '\n' ' ')
+    row plugins off "$POKN of $PN suggested installed · missing: $ROWNAMES"
+    printf '%s\n' "$PMISS" | while IFS= read -r l; do
+      [ -n "$l" ] || continue
+      padapter=${l%%|*}; rest=${l#*|}; pname=${rest%%|*}; rest=${rest#*|}; pmkt=${rest%%|*}; prepo=${rest#*|}
+      if [ -n "$prepo" ]; then
+        fix "claude plugin marketplace add $prepo && claude plugin install $pname@$pmkt  (suggested by adapter $padapter — @references/plugins.md)"
+      else
+        fix "claude plugin install $pname@$pmkt  (suggested by adapter $padapter — @references/plugins.md)"
+      fi
+    done
+    note "plugins are suggestions, not requirements — the round runs without them; @references/plugins.md says what each one is for"
+  fi
 fi
 
 # ── index: does the map still match the tree? ─────────────────────────────────
@@ -384,6 +473,30 @@ if [ -n "$BOARD" ]; then
   fi
 fi
 
+# ── knowledge: the research layer, whole in one folder ───────────────────────
+# prds/knowledge/ is not a PRD folder and holds no state — the scan walks past
+# it like memos/. What can be wrong is the layer itself: frontmatter the tools
+# cannot read, wikilinks pointing at nothing, a graph left behind by writes.
+# knowledge.py doctor is the one reader; `off` means the board never researches.
+if [ -n "$BOARD" ] && [ -d "$BOARD/knowledge" ]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    row knowledge broken "prds/knowledge/ present, no python3 to read it"
+    fix "install python3 — knowledge.py is the only reader of the format"
+  else
+    KPROB=$(python3 "$DIR/knowledge.py" --root "$BOARD/knowledge" doctor 2>&1)
+    if [ $? -eq 0 ] && [ -z "$(echo "$KPROB" | grep '✗')" ]; then
+      KN=$(printf '%s' "$KPROB" | sed -n 's/.*— \([0-9]*\) notes.*/\1/p')
+      row knowledge ok "$KN note$([ "$KN" = 1 ] || echo s) on record · graph in sync · pending honest"
+    else
+      row knowledge broken "the research layer does not check out"
+      echo "$KPROB" | grep '✗' | while IFS= read -r l; do
+        [ -n "$l" ] && printf '  %-11s %-7s %s\n' "" "" "${l#*✗ }"
+      done
+      fix "run knowledge.py relink / fix the notes it names — @references/knowledge.md is the contract"
+    fi
+  fi
+fi
+
 # ── briefs: the worker briefs, one source, every placeholder named ──────────
 # A brief is printed by `pearde brief` from the blocks between
 # `<!-- brief:<name> -->` … `<!-- /brief -->` in references/parts/workers.md.
@@ -591,6 +704,64 @@ EOF
       note "pin it: [ \"\$((PASS+FAIL))\" = <n> ] || no \"expected <n> checks, ran \$((PASS+FAIL))\""
     fi
   fi
+fi
+
+# ── jstests: the view's own browser gates, actually run ──────────────────────
+# viewtest.js and hotreload-test.js drive a real Chrome against the rendered
+# board and the live-reload loop. Nothing ran them — no CI, no hook — so a
+# regression in either one only ever surfaced by a person remembering the
+# command. Same cost as `harnesses`, so same gate: opt-in with --harnesses.
+#
+# viewtest.js --example needs no live service — it renders its own copy of
+# the example board with plan.py and opens it as a file. hotreload-test.js
+# needs the view service actually serving this board (a URL to click through
+# and to move view.js under), so without one running it is reported `off`
+# rather than skipped silently.
+if [ "$HFLAG" = 1 ]; then
+  if [ -n "${PEARDE_HARNESSES:-}" ]; then
+    row jstests off "not run inside a harness"
+  elif ! command -v node >/dev/null 2>&1; then
+    row jstests broken "node not found — viewtest.js and hotreload-test.js need it"
+    fix "install node, then: npm i playwright-core --prefix $DIR/board"
+  elif ! node -e "require.resolve('playwright-core')" >/dev/null 2>&1; then
+    row jstests off "node found, playwright-core missing — both tests need it"
+    fix "npm i playwright-core --prefix $DIR/board"
+  else
+    JOUT=$(node "$DIR/board/viewtest.js" --example 2>&1); JRC=$?
+    JLINE=$(printf '%s\n' "$JOUT" | tail -1)
+    if [ "$JRC" != 0 ]; then
+      row jstests broken "viewtest.js --example failed · $JLINE"
+      printf '%s\n' "$JOUT" | grep -m3 '^  FAIL' | while IFS= read -r l; do note "$(printf '%s' "$l" | sed 's/^  //')"; done
+      fix "node $DIR/board/viewtest.js --example"
+    else
+      SRV_PORT="${PEARDE_PORT:-8443}"
+      HRSRV=$(curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
+      if [ -z "$HRSRV" ] || [ -z "$BOARD" ]; then
+        row jstests ok "viewtest.js --example · $JLINE"
+        note "hotreload-test.js not run — needs the view service serving this board"
+        note "run: python3 $DIR/board/serve.py ensure $BOARD && node $DIR/board/hotreload-test.js http://127.0.0.1:$SRV_PORT/board/<name>"
+      else
+        BN=$(printf '%s' "$HRSRV" | tr '{' '\n' \
+             | grep -F "\"$BOARD\"" | sed -n 's/.*"name": "\([^"]*\)".*/\1/p' | head -1)
+        if [ -z "$BN" ]; then
+          row jstests ok "viewtest.js --example · $JLINE"
+          note "hotreload-test.js not run — this board is not registered with the running service"
+        else
+          HROUT=$(node "$DIR/board/hotreload-test.js" "http://127.0.0.1:$SRV_PORT/board/$BN" 2>&1); HRRC=$?
+          HRLINE=$(printf '%s\n' "$HROUT" | tail -1)
+          if [ "$HRRC" != 0 ]; then
+            row jstests broken "viewtest ok · hotreload-test.js failed · $HRLINE"
+            printf '%s\n' "$HROUT" | grep -m3 '^  FAIL' | while IFS= read -r l; do note "$(printf '%s' "$l" | sed 's/^  //')"; done
+            fix "node $DIR/board/hotreload-test.js http://127.0.0.1:$SRV_PORT/board/$BN"
+          else
+            row jstests ok "viewtest.js --example · $JLINE · hotreload-test.js · $HRLINE"
+          fi
+        fi
+      fi
+    fi
+  fi
+else
+  row jstests off "not run — opt in: bash $DIR/doctor.sh --harnesses $START"
 fi
 
 echo

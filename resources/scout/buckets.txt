@@ -55,3 +55,5 @@ finetune	topic:fine-tuning stars:>2000
 evals	topic:llm-evaluation stars:>2000
 rag	topic:rag stars:>3000
 memory	topic:llm-memory stars:>1000
+claude-plugins	topic:claude-code-plugin stars:>500
+claude-plugin	topic:claude-plugin stars:>500

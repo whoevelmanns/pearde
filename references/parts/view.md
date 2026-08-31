@@ -4,7 +4,7 @@ The board is files. The view is how a person reads and works them. Once per
 machine:
 
 ```sh
-python3 @resources/board/serve.py ensure # start if needed, register this board
+pearde view   # `serve.py ensure` — start if needed, register this board, open the URL
 ```
 
 From then on `http://127.0.0.1:8443/board/<name>` is the board, live — within
