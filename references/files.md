@@ -120,6 +120,7 @@ whose scope it changed. Nothing else points at it.
 | @resources/board/lit-core.min.js | Lit 3, vendored — the page's component base |
 | @resources/board/edit.py | the writers — one line at a time |
 | @resources/board/collect.py | `collect` — verify, commit the footprint, `done`, one call |
+| @resources/board/orphans.py | `orphans` — every done PRD whose footprint never reached the branch that holds it; per-branch, never `git log --all`, reads only |
 | @resources/board/brief.py | `brief` — a worker's or a consultant's brief, one command's output; the text is the marker blocks of workers.md, this fills them and holds no copy |
 | @resources/board/transitions.py | the eight transition commands — the one writer of `state:` |
 | @resources/board/specs.py | `specced` and `refine` — the two transitions a spec set decides |
