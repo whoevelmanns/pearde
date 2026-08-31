@@ -8,7 +8,11 @@
 set over `split-above` or `specs-above` (`over split-above: 58 > 40 — REFINE
 it`; the two keys of `settings.md`, the PRD's own board's), else writes
 `complexity:` as the sum, `blast-radius:` and `workflow:` from the flags,
-clears `claim:`, sets `specced` and prints the progress line. `--check` runs
+clears `claim:`, sets `specced` and prints the progress line. With no
+`--workflow` named and none on the PRD, one distinct `workflow:` across the
+specs is written up onto the PRD instead of being read and dropped — specs
+naming two different slugs write none, and the operator is told which on
+stderr. `--check` runs
 the gate and writes nothing. `--workflow <new-slug> --route -` drafts a
 workflow the library does not hold from `## Route` on stdin — the file per
 step and every new atomic's, `workflow check` over the whole library before
@@ -68,7 +72,195 @@ CHILD_HEADER = "| child | contract | needs |\n|---|---|---|"
 LIMITS = (("split-above", 40), ("specs-above", 6))
 
 
-# ── reading a spec ────────────────────────────────────────────────────────────
+# ── can a verify block fail? ──────────────────────────────────────────────────
+
+# collect runs every `## Verify and Proof` block under `bash -e -o pipefail`
+# and reads the exit code that comes out. Between those two rules a block goes
+# red only through a command that runs unsuppressed and can exit non-zero:
+# under `set -e` the first such command aborts the block, and if there is
+# none, the block's exit is its last line's — an `echo`. A block with none of
+# those cannot fail, and a box that cannot fail is not a check: `specced`
+# refuses it, the same four shapes the collect runner surfaced today —
+# everything guarded with `|| true` behind a closing `echo`, an inverted
+# `!`, a whole body in `if` conditions, a bare `true`.
+
+# Builtin commands whose exit status is 0 come what may. Anything not listed
+# here counts as able to exit non-zero — over-counting only ever accepts a
+# block, under-counting would refuse a live one.
+ALWAYS0 = frozenset(("echo", "printf", "true", ":", "pwd", "export", "unset",
+                     "set", "local", "readonly", "declare", "shift"))
+
+# Words that open a segment whose failure is a condition or a frame, not an
+# abort: `if` / `while` / `until` conditions route to a branch instead of
+# tripping `set -e`, and `then` / `else` / `do` are noise before the body
+# that follows them on the same line.
+CONDITION_HEAD = re.compile(r"^(if|elif|while|until|for|case)([ \t]|$)")
+NOISE_HEAD = ("then", "else", "do", "fi", "done", "esac", "}", ")")
+
+
+def _segments(line):
+    """Top-level segments of one logical line with the operator that follows
+    each — split at `;`, `&`, `|`, `&&`, `||`, never inside quotes or
+    unquoted parentheses (a `$( )` substitution is one argument, and its
+    operators are its own). With `pipefail` both sides of a `|` count; under
+    `set -e` the left of `&&` fails the whole list; only the right operand
+    of `||` can abort."""
+    out, cur, quote, depth = [], "", None, 0
+    i = 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "\\" and i + 1 < len(line):
+            cur += line[i:i + 2]
+            i += 2
+            continue
+        if quote:
+            cur += ch
+            if ch == quote:
+                quote = None
+            i += 1
+            continue
+        if ch in "\"'":
+            quote = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0 and ch in ";|&":
+            if ch in "|&" and line[i:i + 2] in ("||", "&&"):
+                out.append(_Seg(cur, line[i:i + 2]))
+                cur, i = "", i + 2
+                continue
+            out.append(_Seg(cur, ch))
+            cur, i = "", i + 1
+            continue
+        cur += ch
+        i += 1
+    out.append(_Seg(cur, ""))
+    return out
+
+
+class _Seg:
+    """One command segment and the operator that separates it from the next.
+    Under `set -e` a segment's failure aborts the block unless it is
+    always-0, or the operator that follows it is `||` — then its failure
+    just routes to the fallback, and the fallback is the abort candidate."""
+
+    def __init__(self, text, op):
+        self.text, self.op = text, op
+
+
+def _unquote_hash(line):
+    """Cut an unquoted trailing comment — its words are no command."""
+    quote, i = None, 0
+    while i < len(line):
+        ch = line[i]
+        if ch == "\\":
+            i += 2
+            continue
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        elif ch == "#" and (i == 0 or line[i - 1] in " \t"):
+            return line[:i]
+        i += 1
+    return line
+
+
+def _plain(seg):
+    """The command of a segment: environment assignments and the body
+    openers `then` / `else` / `do` stripped — `VAR=x then cmd` classifies as
+    `cmd`."""
+    tokens = seg.split()
+    while len(tokens) > 1 and (re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0])
+                               or tokens[0] in NOISE_HEAD):
+        tokens = tokens[1:]
+    return tokens[0].strip("'\"") if tokens else ""
+
+
+def _first_word(seg):
+    w = _plain(seg.text)
+    return w
+
+
+def _seg_can_fail(seg):
+    """True when this one segment can leave the block non-zero."""
+    s = seg.text.strip()
+    if not s:
+        return False
+    if seg.op == "||":
+        return False        # its failure routes to the fallback
+    if s.startswith("!") and not s.startswith("[["):
+        return False        # inverted: a failure is a pass
+    if CONDITION_HEAD.match(s):
+        return False        # a condition routes; the body is judged alone
+    if re.match(r"^exit([ \t]+0)?$", s):
+        return False
+    words = seg.text.split()
+    if len(words) == 1 and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", words[0]):
+        return False        # a bare assignment without substitution
+    if _plain(seg.text) in ALWAYS0:
+        return False
+    return True
+
+
+def _cannot_fail_why(script):
+    """Why a Verify block cannot exit non-zero, or None when it can — one
+    pass over the logical lines, every segment that is an abort candidate
+    making the block able to fail."""
+    guarded, last = 0, ""
+    lines, skip, delim, body = [], False, None, 0
+    raw = script.splitlines()
+    i = 0
+    joined = ""
+    while i < len(raw):
+        line = raw[i]
+        i += 1
+        if skip == "heredoc":
+            if line.strip() == delim:
+                skip = None
+            continue
+        if body:
+            if line.strip() in ("}", "};"):
+                body = 0
+            continue
+        # join backslash continuations
+        while line.rstrip().endswith("\\") and i < len(raw):
+            line = line.rstrip()[:-1] + " " + raw[i]
+            i += 1
+        line = _unquote_hash(line).strip()
+        if not line or line.startswith("#"):
+            continue
+        m = re.search(r"<<-?[ 	]*([\"']?)([A-Za-z_][A-Za-z0-9_]*)\1", line)
+        if m and skip is None:
+            skip, delim = "heredoc", m.group(2)
+        if line.strip() == delim:
+            skip = "heredoc"
+            continue
+        if re.match(r"^function[ \t]+\w+|^\w+[ \t]*\(\)[ \t]*\{?$", line):
+            body = 1
+            continue
+        if line.strip() in ("{", "}"):
+            continue
+        for seg in _segments(line):
+            if _seg_can_fail(seg):
+                return None     # one abort candidate is enough
+            if seg.text.strip():
+                guarded += 1
+                last = seg.text.strip()[:80] if seg else last
+        last = _segments(line)[-1].text.strip() or last
+    if guarded == 0:
+        return "it holds no command that runs and can exit non-zero"
+    return ("every fallible command is guarded and it ends on `%s` — "
+            "exit 0 come what may" % last)
+
+
+def block_cannot_fail(script):
+    """True when no command in the block can make the block exit non-zero —
+    the shape `collect` reads from the last command's exit code under
+    `bash -e -o pipefail`."""
+    return _cannot_fail_why(script) is not None
 
 def fm_lines(text):
     """{key: 1-based line} for every key in the frontmatter block — refusals
@@ -190,8 +382,9 @@ def check_spec(path, fm, text, lib, own_feet):
 
 
 def read_specs(prd, lib):
-    """(sum, count, refusals, warnings, footprints) over every
-    specs/*.md."""
+    """(sum, count, refusals, warnings, footprints, workflows) over every
+    specs/*.md — the workflows in spec frontmatter too, in file order, the
+    route a `specced` with no flag may write down."""
     sdir = os.path.join(prd["dir"], "specs")
     files = (sorted(f for f in os.listdir(sdir) if f.endswith(".md"))
              if os.path.isdir(sdir) else [])
@@ -201,7 +394,7 @@ def read_specs(prd, lib):
     own = prd["fm"].get("footprint", [])
     own = [str(p).rstrip("/") for p in (own if isinstance(own, list)
                                         else [own]) if p]
-    total, bad, warn, feet = 0, [], [], []
+    total, bad, warn, feet, wfs = 0, [], [], [], []
     for f in files:
         path = os.path.join(sdir, f)
         text = open(path, encoding="utf-8").read()
@@ -210,9 +403,12 @@ def read_specs(prd, lib):
         bad += [f"{path}:{ln}: {msg}" for ln, msg in b]
         warn += w
         feet += fp
+        wf = fm.get("workflow")
+        if wf and not isinstance(wf, list) and str(wf).strip():
+            wfs.append(str(wf).strip())
         if not b:
             total += int(str(fm.get("complexity")))
-    return total, len(files), bad, warn, feet
+    return total, len(files), bad, warn, feet, wfs
 
 
 def limits(board_path):
@@ -346,7 +542,7 @@ def specced(board, args, persona):
             lib.get(workflow, {}).get("kind") != "workflow":
         raise Refused(f"--workflow `{workflow}` names no workflow in the "
                       "library")
-    total, count, bad, warn, feet = read_specs(prd, lib)
+    total, count, bad, warn, feet, spec_wfs = read_specs(prd, lib)
     for w in warn:
         print(f"warn: {w}", file=sys.stderr)
     if bad:
@@ -357,6 +553,20 @@ def specced(board, args, persona):
             if n > lim[k]]
     if over:
         raise Refused("\n".join(over))
+    # A route the analyst already wrote down survives the transition: with no
+    # `--workflow` named and none on the PRD, a spec's own `workflow:` is
+    # written up onto it — the way `refine` hands a parent's slug down. The
+    # flag still wins every time it is present, and nothing here overwrites a
+    # key the PRD already carries. Specs naming different slugs answer to no
+    # one slug: the PRD key stays unset and the operator is told which.
+    if workflow is None and not prd["fm"].get("workflow"):
+        seen = list(dict.fromkeys(spec_wfs))
+        if len(seen) == 1:
+            workflow = seen[0]
+        elif len(seen) > 1:
+            print(f"note: {len(seen)} specs name different workflows — "
+                  f"{', '.join(seen)} — none written to the PRD; pass "
+                  "--workflow <slug> to set one", file=sys.stderr)
     written = []
     if route is not None:
         report = sys.stdin.read() if route == "-" else \
@@ -391,6 +601,8 @@ def specced(board, args, persona):
         line = trlib.dry_line(board, prds, rel, frm, "specced", persona)
         trlib.say_dry(board, line, [path, os.path.join(
             prd["board_path"], trlib.TRANSITIONS_FILE)])
+        if workflow is not None:
+            print(f"dry · workflow: {workflow}")   # the key the real write sets
         return 0
     edit.set_key(path, "complexity", str(total))
     if blast is not None:
