@@ -579,8 +579,9 @@ def cmd_board(store, args):
     the board are removed. Regenerable: edit prd.md, run board again.
     """
     store.ensure()
-    prds = store.root.parent                      # <board>/prds, the PRD tree
-    vault_root = prds.parent                      # the Obsidian vault: the repo root
+    board_root = store.root.parent                # <board> — .pearde, the KB's parent
+    prds = board_root / "prds"                     # <board>/prds, the PRD tree
+    vault_root = board_root.parent                 # the Obsidian vault: the repo root
     def scalar(value):
         # prd.md frontmatter carries trailing comments — "open  # open|..." —
         # so cut on the first " #", and treat the empty-list marker as empty
@@ -610,7 +611,7 @@ def cmd_board(store, args):
             "text": body,
         }
     memos = {}
-    for memo_path in sorted((prds / "memos").glob("*.md")):
+    for memo_path in sorted((board_root / "memos").glob("*.md")):
         memo_raw = memo_path.read_text(encoding="utf-8")
         memo_meta, memo_body = parse_frontmatter(memo_raw)
         memos[memo_path.stem] = {

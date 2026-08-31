@@ -115,12 +115,19 @@ def scan(board):
 
 
 def board_prds(board):
+    # A memo's `prds:` reference is a PRD name relative to the board's
+    # `.pearde/prds/`, not to the board — so the walk starts there. Before the board
+    # moved from `<repo>/prds` to `<repo>/.pearde` the two were the same
+    # directory and this distinction did not exist.
     # relpath is OS-native (`\` on Windows); every `prds:` reference in a
     # memo is written `/`, the project's own convention — normalize so the
     # comparison in `check()` is not a silent path-separator mismatch.
-    return {os.path.relpath(r, board).replace(os.sep, "/")
-            for r, ds, fs in os.walk(board)
-            if "prd.md" in fs and r != board}
+    root = os.path.join(board, "prds")
+    if not os.path.isdir(root):
+        return set()
+    return {os.path.relpath(r, root).replace(os.sep, "/")
+            for r, ds, fs in os.walk(root)
+            if "prd.md" in fs and r != root}
 
 
 def _listed(v):
@@ -235,21 +242,27 @@ def add(board, subject):
     return path
 
 
+# Duplicated from @resources/board/plan.py's own BOARD_DIR rather than
+# imported — same reason @resources/guard.py gives: this reader keeps its
+# own error prefix and does not depend on the planner to resolve a board.
+BOARD_DIR = ".pearde"
+
+
 def find_board(arg):
     if arg:
         p = os.path.abspath(arg)
-        if os.path.basename(p) == "prds" and os.path.isdir(p):
+        if os.path.basename(p) == BOARD_DIR and os.path.isdir(p):
             return p
-        if os.path.isdir(os.path.join(p, "prds")):
-            return os.path.join(p, "prds")
-        sys.exit(f"memos: no prds/ board at {arg}")
+        if os.path.isdir(os.path.join(p, BOARD_DIR)):
+            return os.path.join(p, BOARD_DIR)
+        sys.exit(f"memos: no {BOARD_DIR}/ board at {arg}")
     d = os.getcwd()
     while True:
-        if os.path.isdir(os.path.join(d, "prds")):
-            return os.path.join(d, "prds")
+        if os.path.isdir(os.path.join(d, BOARD_DIR)):
+            return os.path.join(d, BOARD_DIR)
         nxt = os.path.dirname(d)
         if nxt == d:
-            sys.exit("memos: no prds/ board found walking up from the cwd")
+            sys.exit(f"memos: no {BOARD_DIR}/ board found walking up from the cwd")
         d = nxt
 
 

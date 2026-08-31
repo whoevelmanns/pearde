@@ -158,11 +158,19 @@ def label(q, n):
 
 
 def prds(board):
-    """(rel, path) for every PRD on the board, deepest name first."""
+    """(rel, path) for every PRD on the board, deepest name first.
+
+    Walks `<board>/prds`, not `board` itself — same reason
+    `memos.py board_prds` and `workflows.py _refs_one` do: the PRD tree is
+    one level under the board root, and walking `board` would label every
+    PRD `prds/<name>`, one level off from what a reader expects."""
+    root_dir = os.path.join(board, "prds")
+    if not os.path.isdir(root_dir):
+        return []
     out = []
-    for root, _dirs, files in os.walk(board):
-        if "prd.md" in files and root != board:
-            out.append((os.path.relpath(root, board),
+    for root, _dirs, files in os.walk(root_dir):
+        if "prd.md" in files and root != root_dir:
+            out.append((os.path.relpath(root, root_dir),
                         os.path.join(root, "prd.md")))
     return sorted(out)
 
@@ -388,21 +396,27 @@ def rows(board):
         yield rel, nq, na, str(fm.get("state", "-"))
 
 
+# Duplicated from @resources/board/plan.py's own BOARD_DIR rather than
+# imported — same reason @resources/guard.py gives: this reader keeps its
+# own error prefix and does not depend on the planner to resolve a board.
+BOARD_DIR = ".pearde"
+
+
 def find_board(arg):
     if arg:
         p = os.path.abspath(arg)
-        if os.path.basename(p) == "prds" and os.path.isdir(p):
+        if os.path.basename(p) == BOARD_DIR and os.path.isdir(p):
             return p
-        if os.path.isdir(os.path.join(p, "prds")):
-            return os.path.join(p, "prds")
-        sys.exit(f"questions: no prds/ board at {arg}")
+        if os.path.isdir(os.path.join(p, BOARD_DIR)):
+            return os.path.join(p, BOARD_DIR)
+        sys.exit(f"questions: no {BOARD_DIR}/ board at {arg}")
     d = os.getcwd()
     while True:
-        if os.path.isdir(os.path.join(d, "prds")):
-            return os.path.join(d, "prds")
+        if os.path.isdir(os.path.join(d, BOARD_DIR)):
+            return os.path.join(d, BOARD_DIR)
         nxt = os.path.dirname(d)
         if nxt == d:
-            sys.exit("questions: no prds/ board found walking up from the cwd")
+            sys.exit(f"questions: no {BOARD_DIR}/ board found walking up from the cwd")
         d = nxt
 
 
