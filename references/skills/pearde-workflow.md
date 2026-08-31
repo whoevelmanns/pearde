@@ -5,24 +5,10 @@ description: How a kind of job is done, kept where the next session looks — an
 
 Read @references/workflow.md for the format — the two file shapes, the closed
 frontmatter set, the steps grammar, and the `## Workflow <slug>` section a run
-returns. @references/parts/workflows.md is when one is written, how it is
-attached, and what a run is allowed to change. The scope is `@@workflows`.
-
-- **A route, not an engine.** Nothing runs a step. A worker reads one page and
-  follows it, and `on failure` is a route it walks rather than a handler that
-  fires.
-- **An atomic is one unit** — `## Do`, `## Done when`, `## Fails when`. A
-  workflow is `## Use when` and an ordered `## Steps` over atomics, one
-  back-edge per row. Exactly one slug key says which it is.
-- **From a run, never from reading.** An edit cites the step and the PRD that
-  ran it; an atomic that "could be clearer" to a reader is not an edit. The
-  lesson replaces the sentence that was wrong — `updated` is the date, and git
-  holds what it replaced.
-- **The worker never writes here. The orchestrator does, and only it.** A
-  worker returns its edits in the report, and the collect applies or refuses
-  each one — @references/parts/workflows.md is the table that decides.
-- **`runs` is evidence, not a score.** One collect counts one run, and a `0`
-  beside an old `date` is a file to delete, not a file to promote.
+returns. @references/parts/workflows.md is the mechanism: when one is written,
+how it is attached, what a run is allowed to change, the table that decides
+whether each returned edit is applied or refused, and how `runs` is counted.
+Loop step 6 is where that collect happens. The scope is `@@workflows`.
 
 ```sh
 python3 @resources/pearde.py workflow list  [board]        # slug · kind · runs · updated · subject
@@ -31,7 +17,7 @@ python3 @resources/pearde.py workflow brief <slug> [board] # the workflow as one
 python3 @resources/pearde.py workflow check [board]        # what doctor reports for `workflows`
 ```
 
-`workflow` forwards to `@resources/workflows.py`, the only reader of that
+`workflow` forwards to @resources/workflows.py, the only reader of that
 format. `brief` is what a worker is handed and exits 1 on an atomic slug — an
 atomic is shown, not briefed.
 
