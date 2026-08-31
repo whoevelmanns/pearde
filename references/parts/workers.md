@@ -134,7 +134,8 @@ decides the state, and a `stopped` row does not.
 > question>"` from `<repo>`, the contract as the question. A gap
 > auto-enqueues into `.pearde/wiki/pending/` — note it in the report, it is
 > not a question of your own to ask. Run `python3 @resources/workflows.py
-> list <board>` too, and follow the workflow whose `## Use when` fits the
+> list <board-of-this-prd>` too, and follow the workflow whose `## Use when`
+> fits the build ahead, as you would one the PRD already carries. Then read
 > build ahead, as you would one the PRD already carries. Then read
 > `.pearde/prds/<prd>/prd.md`,
 > including `## Answers`. Then **build it** — never

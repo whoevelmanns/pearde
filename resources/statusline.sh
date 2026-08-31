@@ -2,7 +2,7 @@
 # pearde statusbar. Wire it as the global status line — @references/install.md.
 #
 # Renders line 1:  <dir> <branch> <*dirty ↑ahead ↓behind> · <model>  — always
-#         line 2:  ▸pearde<⊞b> <rd>/<rn> <rp>% · +<dr>d · open <o> <q>% · <persona> · ▸board
+#         line 2:  ▸pearde<⊞b> <rd>/<rn> <rp>% · +<dr>d · open <o> <q>% · <persona> · ▸board · ▸vault
 #
 # Every term on line 2 is defined in @references/parts/progress.md. `⊞b` is the
 # board count, on a master board only — the board plus its members.
@@ -15,7 +15,9 @@
 # says so: `↑0` would read as "everything is pushed" when there is nowhere to
 # push to. `▸board` is an OSC-8 link to the board's view at
 # 127.0.0.1:8443/board/<name>, matched on the daemon's registered path, and
-# absent when no daemon is running. PRD_STATUS_LINK=off renders the label
+# absent when no daemon is running. `▸vault` — beside it — opens the same
+# tree in Obsidian (a native obsidian:// URI, no daemon) and renders whenever
+# the repo root carries a vault. PRD_STATUS_LINK=off renders the label
 # without the escape, for a terminal that shows them raw.
 #
 # It reads four frontmatter keys — `state`, `complexity`, `origin`, and `est`
@@ -75,9 +77,13 @@ fi
 [ -n "$MODEL" ] && OUT="$OUT \033[38;5;240m·\033[0m \033[38;5;245m${MODEL}\033[0m"
 
 # ── board segment — its own line ──────────────────────────────────────────────────────────────
+# A board is a `.pearde/` directory holding settings.md (tooling's find_board),
+# or — one board predating it — a `prds/` dir carrying its own settings.md.
+# Walking up, .pearde wins over prds/: a repo can hold both during a migration.
 BOARD=""; BOARD_OUT=""
 d="$DIR"
 while [ -n "$d" ] && [ "$d" != "/" ]; do
+  if [ -f "$d/.pearde/settings.md" ]; then BOARD="$d/.pearde"; break; fi
   if [ -d "$d/prds" ]; then BOARD="$d/prds"; break; fi
   # dirname's fixpoint is not always `/` — on a Windows drive path it is `C:`,
   # and without this guard the loop never exits. A no-op on POSIX.
@@ -245,6 +251,26 @@ if [ -n "$BOARD" ]; then
       BOARD_OUT="$BOARD_OUT\033[38;5;110m▸board\033[0m"
     else
       BOARD_OUT="$BOARD_OUT\033[38;5;110m\033]8;;${LINK}\033\\\\▸board\033]8;;\033\\\\\033[0m"
+    fi
+  fi
+
+  # ▸vault — the board itself in Obsidian. A native obsidian:// URI: the app
+  # resolves `path=` to whichever vault owns the directory and focuses it, so
+  # no plugin, key, or running daemon is needed. The vault is the BOARD's own
+  # .obsidian/ (a vault can root at a dot-directory; only dot-directories
+  # *inside* a vault are invisible), falling back to the repo root's. `%20`
+  # is the only encode the sed does; a board path with other reserved
+  # characters keeps them raw, which the app still resolves on macOS.
+  if [ -d "$BOARD/.obsidian" ]; then VAULT="$BOARD"
+  elif [ -d "${BOARD%/*}/.obsidian" ]; then VAULT="${BOARD%/*}"
+  fi
+  if [ -n "$VAULT" ]; then
+    VL="obsidian://open?path=$(printf '%s' "$VAULT" | sed 's/ /%20/g')"
+    [ -n "$BOARD_OUT" ] && BOARD_OUT="$BOARD_OUT \033[38;5;240m·\033[0m "
+    if [ "${PRD_STATUS_LINK:-on}" = "off" ]; then
+      BOARD_OUT="$BOARD_OUT\033[38;5;110m▸vault\033[0m"
+    else
+      BOARD_OUT="$BOARD_OUT\033[38;5;110m\033]8;;${VL}\033\\\\▸vault\033]8;;\033\\\\\033[0m"
     fi
   fi
 fi

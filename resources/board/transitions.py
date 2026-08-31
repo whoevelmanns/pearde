@@ -566,12 +566,12 @@ def add(board, title, persona, priority=0, body="", parent=None, out=print,
     d = os.path.join(base, slug)
     if os.path.exists(d):
         raise Refused(f"add: the slug `{slug}` is taken — "
-                      f"{os.path.relpath(d, board)} exists")
+                      f"{os.path.relpath(d, base)} exists")
     text = from_template(title, int(priority or 0), body or "")
     if len(body.strip().splitlines()) > BIG_LINES or \
             body.lower().count("when this is done") > 1:
         out("big — expect a split")     # a warning; it gates nothing
-    rel = os.path.relpath(d, board)
+    rel = os.path.relpath(d, base)
     if dry:
         prds = planlib.scan(board)
         fake_prd(board, rel, text, prds)
@@ -581,7 +581,7 @@ def add(board, title, persona, priority=0, body="", parent=None, out=print,
         return rel
     os.makedirs(d)
     editlib.write_atomic(os.path.join(d, "prd.md"), text)
-    rel = os.path.relpath(d, board)
+    rel = os.path.relpath(d, base)
     record({"local": rel, "board_path": board}, None, "open")
     out(progress_line(board, rel, "—", "open", persona))
     return rel

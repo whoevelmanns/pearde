@@ -193,7 +193,25 @@ def members(board):
         # absolute always: this path is handed to the daemon, which walks it
         # from a working directory that has nothing to do with the board's
         path = os.path.abspath(os.path.join(board, path))
-        if os.path.basename(path) != "prds" and os.path.isdir(
+        # A member names a BOARD, not a prds dir: the old layout had the two
+        # coincide (`<root>/prds`), so appending `/prds` when it exists was
+        # right. Since the board moved to `<repo>/.pearde`, that test also
+        # fires on a nested board — `.pearde` holding `prds/` — and the
+        # double board then double-joins in _scan_one (`.pearde/prds/prds`),
+        # which walks nothing and silently drops every member PRD. Distinguish:
+        # the board dir IS its `.git`-holding `.pearde` (its own git repo) or
+        # holds the board's settings.md — then it is the board, and _scan_one
+        # wants just it.
+        # A member path is a board when it IS a `.pearde` — its own git
+        # repo, or it holds the board's settings.md, or its basename says so.
+        # Passing such a path through the `/prds` append below would make
+        # `_scan_one` walk `.pearde/prds/prds` and scan nothing: a nested
+        # board member read as empty. Any other path with a `prds/` inside
+        # is the old repo-root member, and `/prds` is appended as before.
+        is_nested_board = (os.path.basename(path) == BOARD_DIR
+                           or os.path.isfile(os.path.join(path, "settings.md"))
+                           or os.path.isdir(os.path.join(path, ".git")))
+        if not is_nested_board and os.path.isdir(
                 os.path.join(path, "prds")):
             path = os.path.join(path, "prds")
         name = name or re.sub(r"[^A-Za-z0-9_.-]", "-", project_name(path))

@@ -659,13 +659,25 @@ if [ -n "$BOARD" ]; then
     HG=0; HU=0; HF=0; HFAILED=""; HUNPINNED=""
     HT0=$(date +%s)
     HTMP=$(mktemp -d)
+    # Every harness gets its own out/rc file and runs at once — the row's
+    # wall-clock is the slowest harness, not the sum of all of them.
+    # ponytail: unbounded parallelism, fine for ~40 short bash scripts; add a
+    # `wait -n` job cap only if a harness ever needs the whole box.
+    ji=0
     while IFS= read -r h; do
       [ -n "$h" ] || continue
+      ji=$((ji + 1))
+      ( PEARDE_HARNESSES=1 bash "$h" </dev/null >"$HTMP/out.$ji" 2>&1; echo $? > "$HTMP/rc.$ji" ) &
+    done <<EOF
+$HLIST
+EOF
+    wait
+    ji=0
+    while IFS= read -r h; do
+      [ -n "$h" ] || continue
+      ji=$((ji + 1))
       rel="${h#"$START"/}"; rel="${rel#"$SKILL_ROOT"/}"
-      PEARDE_HARNESSES=1 bash "$h" </dev/null >"$HTMP/out" 2>&1
-      hrc=$?
-      # The pin is read as the idiom, not as semantics: a test comparing the
-      # harness's own executed total against an integer literal.
+      hrc=$(cat "$HTMP/rc.$ji")
       if grep -qE '\$\(\([[:space:]]*[Pp][Aa][Ss][Ss][[:space:]]*\+[[:space:]]*[Ff][Aa][Ii][Ll][[:space:]]*\)\)[^=]*(=|-eq)[[:space:]]*"?[0-9]+' "$h"; then
         pinned=1
       else
@@ -676,8 +688,8 @@ if [ -n "$BOARD" ]; then
         # the marker every harness on this board prints, at the start of its
         # own line — matching `FAIL` anywhere on a line quotes a passing
         # check whose name happens to contain the word
-        first=$(grep -m1 -E '^[[:space:]]*FAIL' "$HTMP/out" | sed 's/^[[:space:]]*//')
-        [ -z "$first" ] && first=$(tail -1 "$HTMP/out" | sed 's/^[[:space:]]*//')
+        first=$(grep -m1 -E '^[[:space:]]*FAIL' "$HTMP/out.$ji" | sed 's/^[[:space:]]*//')
+        [ -z "$first" ] && first=$(tail -1 "$HTMP/out.$ji" | sed 's/^[[:space:]]*//')
         HFAILED="$HFAILED
 $rel — exit $hrc${first:+ · $first}"
       elif [ "$pinned" = 1 ]; then

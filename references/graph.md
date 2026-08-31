@@ -13,8 +13,10 @@ installed once per machine, driven through @resources/graph/graph.sh.
 | `GRAPH_REPORT.md` | god nodes, surprising connections, suggested questions |
 | `cache/` | SHA256 cache — re-runs touch only changed files |
 
-Everything lands in `graphify-out/` inside the folder being mapped. `graphify-out/` is
-regenerable and gitignored — the graph is data, not source.
+Everything lands in `.pearde/graphify/` inside the folder being mapped —
+`graph.sh` redirects graphify's own default there with `GRAPHIFY_OUT`, set
+absolute before every call. It is regenerable and gitignored — the graph is
+data, not source.
 
 ## The backend split
 
@@ -44,7 +46,7 @@ bash @resources/graph/graph.sh query @. "what connects the board to the view?"
 bash @resources/graph/graph.sh path @. "plan.py" "render.py"
 bash @resources/graph/graph.sh explain @. "guard.py"
 bash @resources/graph/graph.sh god-nodes @.
-bash @resources/graph/graph.sh open @.             # graphify-out/obsidian as a vault in Obsidian
+bash @resources/graph/graph.sh open @.             # .pearde/graphify/obsidian as a vault in Obsidian
 ```
 
 - **Extract is the only LLM call.** Update, query, path, explain, god-nodes
@@ -57,7 +59,7 @@ bash @resources/graph/graph.sh open @.             # graphify-out/obsidian as a 
 
 ## The vault
 
-`graphify-out/obsidian/` is its own vault, separate from the repo's — the
+`.pearde/graphify/obsidian/` is its own vault, separate from the repo's — the
 repo root is already an Obsidian vault, and the graph's notes stay out of it.
 `graph.sh open` opens it in Obsidian. The vault is output: edit nothing in it,
 edit the corpus and re-extract instead.
@@ -67,5 +69,5 @@ edit the corpus and re-extract instead.
 - The `.pearde/wiki/` KB is the research layer with its own graph of
   conclusions, hand-built by @resources/knowledge.py; graphify's graph is
   the corpus map. Different questions, kept in different vaults.
-- One commit per PRD holds @references/files.md and @index.md; `graphify-out/`
+- One commit per PRD holds @references/files.md and @index.md; `.pearde/graphify/`
   never enters one.

@@ -36,3 +36,7 @@ link to the board:
   an answer. It is the id, not the name, because the id is what you type back.
 - `▸board` is an OSC-8 hyperlink to the live view. `PRD_STATUS_LINK=off`
   prints the label bare. Optional.
+- `▸vault` opens the same tree as an Obsidian vault — a native
+  `obsidian://open?path=` URI, so it needs no plugin, key, or daemon and
+  renders whenever the repo root carries `.obsidian/` (@references/obsidian.md),
+  daemon or no. Same `PRD_STATUS_LINK=off` rule.

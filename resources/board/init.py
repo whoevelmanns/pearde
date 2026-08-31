@@ -212,9 +212,15 @@ def write_obsidian(d):
     key = os.urandom(24).hex()
     cfg = {"port": 27124, "insecurePort": 27123, "enableInsecureServer": False,
            "apiKey": key}
+    # The key is written beside the plugin's own bundle, and the bundle is not
+    # vendored — a machine that never ran `install --apply` has no plugin dir
+    # at all (the loop above reported it into `missing`). Writing the key
+    # cannot create the directory it belongs to and crash init: makedirs, and
+    # the key lands whenever the bundle later arrives.
     cfg_path = os.path.join(d, ".obsidian", "plugins",
                             "obsidian-local-rest-api", "data.json")
     if not os.path.exists(cfg_path):
+        os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
         editlib.write_atomic(cfg_path, json_text(cfg))
     key_path = os.path.join(d, ".pearde", "wiki", ".obsidian-api-key")
     if not os.path.exists(key_path):

@@ -1,6 +1,6 @@
 {
   "collapse-filter": false,
-  "search": "-file:\"prd\" -path:\"specs\" -path:\"prds/knowledge/.graphify\" -path:\"prds/knowledge/graphs\" -path:\"prds/knowledge/pending\" -path:\".absorbed\" -file:\"Dashboard\" -path:\"graphify-out\" -path:\".claude\"",
+  "search": "-file:\"prd\" -path:\"specs\" -path:\"prds/knowledge/.graphify\" -path:\"prds/knowledge/graphs\" -path:\"prds/knowledge/pending\" -path:\".absorbed\" -file:\"Dashboard\" -path:\".pearde/graphify\" -path:\".claude\"",
   "showTags": true,
   "showAttachments": true,
   "hideUnresolved": true,
