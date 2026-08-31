@@ -209,9 +209,15 @@ if [ -z "$BOARD" ]; then
 else
   ROOT=$(git -C "$BOARD" rev-parse --show-toplevel 2>/dev/null)
   N=$(find "$BOARD" -type f -name prd.md 2>/dev/null | wc -l | tr -d ' ')
-  # compare physical paths — /tmp vs /private/tmp is a spelling, not a move
+  # compare physical paths — /tmp vs /private/tmp is a spelling, not a move.
+  # On Git for Windows, `rev-parse --show-toplevel` can answer in native
+  # form (`C:/Users/...`) while `$BOARD`/`pwd -P` stay in Git Bash's own
+  # POSIX form (`/c/Users/...`) — same place, two spellings. `cd` accepts
+  # either, so resolving $ROOT through it too puts both sides in the one
+  # form this shell already uses, instead of comparing spellings.
   PBOARD=$(cd "$BOARD" 2>/dev/null && pwd -P)
-  if [ -n "$ROOT" ] && [ "$PBOARD" != "$ROOT/prds" ]; then
+  PROOT=$(cd "$ROOT" 2>/dev/null && pwd -P)
+  if [ -n "$ROOT" ] && [ "$PBOARD" != "$PROOT/prds" ]; then
     row board broken "$BOARD is not $ROOT/prds"
     fix "git mv $BOARD $ROOT/prds"
   elif [ ! -f "$BOARD/settings.md" ]; then
