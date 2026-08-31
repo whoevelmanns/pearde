@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """pearde specs — the two transitions a spec set decides.
 
-    specs.py specced <prd> [--blast high|mid|low] [--workflow <slug>|none] [--check] [--dry]
+    specs.py specced <prd> [--blast high|mid|low] [--workflow <slug>] [--route -] [--check] [--dry]
     specs.py refine  <prd> [--dry] < report
 
 `specced` reads every `specs/*.md`, refuses naming file and line, refuses a
@@ -9,7 +9,13 @@ set over `split-above` or `specs-above` (`over split-above: 58 > 40 — REFINE
 it`; the two keys of `settings.md`, the PRD's own board's), else writes
 `complexity:` as the sum, `blast-radius:` and `workflow:` from the flags,
 clears `claim:`, sets `specced` and prints the progress line. `--check` runs
-the gate and writes nothing. `refine` reads the `## Split` table off stdin,
+the gate and writes nothing. `--workflow <new-slug> --route -` drafts a
+workflow the library does not hold from `## Route` on stdin — the file per
+step and every new atomic's, `workflow check` over the whole library before
+either is kept, refused whole on red with nothing written. `--workflow
+<slug>` naming one the library already has refuses `--route` — the route
+exists, follow it — and `--workflow none` is refused outright, naming
+`## Route`. `refine` reads the `## Split` table off stdin,
 writes one child `prd.md` per row from the template, the same table under the
 parent's `## Children`, and sets the parent `open`.
 
@@ -28,6 +34,7 @@ and sums no number.
 
 Python 3 stdlib only.
 """
+import datetime
 import os
 import re
 import sys
@@ -241,17 +248,101 @@ def find_prd(board, name):
     return prds, rel, prds[rel]
 
 
+
+# ── route drafting ──────────────────────────────────────────────────────────
+# `## Route` closes a report when no library workflow fits: the workflow body
+# (`## Use when`, `## Steps`) verbatim, then one `### atomic <slug>` block per
+# step whose atomic the library does not hold. Route is always the report's
+# last section, so this reads raw text after the heading rather than the
+# flat `section_text` splitter above — that splitter treats every `## ` line
+# as a sibling, and the workflow body's own `## Use when` / `## Steps` would
+# be read right off Route instead of staying nested in it.
+
+ATOMIC_HDR_RE = re.compile(r"(?m)^###\s+atomic\s+(\S+)\s*$")
+
+
+def route_text(text):
+    """Everything after `## Route`, verbatim. None when the heading is
+    absent."""
+    m = re.search(r"(?m)^##\s+Route\s*$", text)
+    return text[m.end():].lstrip("\n") if m else None
+
+
+def route_parts(text):
+    """(workflow_body, [(slug, body)]) — `## Route`'s raw text split on
+    `### atomic <slug>` boundaries, the only split that respects nesting."""
+    raw = route_text(text)
+    if raw is None:
+        raise Refused("no `## Route` on stdin")
+    pieces = ATOMIC_HDR_RE.split(raw)
+    wf_body = pieces[0].strip("\n")
+    if not wf_body:
+        raise Refused("`## Route` holds no workflow body before its first "
+                      "`### atomic` block")
+    atoms = []
+    for i in range(1, len(pieces), 2):
+        slug, body = pieces[i].strip(), pieces[i + 1].strip("\n")
+        if not SLUG_RE.match(slug):
+            raise Refused(f"`### atomic {slug}` is not a slug")
+        if not body.strip():
+            raise Refused(f"`### atomic {slug}` holds no body")
+        atoms.append((slug, body))
+    return wf_body, atoms
+
+
+def draft_route(board, slug, report, subject, date):
+    """Write the workflow and its new atomics from `## Route`, run `workflow
+    check` over the whole library, and roll every file this call wrote back
+    on red — the call refused, nothing written. A step naming an atomic
+    already in the library writes no file; its `why` cell, when the block IS
+    new, becomes that atomic's `subject`."""
+    wf_body, atoms = route_parts(report)
+    rows = wflib.steps(wf_body) or []
+    why = {r["atomic"]: r["why"] for r in rows}
+    written = []
+    try:
+        written.append(wflib.add(board, slug, "workflow", subject, wf_body,
+                                 date))
+        for atom_slug, body in atoms:
+            written.append(wflib.add(board, atom_slug, "atomic",
+                                     why.get(atom_slug, "").strip()
+                                     or atom_slug, body, date))
+    except ValueError as e:
+        for p in written:
+            os.remove(p)
+        raise Refused(str(e))
+    bad = wflib.check(board)
+    if bad:
+        for p in written:
+            os.remove(p)
+        raise Refused("`## Route` failed `workflow check` — nothing "
+                      "written:\n" + "\n".join(bad))
+    return written
+
+
 # ── specced ───────────────────────────────────────────────────────────────────
 
 def specced(board, args, persona):
     """validate the specs, sum the weight, set `specced`"""
     blast, workflow = args.opt.get("blast"), args.opt.get("workflow")
+    route = args.opt.get("route")
     check = "check" in args.flags
     prds, rel, prd = find_prd(board, args.pos[0])
     if blast is not None and blast not in BLASTS:
         raise Refused(f"--blast `{blast}` is not one of {'|'.join(BLASTS)}")
     lib = library(board, prd)
-    if workflow and workflow != "none" and \
+    if workflow == "none" and route is None:
+        raise Refused("`--workflow none` is refused — draft the route as "
+                      "`## Route` on stdin with `--route -`, or follow one "
+                      "already in the library")
+    if route is not None:
+        if not workflow or workflow == "none":
+            raise Refused("`--route` needs `--workflow <new-slug>`")
+        if lib.get(workflow, {}).get("kind") == "workflow":
+            raise Refused(f"--workflow `{workflow}` is already in the "
+                          "library — `--route` is refused, the route "
+                          "exists: follow it")
+    elif workflow and workflow != "none" and \
             lib.get(workflow, {}).get("kind") != "workflow":
         raise Refused(f"--workflow `{workflow}` names no workflow in the "
                       "library")
@@ -266,15 +357,27 @@ def specced(board, args, persona):
             if n > lim[k]]
     if over:
         raise Refused("\n".join(over))
+    written = []
+    if route is not None:
+        report = sys.stdin.read() if route == "-" else \
+            open(route, encoding="utf-8").read()
+        written = draft_route(board, workflow, report, prd["title"],
+                              datetime.date.today().isoformat())
     if check:
+        for p in written:
+            os.remove(p)
         print(f"{rel}: ok · complexity {total} · footprint "
               + ", ".join(sorted(set(feet))))
         return 0
     if prd["state"] not in SPECCED_FROM:
+        for p in written:
+            os.remove(p)
         raise Refused(f"{rel} is `{prd['state']}` — `specced` is set from "
                       f"`{SPECCED_FROM[0]}` (@references/parts/states.md)")
     path = os.path.join(prd["dir"], "prd.md")
     if args.dry:
+        for p in written:
+            os.remove(p)
         frm, fm = prd["state"], prd["fm"]
         prd["state"] = fm["state"] = "specced"
         fm["complexity"] = str(total)
@@ -433,7 +536,7 @@ def refine(board, args, persona):
 # The declaration — transitions.py `Args` is the parser, and `--help` prints
 # the same list.
 FLAGS = {
-    "specced": trlib.Flags(("as", "board", "blast", "workflow"),
+    "specced": trlib.Flags(("as", "board", "blast", "workflow", "route"),
                            ("check",) + trlib.DRY),
     "refine":  trlib.Flags(("as", "board"), trlib.DRY),
 }

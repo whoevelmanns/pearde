@@ -29,6 +29,7 @@ grammar and the report section.
 | moment              | what happens                                                        |
 |---------------------|----------------------------------------------------------------------|
 | a job repeats       | a new file, by hand or from the drill's tree, at `runs: 0`           |
+| nothing fits at spec time | the analyst's route, written by `specced`, `runs: 0`           |
 | a run hits a wall   | the text changes — a lesson folded into `## Do` or `## Fails when`, `updated` moved |
 | a run ends          | the collect below — `runs` +1, the edits applied or refused, the files on the PRD's commit |
 

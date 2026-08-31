@@ -58,7 +58,11 @@ Rules for every worker:
 > Write in `<language>`, per @references/language.md. Never edit frontmatter,
 > never touch another PRD, never write outside `.pearde/prds/<prd>/` and the
 > footprint. A defect outside your scope goes in the report, not into a fix.
-> Write your report to `.pearde/prds/<prd>/report.md` and return one line — the
+> A fact learned outside this repo — the web, a library this tree does not
+> hold — is written back with `python3 resources/knowledge.py remember`
+> (`conclude` once two sources agree), never left standing only in this
+> report. Write your report to `.pearde/prds/<prd>/report.md` and return one
+> line — the
 > verdict, that path, and the numbers the orchestrator's command takes. Under
 > fifteen lines back, whatever the report holds.
 <!-- /brief -->
@@ -70,7 +74,7 @@ is the `doctor` row `briefs`.
 
 | placeholder | filled from |
 |---|---|
-| `<prd>` | the PRD's real path under `prds/` — never `@<member>/…` |
+| `<prd>` | the PRD's real path under `.pearde/prds/` — never `@<member>/…` |
 | `<repo>` | the PRD's `repo:` when it is a directory, else the member's repo root, else the board's |
 | `<language>` | `language` in the PRD's own board's `settings.md` |
 | `<probe>` | `.pearde/prds/<prd>/probe/` — where probe code lives |
@@ -126,7 +130,14 @@ decides the state, and a `stopped` row does not.
 **Analyst** — one per `open` PRD being probed:
 
 <!-- brief:analyst -->
-> Read `.pearde/prds/<prd>/prd.md`, including `## Answers`. Then **build it** — never
+> Query the record first: `python3 resources/knowledge.py query "<the PRD's
+> question>"` from `<repo>`, the contract as the question. A gap
+> auto-enqueues into `.pearde/wiki/pending/` — note it in the report, it is
+> not a question of your own to ask. Run `python3 @resources/workflows.py
+> list <board>` too, and follow the workflow whose `## Use when` fits the
+> build ahead, as you would one the PRD already carries. Then read
+> `.pearde/prds/<prd>/prd.md`,
+> including `## Answers`. Then **build it** — never
 > spec from reading. Attempt the implementation in `<repo>` and keep going
 > until it works or until it hits something undefined. The attempt is the
 > analysis: whatever the build passes through needs no question, and whatever
@@ -142,8 +153,11 @@ decides the state, and a `stopped` row does not.
 >   stands and what is left to finish. Report the spec list, the PRD's
 >   `complexity` (1-100) and `blast-radius` (`high`|`mid`|`low`) with one
 >   line of reasoning each, and the union of the footprints. Name the
->   workflow you followed — `workflow: <slug>`, or `workflow: none fit`, and
->   a job you saw recur is a finding in the report, never a file you write.
+>   workflow you followed — `workflow: <slug>`. No file in the library fit:
+>   draft one from the build you just ran, `## Route` below — a report
+>   naming no workflow is not a verdict this board accepts any more. A job
+>   you saw recur that already has a file is a finding in the report, never
+>   a second file you write.
 >   **Do not estimate how long anything will take.** If a spec's compute cost
 >   is large enough to change its scope, price that inside the spec.
 >   End the report with the block the orchestrator reads the values off,
@@ -154,7 +168,44 @@ decides the state, and a `stopped` row does not.
 >
 >   complexity: <N>
 >   blast-radius: high|mid|low
->   workflow: <slug> | none fit
+>   workflow: <slug>
+>   ```
+>
+>   No workflow in the library fit: `<slug>` above is the one you are naming
+>   for the first time, and `## Route` follows this block, in the shape of
+>   @references/workflow.md — the workflow's own body, then one `### atomic
+>   <new-slug>` block per step whose atomic the library does not hold, its
+>   `## Do` and `## Done when` filled and `## Fails when` left empty. A step
+>   naming an atomic already in the library writes no block. Every row is a
+>   step the build actually took, in order — never one you imagine, and a
+>   step the build did not take is not a row:
+>
+>   ```
+>   ## Route
+>
+>   ## Use when
+>
+>   - <the job this fits, named the way it arrived>
+>   - <the near-miss it does NOT fit, and the slug that does>
+>
+>   ## Steps
+>
+>   | # | atomic | why | on failure |
+>   |---|--------|-----|------------|
+>   | 1 | `<slug>` | <what this step bought the run> | `stop` |
+>   | 2 | `<new-slug>` | <what this step bought the run> | `→ 1` |
+>
+>   ### atomic <new-slug>
+>
+>   ## Do
+>
+>   1. <the command or file the run actually used>
+>
+>   ## Done when
+>
+>   - <the check the run actually made>
+>
+>   ## Fails when
 >   ```
 > - **REFINE** — the build hit a missing piece big enough to be its own
 >   contract, or the PRD holds more than one. Report the proposed children,
@@ -217,18 +268,22 @@ decides the state, and a `stopped` row does not.
 > that could not fail, goes in your report as a finding — not into a spec, and
 > not into a new PRD. Widening the contract is REFINE, not initiative.
 >
-> Probe code lives at `<probe>` — `prds/` is outside the manifest scan, so it
+> Probe code lives at `<probe>` — `.pearde/prds/` is outside the manifest scan, so it
 > costs no row and travels with the PRD. Build every fixture in a directory
-> made at run time, never under `prds/` — a directory holding `prd.md`
+> made at run time, never under `.pearde/prds/` — a directory holding `prd.md`
 > anywhere under the board is a PRD. Quote a box spelling into a PRD or a
 > spec backtick-quoted — the matcher is line-based, and a pasted `- [ ]` is
 > a real box.
 <!-- /brief -->
 
-On return: SPECCED → `pearde specced <prd> --blast <x> [--workflow <slug>]`,
-the values off `## Scores` — the command reads the spec files, refuses what
-is not a spec naming file and line, and sums the weight — and hand it to its
-implementer in the same round, never to a shelf.
+On return: SPECCED → `pearde specced <prd> --blast <x> --workflow <slug>`,
+the values off `## Scores`; a `## Route` under it rides along too —
+`--workflow <slug> --route -` with the report on stdin — when the slug is
+one the library did not already hold. The command reads the spec files,
+refuses what is not a spec naming file and line, sums the weight, and, with a
+route, writes the workflow and its new atomics and runs `workflow check`
+first, refusing the whole call with nothing written on red — and hand it to
+its implementer in the same round, never to a shelf.
 REFINE → `pearde refine <prd> < report` — the children exist from the
 `## Split` table and the parent is `open`. QUESTION → set the state, keep
 the report. The probe code stays in

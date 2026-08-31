@@ -1,6 +1,6 @@
 # The loop
 
-Seven steps, in order. Run until the board is drained, or everything left is
+Eight steps, in order. Run until the board is drained, or everything left is
 blocked on the user. `once` = one round. `status` = step 1 plus the progress
 report, changing nothing.
 
@@ -39,10 +39,11 @@ and the refusal names the command that answers instead.
 | 1 scan | `pearde scan` · `pearde sweep` once per session · read `.pearde/.state/round.md` · `pearde init` when there is no board | nothing — read |
 | 2 answer | `pearde answer <prd> Q<n> "<text>"` per answer | what to put to the user, per @references/drill.md, and what they said |
 | 3 refine | `pearde refine <prd> < report` | whether the analyst's `## Split` table is usable; a drill when it is not |
-| 4 spec ahead | `pearde claim <prd> <worker>` · `pearde brief <prd>` → dispatch as `pearde-analyst` | which persona the job wears |
+| 4 spec ahead | `pearde claim <prd> <worker>` · `pearde brief <prd> --worker <worker>` → dispatch as `pearde-analyst` | which persona the job wears |
 | 5 implement | the same two commands, dispatched as `pearde-implementer` | which persona the job wears |
 | 6 collect | read the returned line · apply or refuse `## Workflow` edits · `pearde collect <prd>` | whether to believe the report; whether an edit was the atomic's |
-| 7 drill, then stop | one drill round over the frontier · rewrite `.pearde/report.md` and `.pearde/.state/round.md` · `pearde view wait` | the forks and their three answers |
+| 7 knowledge | `python3 resources/knowledge.py query "<the frontier's open question>"` per PRD about to be drilled | whether the record already answers it — cite the note under `## Answers` and skip the question, or let the drill stand |
+| 8 drill, then stop | one drill round over the frontier · rewrite `.pearde/report.md` and `.pearde/.state/round.md` · `pearde view wait` | the forks and their three answers |
 
 **1 · Scan.** The sections come out in the pressure order of
 @references/parts/order.md — collect, waiting on you, in flight, ready, gated
@@ -81,13 +82,24 @@ board moving.
 **4 · 5 · Spec ahead, implement.** `pearde claim` refuses what is not
 dispatchable — held, not a leaf, `needs:` not `done`, a footprint clash with a
 `claimed` PRD, a `workflow:` naming nothing — and names the gate; `pearde
-brief` runs the same test and prints the brief with the persona off the table
-in @references/parts/workers.md. `pipeline` and `workers` are `settings.md`,
+brief`, given `--worker <worker>` naming the same worker `claim` just wrote,
+runs the same test and prints the brief with the persona off the table in
+@references/parts/workers.md — the claim `claim` just wrote is not itself a
+refusal when the worker named is the one asking, so the routine dispatch
+needs no `--force`. A brief with no `--worker`, or one naming someone else,
+still refuses a held PRD exactly as before; `--force` remains the escape
+hatch past every gate, for the multi-session case where a PRD is genuinely
+someone else's. `pipeline` and `workers` are `settings.md`,
 and the scan's **ready** section is the queue in dispatch order. `pearde scan`
 marks the PRD's line `wf <slug>?` when its workflow resolves to nothing — the
 one refusal you clear yourself: fix the slug or remove the key, then claim in
 the same round. `pearde workflow check` names the file, but on a master it
 never reaches a member's PRDs. Run `check` on the board the PRD lives on.
+`specced` reads a `## Route` on stdin when `## Scores` names a slug the
+library does not hold — `--workflow <slug> --route -` — drafts the workflow
+and its new atomics at `runs: 0` and runs `workflow check` over the library
+before either is kept, refusing the whole call with nothing written on red.
+`--workflow none` is refused outright, naming `## Route`.
 
 **6 · Collect.** Results are pushed, never polled: a finished analyst refills
 the pipeline, a finished implementer frees a slot. What a worker returns is
@@ -111,7 +123,10 @@ Apply an edit when the failure was the atomic's.
 Refuse it when the failure was the code's or the PRD's, and say which in the
 round. The worker wrote the text: paste it or refuse it, never rewrite it.
 **`runs` +1** on the workflow and on every atomic that ran, `updated: <today>`
-where the text changed. **`pearde workflow check` before the commit.** An edit that
+where the text changed — a route `specced` just drafted at `runs: 0` is no
+exception: its first collect is `runs: 1` like any other run, and an empty
+`## Fails when` is filled by that run for the first time, not left for a
+later one. **`pearde workflow check` before the commit.** An edit that
 breaks the format is refused, not repaired. The changed files ride the PRD's
 commit, `pearde collect --also <path>`. The PRD's own `footprint:` does not change.
 **One writer: the orchestrator.** Two workers proposing edits to one atomic
@@ -120,7 +135,15 @@ in one round is two collects.
 A defect a worker reports outside its scope is the orchestrator's call per
 @references/parts/derived.md — a derived PRD or a memo, neither `open` by default.
 
-**7 · Drill, then stop.** Nothing in flight and nothing dispatchable means the
+**7 · Knowledge.** Before a fork is put to the user, query the record for its
+question — `python3 resources/knowledge.py query`. A strong hit answers the
+question from what is already known: write it straight under `## Answers`, per
+step 2, and the fork never reaches the user. A gap or a thin hit changes
+nothing — `query` already enqueued the gap into `.pearde/wiki/pending/`, and
+the fork still drills at step 8. This step reads the record; it never writes
+a `remember` or `conclude` itself — those are a worker's or the user's own.
+
+**8 · Drill, then stop.** Nothing in flight and nothing dispatchable means the
 board is blocked on a person: one drill round over the whole open frontier —
 @references/drill.md § The board's own frontier — never one per PRD, and never
 a question `## Asked` already lists. Answers land as step 2 lands them, and the

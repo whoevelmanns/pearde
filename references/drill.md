@@ -194,5 +194,5 @@ Attach a workflow while the tree is being written, not later. `python3
 fits a branch, write `workflow: <slug>` on that child, so the worker that
 eventually takes it is handed the route with its brief. A branch nothing fits
 carries no key — the brief alone is the honest state, and writing a new
-workflow is `workflow add`, an act of the orchestrator's at `runs: 0`, never
-the drill's.
+workflow is the analyst's, at spec time — `## Route` in its report, `runs: 0`
+from `specced` — never the drill's.
