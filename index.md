@@ -45,7 +45,7 @@ explains the rest.
 | keyword | is | read |
 |---|---|---|
 | `@@loop` | the round, start to finish | @references/parts/loop.md · @references/parts/round.md · @references/parts/states.md · @references/parts/commits.md · @references/parts/progress.md · @references/parts/order.md · @references/parts/roles.md |
-| `@@board` | what the scan walks and what it parses | @references/parts/board.md · @references/parts/round.md · @resources/board/plan.py · @references/parts/contract.md · @references/parts/states.md · @references/templates/prd.md · @references/templates/vision.md · @references/settings.md · @resources/board/init.py |
+| `@@board` | what the scan walks and what it parses | @references/parts/board.md · @references/parts/round.md · @resources/board/plan.py · @references/parts/contract.md · @references/parts/states.md · @references/templates/prd.md · @references/templates/vision.md · @references/settings.md · @resources/board/init.py · @references/archive.md |
 | `@@states` | the nine states and what moves a PRD between them | @references/parts/states.md · @resources/board/transitions.py · @resources/board/specs.py · @references/parts/contract.md · @references/parts/commits.md |
 | `@@order` | what runs next, and why no axis is a clock | @references/parts/order.md · @references/parts/derived.md · @resources/board/plan.py · @references/templates/vision.md |
 | `@@workers` | dispatching an analyst or an implementer | @references/parts/workers.md · @references/agents/pearde-analyst.md · @references/agents/pearde-implementer.md · @resources/board/brief.py · @references/parts/roles.md · @references/parts/solo.md · @references/language.md |
