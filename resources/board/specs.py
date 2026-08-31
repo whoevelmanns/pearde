@@ -75,36 +75,34 @@ LIMITS = (("split-above", 40), ("specs-above", 6))
 # ── can a verify block fail? ──────────────────────────────────────────────────
 
 # collect runs every `## Verify and Proof` block under `bash -e -o pipefail`
-# and reads the exit code that comes out. Between those two rules a block goes
-# red only through a command that runs unsuppressed and can exit non-zero:
-# under `set -e` the first such command aborts the block, and if there is
-# none, the block's exit is its last line's — an `echo`. A block with none of
-# those cannot fail, and a box that cannot fail is not a check: `specced`
-# refuses it, the same four shapes the collect runner surfaced today —
-# everything guarded with `|| true` behind a closing `echo`, an inverted
-# `!`, a whole body in `if` conditions, a bare `true`.
+# with the code repo as cwd, and reads the exit code that comes out. Between
+# those two rules the block goes red only when something makes the script's
+# exit non-zero: a failing command aborts the script when it is the LAST
+# element of its and-or list — any earlier element merely shapes the flow,
+# `set -e` exempts it, and the list's own non-zero result is carried on
+# without an abort — and where nothing aborts, the block's exit is its
+# final statement's status. So a block cannot fail iff no statement can
+# abort and the last one can only end 0: every fallible command sits behind
+# an always-0 fallback (`|| true`), an inversion (`!`), or a condition, and
+# the block ends on an `echo`. collect reads exactly that exit, so a box
+# carried by such a block is not a check — the shape the runner surfaced
+# four times today. `specced` refuses it.
 
 # Builtin commands whose exit status is 0 come what may. Anything not listed
-# here counts as able to exit non-zero — over-counting only ever accepts a
-# block, under-counting would refuse a live one.
+# counts as able to exit non-zero — over-counting only ever accepts a block;
+# under-counting would refuse a live one.
 ALWAYS0 = frozenset(("echo", "printf", "true", ":", "pwd", "export", "unset",
-                     "set", "local", "readonly", "declare", "shift"))
-
-# Words that open a segment whose failure is a condition or a frame, not an
-# abort: `if` / `while` / `until` conditions route to a branch instead of
-# tripping `set -e`, and `then` / `else` / `do` are noise before the body
-# that follows them on the same line.
-CONDITION_HEAD = re.compile(r"^(if|elif|while|until|for|case)([ \t]|$)")
-NOISE_HEAD = ("then", "else", "do", "fi", "done", "esac", "}", ")")
+                     "set", "readonly", "declare"))
+# Words that open a segment whose failure is a condition or syntax — it
+# routes instead of aborting, or it is the frame around the real command.
+_COND_HEAD = re.compile(r"^(if|elif|while|until|for|case)([ \t(]|$)")
+_FRAME_HEAD = ("then", "else", "do", "fi")
 
 
-def _segments(line):
-    """Top-level segments of one logical line with the operator that follows
-    each — split at `;`, `&`, `|`, `&&`, `||`, never inside quotes or
-    unquoted parentheses (a `$( )` substitution is one argument, and its
-    operators are its own). With `pipefail` both sides of a `|` count; under
-    `set -e` the left of `&&` fails the whole list; only the right operand
-    of `||` can abort."""
+def _segments(line, op=""):
+    """[(op-before, text)] — top-level split at `;`, `&`, `|`, `&&`, `||`,
+    never inside quotes or unquoted parentheses (a `$( )` substitution is
+    one argument and keeps its own operators)."""
     out, cur, quote, depth = [], "", None, 0
     i = 0
     while i < len(line):
@@ -126,27 +124,82 @@ def _segments(line):
         elif ch == ")":
             depth = max(0, depth - 1)
         elif depth == 0 and ch in ";|&":
-            if ch in "|&" and line[i:i + 2] in ("||", "&&"):
-                out.append(_Seg(cur, line[i:i + 2]))
-                cur, i = "", i + 2
+            two = line[i:i + 2]
+            if two in ("||", "&&"):
+                out.append((op, cur))
+                op, cur, i = two, "", i + 2
                 continue
-            out.append(_Seg(cur, ch))
-            cur, i = "", i + 1
+            out.append((op, cur))
+            op, cur, i = ch, "", i + 1
             continue
         cur += ch
         i += 1
-    out.append(_Seg(cur, ""))
+    out.append((op, cur))
     return out
 
 
-class _Seg:
-    """One command segment and the operator that separates it from the next.
-    Under `set -e` a segment's failure aborts the block unless it is
-    always-0, or the operator that follows it is `||` — then its failure
-    just routes to the fallback, and the fallback is the abort candidate."""
+_EXIT_RE = re.compile(r"^(exit|exec|logout|bye)([ \t]|$)")
 
-    def __init__(self, text, op):
-        self.text, self.op = text, op
+
+def _leaves_shell(text):
+    """`exit` (and kin) leave no fallback: executed, the shell is gone with
+    its own status, whatever operator follows — but only when that status
+    can be non-zero; `exit 0` is a success like `true`."""
+    t = text.strip()
+    if not _EXIT_RE.match(t):
+        return False
+    if re.match(r"^exit[ \t]+0$", t):
+        return False
+    return True
+
+
+def _plain_succeeds(text):
+    """True only when this command is KNOWN to succeed — the inverse's only
+    failure mode. An unknown command may succeed, so an inverted unknown
+    command may return 1."""
+    tokens = text.strip().split()
+    while len(tokens) > 1 and (re.match(r"^[A-Za-z_][A-Za-z0-9_]*=",
+                                        tokens[0]) or tokens[0] in
+                               _FRAME_HEAD):
+        tokens = tokens[1:]
+    first = tokens[0].strip("\"'") if tokens else ""
+    return first in ALWAYS0
+
+
+def _seg_can_fail(text):
+    """True unless this one pipeline member always exits 0 — the
+    conservative read: an unlisted command, or any shape this walker cannot
+    read, counts as able to fail."""
+    s = text.strip()
+    if not s or s == "!":
+        return True                     # a lone `!` is a syntax error
+    if s.startswith("!") and not s.startswith("[["):
+        # an inversion routes: a failing command turns 0, a succeeding one
+        # turns 1 — and a `!`-pipeline's failure never trips `set -e`. Only
+        # the SUCCESS of the command underneath can leave a 1 behind.
+        return _plain_succeeds(s[1:].strip())
+    if _COND_HEAD.match(s):
+        return False                    # a condition routes, not aborts
+    if re.match(r"^(done|fi|esac)([ \t;&|]|$)", s):
+        return False                    # a loop or branch frame
+    if re.match(r"^exit[ \t]+0$", s):
+        return False
+    stripped, tokens = False, s.split()
+    while len(tokens) > 1 and (re.match(r"^[A-Za-z_][A-Za-z0-9_]*=",
+                                        tokens[0]) or tokens[0] in
+                               _FRAME_HEAD):
+        tokens, stripped = tokens[1:], True
+    first = tokens[0].strip("\"'") if tokens else ""
+    if first == "exit":
+        return True                     # exits the shell, fallback or not
+    if first in ALWAYS0:
+        return False
+    # a bare assignment holds no status of its own — `x=1` is 0 come what
+    # may, `x=$(cmd)` inherits the substitution's: the classic abort
+    if not stripped and all(re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t)
+                            for t in tokens):
+        return bool(re.search(r"\$\(|`", s))
+    return True
 
 
 def _unquote_hash(line):
@@ -168,99 +221,201 @@ def _unquote_hash(line):
     return line
 
 
-def _plain(seg):
-    """The command of a segment: environment assignments and the body
-    openers `then` / `else` / `do` stripped — `VAR=x then cmd` classifies as
-    `cmd`."""
-    tokens = seg.split()
-    while len(tokens) > 1 and (re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0])
-                               or tokens[0] in NOISE_HEAD):
-        tokens = tokens[1:]
-    return tokens[0].strip("'\"") if tokens else ""
-
-
-def _first_word(seg):
-    w = _plain(seg.text)
-    return w
-
-
-def _seg_can_fail(seg):
-    """True when this one segment can leave the block non-zero."""
-    s = seg.text.strip()
-    if not s:
-        return False
-    if seg.op == "||":
-        return False        # its failure routes to the fallback
-    if s.startswith("!") and not s.startswith("[["):
-        return False        # inverted: a failure is a pass
-    if CONDITION_HEAD.match(s):
-        return False        # a condition routes; the body is judged alone
-    if re.match(r"^exit([ \t]+0)?$", s):
-        return False
-    words = seg.text.split()
-    if len(words) == 1 and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", words[0]):
-        return False        # a bare assignment without substitution
-    if _plain(seg.text) in ALWAYS0:
-        return False
-    return True
-
-
-def _cannot_fail_why(script):
-    """Why a Verify block cannot exit non-zero, or None when it can — one
-    pass over the logical lines, every segment that is an abort candidate
-    making the block able to fail."""
-    guarded, last = 0, ""
-    lines, skip, delim, body = [], False, None, 0
+def _logical_lines(script):
+    """[line] — comments gone, backslash continuations joined, heredoc bodies
+    and function definitions skipped: what they hold is data or something
+    defined, not a command that runs."""
     raw = script.splitlines()
-    i = 0
-    joined = ""
+    out, i = [], 0
     while i < len(raw):
         line = raw[i]
         i += 1
-        if skip == "heredoc":
-            if line.strip() == delim:
-                skip = None
-            continue
-        if body:
-            if line.strip() in ("}", "};"):
-                body = 0
-            continue
-        # join backslash continuations
         while line.rstrip().endswith("\\") and i < len(raw):
             line = line.rstrip()[:-1] + " " + raw[i]
             i += 1
-        line = _unquote_hash(line).strip()
+        line = _unquote_hash(line)
+        m = re.search(r"<<-?[ \t]*([\"']?)([A-Za-z_][A-Za-z0-9_]*)\1", line)
+        if m:
+            while i < len(raw) and raw[i].strip() != m.group(2):
+                i += 1
+            i += 1
+        line = line.strip()
         if not line or line.startswith("#"):
             continue
-        m = re.search(r"<<-?[ 	]*([\"']?)([A-Za-z_][A-Za-z0-9_]*)\1", line)
-        if m and skip is None:
-            skip, delim = "heredoc", m.group(2)
-        if line.strip() == delim:
-            skip = "heredoc"
+        if re.match(r"^function[ \t]+\w+|^\w+[ \t]*\(\)[ \t]*\{", line):
+            # a definition: the body does not run here, but what FOLLOWS it
+            # on the line does — cut the braces out of the line and keep the
+            # rest; a multi-line body skips past its closing brace
+            if line.count("{") > line.count("}"):
+                depth = line.count("{") - line.count("}")
+                while i < len(raw) and depth > 0:
+                    depth += raw[i].count("{") - raw[i].count("}")
+                    i += 1
+                i += 1
+                continue
+            line = re.sub(r"\{[^}]*\}", ":", line)
+        if line in ("{", "}"):
             continue
-        if re.match(r"^function[ \t]+\w+|^\w+[ \t]*\(\)[ \t]*\{?$", line):
-            body = 1
-            continue
-        if line.strip() in ("{", "}"):
-            continue
-        for seg in _segments(line):
-            if _seg_can_fail(seg):
-                return None     # one abort candidate is enough
-            if seg.text.strip():
-                guarded += 1
-                last = seg.text.strip()[:80] if seg else last
-        last = _segments(line)[-1].text.strip() or last
-    if guarded == 0:
-        return "it holds no command that runs and can exit non-zero"
-    return ("every fallible command is guarded and it ends on `%s` — "
-            "exit 0 come what may" % last)
+        out.append(line)
+    return out
 
 
-def block_cannot_fail(script):
-    """True when no command in the block can make the block exit non-zero —
-    the shape `collect` reads from the last command's exit code under
-    `bash -e -o pipefail`."""
-    return _cannot_fail_why(script) is not None
+def _pipe_member_can_fail(idx, text):
+    """One member of a pipeline: fallible unless always-0. A `!` is legal
+    only as the FIRST word of a whole pipeline — mid-pipeline it is a syntax
+    error, and a syntax error is a failure."""
+    s = text.strip()
+    if idx > 0 and s.startswith("!"):
+        return True
+    return _seg_can_fail(text)
+
+
+def _statement_outcomes(elements):
+    """(possible exit statuses, aborts) for one and-or statement — a walk
+    over the abstract statuses each element can leave behind. An element
+    runs when the operator before it allows: `&&` after a 0, `||` after a
+    non-0, a bare element always. A failing element is exempt from
+    `set -e` while it is not the list's LAST element, and an inverted `!`
+    pipeline is exempt always — its non-zero status merely carries. `exit`
+    kills the shell through any operator when its status can be non-zero."""
+    last = len(elements) - 1
+    statuses, abort = {0}, False
+    for i, (op, cf, lethal, inverted, _txt) in enumerate(elements):
+        runs = False
+        for s in statuses:
+            if op == "|" or (op in ("", "&&") and s == 0) or \
+                    (op == "||" and s != 0):
+                runs = True
+                break
+        if not runs:                          # nothing executes from here on
+            continue
+        old = statuses
+        statuses = {0, 1} if cf else {0}
+        if lethal or (cf and i == last and not inverted):
+            abort = True
+            break
+        if op == "||" and not cf:
+            statuses = {0}                    # the fallback resets the status
+        elif 1 in old:
+            statuses.add(1)                   # a carried non-zero lives on
+    return statuses, abort
+
+
+def _snip(text, cap=60):
+    """One command, short enough to sit inside a refusal line."""
+    t = " ".join(text.split())
+    return t if len(t) <= cap else t[:cap - 1] + "…"
+
+
+def _guard_shapes(statements):
+    """The guards that make every fallible command in the block harmless,
+    named and quoted — a refusal a worker can act on says which shape to
+    change, not only that the block is dead. At most three: the message is
+    a line, not a listing."""
+    out = []
+    for elements in statements:
+        for op, cf, _lethal, inverted, txt in elements:
+            if inverted:
+                shape = f"the `!` inversion `{_snip(txt, 40)}`"
+            elif op == "||" and not cf:
+                shape = f"the always-0 fallback `|| {_snip(txt, 40)}`"
+            elif op == "&&" and not cf:
+                shape = f"the always-0 tail `&& {_snip(txt, 40)}`"
+            else:
+                continue
+            if shape not in out:
+                out.append(shape)
+            if len(out) == 3:
+                return out
+    return out
+
+
+def _cannot_fail_why(script):
+    """Why the block cannot exit non-zero, or None when something can make
+    it red — the one check a box must pass to be a check at all: every
+    statement analysed, `||` fallbacks routing instead of aborting, a
+    failure only fatal when it is the list's last element."""
+    statements, elements, elem_op, pipe = [], [], "", []
+
+    def flush_element():
+        nonlocal pipe
+        if pipe:
+            # a `!` mid-pipeline never parses: the script dies at parse,
+            # before any operator could absorb anything
+            if any(i > 0 and t.strip().startswith("!")
+                   for i, t in enumerate(pipe)):
+                return "syntax"
+            cf = any(_pipe_member_can_fail(i, t) for i, t in enumerate(pipe))
+            lethal = any(_leaves_shell(t) for t in pipe)
+            inverted = all(t.strip().startswith("!") for t in pipe)
+            elements.append((elem_op, cf, lethal, inverted,
+                             " | ".join(t.strip() for t in pipe)))
+            pipe = []
+
+    def flush_statement():
+        if flush_element():
+            return "syntax"
+        if elements:
+            statements.append(elements[:])
+            del elements[:]
+        nonlocal elem_op
+        elem_op = ""
+
+    for line in _logical_lines(script):
+        if line.lstrip().startswith("set +e"):
+            return None                        # unanalysable — it can fail
+        if re.match(r"^(while|until|for|if|elif)\b", line.strip()) or \
+                re.match(r"^(do|then|else|done|fi|esac)\b", line.strip()) or \
+                re.search(r"(^|[;&|])\s*(if|then|done|fi|do)\b", line.strip()):
+            # a loop or branch: multi-line when the head line opens it, and
+            # its head/frames mask the `;` boundaries. The head's condition
+            # routes; the body can fail like a bare command — but the body
+            # is unattributable across lines, so let the whole construct
+            # count as able to fail unless its body is empty or only
+            return None
+        if re.match(r"^[|]", line.strip()) or re.match(r"^&&", line.strip()):
+            # a pipeline member on its own line — the walk rejoins backslash
+            # continuations but not implicit `|` continuations; unreadable
+            return None
+        for op, text in _segments(line):
+            if op == "|":
+                pipe.append(text)
+                continue
+            if op in ("&&", "||"):
+                if flush_element():
+                    return None
+                elem_op = op
+            else:                              # "", ";", "&" — a boundary
+                if flush_statement():
+                    return None
+            if text:
+                pipe.append(text)
+        if pipe or elements:
+            if flush_statement():
+                return None
+    if flush_statement():
+        return None
+    if not statements:
+        return "it holds no command"
+    guarded = 0
+    for si, elements in enumerate(statements):
+        statuses, abort = _statement_outcomes(elements)
+        if abort:
+            return None
+        # a non-zero result carried out of a statement is the script's exit
+        # only when nothing runs after it — a later statement overwrites it
+        if si == len(statements) - 1 and statuses != {0}:
+            return None
+        guarded += sum(1 for _o, cf, _l, _i, _t in elements if cf)
+    tail = _snip(statements[-1][-1][4])
+    shapes = _guard_shapes(statements)
+    why = f"its last statement `{tail}` only ends 0"
+    if shapes:
+        why += ", and what could have gone red sits behind " + ", ".join(shapes)
+    elif guarded == 0:
+        why += " and no command in it can exit non-zero at all"
+    return why + " — nothing in it can make the block red"
+
 
 def fm_lines(text):
     """{key: 1-based line} for every key in the frontmatter block — refusals
@@ -368,6 +523,10 @@ def check_spec(path, fm, text, lib, own_feet):
         elif fp and not any(p in b for b in blocks for p in fp):
             warn.append(f"{name}:{ver_ln}: the verify block names no path "
                         "under the footprint — the whole-workspace smell")
+        for bi, block in enumerate(blocks, 1):
+            why = _cannot_fail_why(block)
+            if why:
+                bad.append((ver_ln, f"verify block {bi} cannot fail — {why}"))
 
     wf = fm.get("workflow")
     if wf and not isinstance(wf, list):
