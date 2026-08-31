@@ -4,19 +4,14 @@ __pycache__/
 .DS_Store
 resources/board/state/
 .gstack/
-vicky/
 .obsidian/
 
 
 # machine-local per board — regenerable
 graphify-out/
-prds/.plan.json
-prds/.round.md
-prds/.history.jsonl
-prds/.transitions.jsonl
-prds/.claims/
-prds/.view.html
+.pearde/
 
 # one-off session measurements, kept beside the work they explain
 /report.md
 /report-*.md
+/handover.md
