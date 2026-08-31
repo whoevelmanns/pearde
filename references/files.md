@@ -32,6 +32,7 @@ whose scope it changed. Nothing else points at it.
 | @references/workflow.md | how a job is done — the two file shapes, the steps grammar, the report section |
 | @references/report.md | the board written for a person |
 | @references/drill.md | how to ask |
+| @references/graph.md | the knowledge-graph feature — graphify rounds, the ollama backend, the Obsidian vault |
 | @references/system.md | drop-in instructions block for `AGENTS.md` |
 
 ### `references/parts/` — the workflow, one part per step
@@ -96,12 +97,15 @@ whose scope it changed. Nothing else points at it.
 | @resources/workflows.py | read + check the workflow library, and brief one — the only reader of that format |
 | @resources/index.py | read + check the map — the only reader of that format |
 | @resources/questions.py | read + check a PRD's question round — the only reader of that format |
+| @resources/graph/graph.sh | graphify rounds — extract, update, query, path, explain, god-nodes, vault open |
 | @resources/board/serve.py | the live service |
 | @resources/board/plan.py | read + order the board |
 | @resources/board/render.py | the page — markup, and the arithmetic behind it |
 | @resources/board/view.css | the page's stylesheet, inlined at render |
 | @resources/board/view.js | the page's script, inlined at render |
 | @resources/board/viewtest.js | the view's gate — a rendered page in a real browser |
+| @resources/board/hotreload-test.js | the view's hot-reload gate — one live page, a view source moved under it (`node hotreload-test.js <served-board-url>`) |
+| @resources/board/adapters/claude.json | the Start button's default launch target — one JSON per adapter (`{"name","command","prompt"}`), read live by serve.py |
 | @resources/board/lit-core.min.js | Lit 3, vendored — the page's component base |
 | @resources/board/edit.py | the writers — one line at a time |
 | @resources/board/collect.py | `collect` — verify, commit the footprint, `done`, one call |
@@ -132,6 +136,7 @@ command, and @references/install.md is the naming rule and the install.
 | @skills/pearde-persona-create.md | composing one for a field the roster misses | `@@personas` |
 | @skills/pearde-scout.md | ranked discovery, the route index, and the quality gates | `@@scout` |
 | @skills/pearde-workflow.md | how a kind of job is done, and improved on every run | `@@workflows` |
+| @skills/pearde-graph.md | knowledge-graph rounds over any folder, Obsidian vault out | `@@graph` |
 
 ### `resources/scout/` — a self-contained tool
 

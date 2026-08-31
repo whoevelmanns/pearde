@@ -92,7 +92,7 @@ html="$B/.view.html"
 pay() { python3 - "$html" "$1" <<'PY'
 import json,re,sys
 h=open(sys.argv[1],encoding="utf-8").read()
-m=re.search(r'(?s)id="data"[^>]*>(.*?)</script>',h) or re.search(r'(?s)DATA\s*=\s*(\{.*?\});\s*\n',h)
+m=re.search(r'(?s)window\.__PAYLOAD__ = (\{.*?\});(window\.__REPORTMTIME__|</script>)',h)
 d=json.loads(m.group(1)); print(json.dumps(eval("d"+sys.argv[2])))
 PY
 }

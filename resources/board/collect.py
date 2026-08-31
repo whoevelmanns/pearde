@@ -314,9 +314,12 @@ def settle_shared(root, paths):
 
 
 def dirty_paths(root):
-    """{path: "tracked" | "untracked"} for every path `git status` reports,
-    relative to `root`. `-uall` so an untracked directory is its files, and
-    `-z` so a space in a name is not two names."""
+    """{path: "tracked" | "untracked" | "rename-source"} for every path
+    `git status` reports, relative to `root`. `-uall` so an untracked
+    directory is its files, and `-z` so a space in a name is not two names.
+    A rename or a copy reports two paths — the new one under its own XY,
+    the original under `rename-source` — so a caller staging one side by
+    side the other does not lose the deletion a rename's old path carries."""
     raw = git_out(root, "status", "--porcelain", "-uall", "-z")
     out, items, i = {}, raw.split("\0"), 0
     while i < len(items):
@@ -327,6 +330,7 @@ def dirty_paths(root):
         xy, path = ent[:2], ent[3:]
         out[path] = "untracked" if xy == "??" else "tracked"
         if xy[0] in "RC":          # the original follows as its own entry
+            out[items[i]] = "rename-source"
             i += 1
     return out
 
@@ -796,6 +800,11 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
                     p["stop"].append(path)
                 else:
                     p["add"].append(path)
+            elif kind == "rename-source" and inside(path, union):
+                # a rename's deletion half: the new path entered above (or
+                # rides inherited) — staging the old path is what keeps the
+                # private index from carrying HEAD's old blob forever
+                p["add"].append(path)
             elif root == board_root and path in riders:
                 p["add"].append(path)
                 p["riders"].append(path)

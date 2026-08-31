@@ -107,7 +107,7 @@ open(p, "w").write("".join(L))
 EOF
   sed -i '' 's/- \[ \] `src/- [x] `src/' "$D/prds/finished/specs/spec01.md"
 }
-run()    { ( cd "$D" && python3 "$COLLECT" --board "$D/prds" "$@" ) 2>&1; }
+run()    { ( cd "$D" && PEARDE_AS=engineer python3 "$COLLECT" --board "$D/prds" "$@" ) 2>&1; }
 snap()   { run --snapshot finished > /dev/null; }
 head_at(){ ( cd "$D" && git show HEAD:src/view.js | grep -n -F -- "$1" | cut -d: -f1 ); }
 work_at(){ grep -n -F -- "$1" "$D/src/view.js" | cut -d: -f1; }
@@ -209,7 +209,7 @@ has "D a blob of the wrong length is refused on its length" "$OUT" "the staged b
 has "D a foreign hunk whose + lines are not in the file is a refusal" "$OUT" "mismatch: line 4 of the working file is not what its hunk says"
 # end to end: a rebuild that misplaces is refused before the commit
 N0="$( cd "$D" && git rev-list --count HEAD )"
-OUT="$( cd "$D" && python3 - "$COLLECT" "$D/prds" <<'EOF' 2>&1
+OUT="$( cd "$D" && PEARDE_AS=engineer python3 - "$COLLECT" "$D/prds" <<'EOF' 2>&1
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("collect", sys.argv[1])
 c = importlib.util.module_from_spec(spec); spec.loader.exec_module(c)
@@ -224,7 +224,7 @@ EOF
 )"; RC=$?
 eq  "D exit 1" "$RC" "1"
 has "D the refusal names the hunk and both lines" "$OUT" "src/view.js: hunk @@ +11,1: expected at line 7 of the staged blob, found at 11"
-has "D nothing committed" "$OUT" "nothing committed, the index put back"
+has "D nothing committed" "$OUT" "nothing committed, nothing staged"
 eq  "D no commit landed" "$( cd "$D" && git rev-list --count HEAD )" "$N0"
 eq  "D the index is HEAD again" "$( cd "$D" && git diff --cached --stat | wc -l | tr -d ' ' )" "0"
 eq  "D the PRD is still claimed" "$(grep -m1 '^state:' "$D/prds/finished/prd.md")" "state: claimed"

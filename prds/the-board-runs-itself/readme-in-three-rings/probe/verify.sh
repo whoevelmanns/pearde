@@ -44,8 +44,9 @@ awk -F'|' '/^\| `[a-z]+` +\|/{gsub(/[` ]/,"",$2); print $2}' "$STATES" | sort -u
 eq "C states.md names nine" "$(wc -l < "$S/table-states" | tr -d ' ')" "9"
 eq "C the diagram names nine" "$(wc -l < "$S/diagram-states" | tr -d ' ')" "9"
 eq "C the two sets are equal" "$(diff "$S/table-states" "$S/diagram-states" | wc -l | tr -d ' ')" "0"
-# every arrow carries a command from handles.md's Command column
-awk -F'|' '/^\| .* \| `pearde [a-z]+`/{ for(i=1;i<=NF;i++) if($i ~ /`pearde [a-z]+`/){ match($i,/`pearde [a-z]+`/); print substr($i,RSTART+8,RLENGTH-9) } }' "$ROOT/references/parts/handles.md" | sort -u > "$S/commands"
+# every arrow carries a command from handles.md's Command column — the cell
+# is `pearde <cmd>` exactly or with flags after (`pearde add [--dry]`)
+awk -F'`' '/`pearde [a-z]+/{ for(i=2;i<=NF;i++) if($i ~ /^pearde [a-z]+( |$|\[)/){ split($i,a," "); print a[2] } }' "$ROOT/references/parts/handles.md" | sort -u > "$S/commands"
 NOCMD=0
 while IFS= read -r line; do
   case "$line" in *'-->'*) ;; *) continue;; esac
