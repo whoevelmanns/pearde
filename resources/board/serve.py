@@ -204,6 +204,10 @@ RUNNING = {}  # (board name, prd rel) → Popen
 RUN_LOCK = threading.Lock()
 
 ADAPTERS_DIR = os.path.join(DIR, "adapters")
+# The one thing every adapter's `command`/`prompt` template can rely on to
+# actually reach pearde, portable across installs: this daemon's own
+# resources/board/serve.py sits one directory below resources/pearde.py.
+PEARDE_BIN = os.path.join(os.path.dirname(DIR), "pearde.py")
 
 
 def load_adapters():
@@ -991,9 +995,14 @@ class Handler(BaseHTTPRequestHandler):
             # agent gets "/pearde run <rel>"; one that has never heard of
             # pearde gets whatever plain-language task text its own
             # adapters/*.json spells out) and its own command argv — this
-            # daemon does not assume either.
-            prompt = adapter["prompt"].format(rel=rel)
-            argv = [part.format(prompt=prompt, rel=rel) for part in adapter["command"]]
+            # daemon does not assume either. `{pearde_bin}`/`{python}` are
+            # there so a template for the second kind of agent can hand it
+            # the literal, portable command line to run instead of a bare
+            # "pearde ..." phrase that only means something to an agent
+            # that already knows the word.
+            fmt = dict(rel=rel, pearde_bin=PEARDE_BIN, python=sys.executable)
+            prompt = adapter["prompt"].format(**fmt)
+            argv = [part.format(prompt=prompt, **fmt) for part in adapter["command"]]
             resolved = adapter_bin(argv[0])
             if not resolved:
                 return self.reply(500, {"error":

@@ -1,5 +1,5 @@
 {
   "name": "Junie",
   "command": ["junie", "{prompt}"],
-  "prompt": "pearde run {rel}"
+  "prompt": "Run this exact command first, before anything else, and do not search the filesystem to find it yourself: {python} {pearde_bin} claim {rel} junie --as engineer -- then run: {python} {pearde_bin} brief {rel} --as engineer --force -- its printed output is your actual task and the exact rules (verdict SPECCED, REFINE or QUESTION, which files to write, how to end your report) for finishing it; follow it exactly, in German."
 }
