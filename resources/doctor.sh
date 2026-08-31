@@ -277,46 +277,44 @@ else
 fi
 
 # ── board: on the contract path, with settings ────────────────────────────────
+# The same walk @resources/board/plan.py `find_board` and @resources/guard.py
+# `board_of` do: the nearest ancestor holding `.pearde/`, not a literal
+# `prds/` — that was the pre-migration contract. BOARD is the `.pearde/` root;
+# PRDS is where the PRDs actually live, one level under it.
 BOARD=""; d="$START"
 while [ -n "$d" ] && [ "$d" != "/" ]; do
-  [ -d "$d/prds" ] && { BOARD="$d/prds"; break; }
+  [ -d "$d/.pearde" ] && { BOARD="$d/.pearde"; break; }
   # dirname's fixpoint is not always `/` — on a Windows drive path it is `C:`,
   # and without this guard the loop never exits. A no-op on POSIX.
   p=$(dirname "$d"); [ "$p" = "$d" ] && break; d="$p"
 done
 if [ -z "$BOARD" ]; then
-  # a board off the contract path is found, not skipped: three levels down,
-  # dot-dirs too
+  # a board still on the old layout is found, not skipped: three levels
+  # down, dot-dirs too — a leftover root-level `prds/` with no `.pearde/`
+  # beside it.
   OFF=$(find "$START" -maxdepth 3 -type d -name prds 2>/dev/null | head -3)
   if [ -n "$OFF" ]; then
-    row board broken "no prds/ at the repo root · found $(echo "$OFF" | tr '\n' ' ')"
-    fix "git mv $(echo "$OFF" | head -1) $START/prds — the board path is the contract"
+    OFFROOT=$(dirname "$(echo "$OFF" | head -1)")
+    row board broken "no .pearde/ board · found $(echo "$OFF" | tr '\n' ' ') on the old layout"
+    # git mv refuses a destination whose parent is not there, so the fix has
+    # to make `.pearde/` first — a fix line that fails when it is pasted is
+    # not a fix line.
+    fix "mkdir -p $OFFROOT/.pearde && git mv $(echo "$OFF" | head -1) $OFFROOT/.pearde/prds — the board path is the contract; move memos/, workflows/, settings.md, vision.md and .state/ alongside it the same way"
   else
-    row board off "no board — pearde init creates prds/"
+    row board off "no board — pearde init creates .pearde/"
     fix "python3 $SKILL_ROOT/resources/pearde.py init [<dir>] — a board, asking nothing"
   fi
 else
-  ROOT=$(git -C "$BOARD" rev-parse --show-toplevel 2>/dev/null)
-  N=$(find "$BOARD" -type f -name prd.md 2>/dev/null | wc -l | tr -d ' ')
-  # compare physical paths — /tmp vs /private/tmp is a spelling, not a move.
-  # On Git for Windows, `rev-parse --show-toplevel` can answer in native
-  # form (`C:/Users/...`) while `$BOARD`/`pwd -P` stay in Git Bash's own
-  # POSIX form (`/c/Users/...`) — same place, two spellings. `cd` accepts
-  # either, so resolving $ROOT through it too puts both sides in the one
-  # form this shell already uses, instead of comparing spellings.
-  PBOARD=$(cd "$BOARD" 2>/dev/null && pwd -P)
-  PROOT=$(cd "$ROOT" 2>/dev/null && pwd -P)
-  if [ -n "$ROOT" ] && [ "$PBOARD" != "$PROOT/prds" ]; then
-    row board broken "$BOARD is not $ROOT/prds"
-    fix "git mv $BOARD $ROOT/prds"
-  elif [ ! -f "$BOARD/settings.md" ]; then
+  PRDS="$BOARD/prds"
+  N=$(find "$PRDS" -type f -name prd.md 2>/dev/null | wc -l | tr -d ' ')
+  if [ ! -f "$BOARD/settings.md" ]; then
     row board broken "$N PRDs · no settings.md"
     fix "python3 $SKILL_ROOT/resources/pearde.py init $(dirname "$BOARD") — writes it, language English unless --language"
   else
     # a missing `language:` reads at its default — English, the way every
     # other key reads, @references/settings.md. Not broken: said, not asked.
     LANG=$(grep -E '^[[:space:]]*language:' "$BOARD/settings.md" | head -1 | sed 's/.*language:[[:space:]]*//')
-    row board ok "$BOARD · $N PRDs · language ${LANG:-English (default)}"
+    row board ok "$PRDS · $N PRDs · language ${LANG:-English (default)}"
   fi
 fi
 
