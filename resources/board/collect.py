@@ -766,6 +766,28 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
     base = baseline(board, rel)
     riders = owed(board)
     board_rel = os.path.relpath(board, board_root)
+    # What another held PRD's footprint already claims, relative to the repo
+    # the footprints are written against — only siblings whose code lives in
+    # this run's `repo` can share a dirty path with it. A dirty path the
+    # union holds and a sibling's footprint holds too may carry the
+    # sibling's edits: a commit here is this PRD's record, and hunks the
+    # claim's baseline does not explain are attributable to no one, so the
+    # file is refused — `--widen` takes it whole.
+    others = {}
+    for r, p in prds.items():
+        if r == rel or p["state"] not in HELD:
+            continue
+        if repo_of(p, board, board_root) != repo:
+            continue
+        sig = f"{planlib.MEMBER_SIGIL}{p['board']}/" if p.get("board") else None
+        claimed = []
+        for f in planlib.spec_data(p)[1]:
+            if sig and f.startswith(sig):
+                claimed.append(f[len(sig):])
+            elif not f.startswith(planlib.MEMBER_SIGIL):
+                claimed.append(f)
+        if claimed:
+            others[r] = claimed
     held = [os.path.relpath(p["dir"], board_root) for r, p in prds.items()
             if r != rel and p["state"] in HELD]
 
@@ -826,6 +848,15 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
                 p["add"].append(path)
             elif inside(path, union):
                 nh = new_hunks(root, path) if kind == "tracked" else None
+                if not predates(root, path, kind):
+                    share = sorted(r for r, claimed in others.items()
+                                   if root == repo and inside(path, claimed))
+                    if share:
+                        raise Stop(f"{rel}: {path} is in "
+                                   + ", ".join(share)
+                                   + "'s footprint too — not only this "
+                                   f"PRD's edits; `--widen {path}` takes "
+                                   "it whole")
                 if nh not in (None, "", "all"):
                     p["partial"][path] = nh
                 elif predates(root, path, kind):
