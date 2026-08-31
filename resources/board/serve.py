@@ -112,7 +112,7 @@ import transitions as translib  # noqa: E402 — the one writer of `state:`
 
 PORT = int(os.environ.get("PEARDE_PORT", "8443"))
 DIR = os.path.dirname(os.path.abspath(__file__))
-APP_DIR = os.path.join(DIR, "state")
+APP_DIR = planlib.MACHINE_DIR
 REG_PATH = os.path.join(APP_DIR, "serve.json")
 LOG_PATH = os.path.join(APP_DIR, "serve.log")
 LOG_MAX_LINES = 2000   # the log is a rolling tail, not a record

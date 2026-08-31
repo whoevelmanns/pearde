@@ -135,12 +135,8 @@ def write_board(board, args):
     vision = os.path.join(board, "vision.md")
     if not os.path.exists(vision):
         shutil.copyfile(VISION_TEMPLATE, vision)
-    # Literal ".state" here, not planlib.STATE_DIR — plan.py reassigns that
-    # name at module level (~line 1296, the calibration dir), so by import
-    # time it no longer holds the per-board ".state" it is declared as near
-    # BOARD_DIR/PRDS_DIR. See the report for prds/init-writes-a-board-on-
-    # the-pearde-layout — plan.state_dir() is affected too, out of scope here.
-    for name in (planlib.PRDS_DIR, "memos", "wiki", "workflows", ".state"):
+    for name in (planlib.PRDS_DIR, "memos", "wiki", "workflows",
+                 planlib.STATE_DIR):
         os.makedirs(os.path.join(board, name), exist_ok=True)
 
 

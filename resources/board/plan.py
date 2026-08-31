@@ -71,6 +71,14 @@ def state_dir(board):
     return d
 
 
+# One constant per machine, not per board — the guard's session cache, the
+# calibration fit and the daemon's board registry all live under here.
+# Distinct from STATE_DIR, which is a board-relative name: a board is a
+# directory a person creates by hand, this is the tool's own install
+# location, and the two must never collide under one name.
+MACHINE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state")
+
+
 def prds_dir(board):
     return os.path.join(board, PRDS_DIR)
 
@@ -1193,7 +1201,7 @@ def read_transitions(board, last=30):
 # its file on every tool call, and the call that runs `pearde status` is
 # the last one it saw.
 GUARD_DIR = os.environ.get("PEARDE_GUARD_STATE") or os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "state", "guard")
+    MACHINE_DIR, "guard")
 
 
 def guard_sessions():
@@ -1287,14 +1295,14 @@ def write_history(board, prds=None):
 
 
 # ── calibration ───────────────────────────────────────────────────────────────
-# One constant per machine, not per board: how many real hours a unit of
-# weight costs THIS agent, fitted from every done PRD that recorded an
-# `actual:` on every board the service has ever registered. The plan still
-# schedules in weight — the constant only translates at the display edge,
-# so a bad fit can mislabel an axis but never re-order the work.
+# How many real hours a unit of weight costs THIS agent, fitted from every
+# done PRD that recorded an `actual:` on every board the service has ever
+# registered. The plan still schedules in weight — the constant only
+# translates at the display edge, so a bad fit can mislabel an axis but
+# never re-order the work. Lives under MACHINE_DIR, defined near state_dir()
+# above — same "one constant per machine" reasoning as the guard's cache.
 
-STATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state")
-CALIB_PATH = os.path.join(STATE_DIR, "calibration.json")
+CALIB_PATH = os.path.join(MACHINE_DIR, "calibration.json")
 
 # The one hand-tunable knob. Hours shown = weight × fitted kw × TUNE.
 # The fit says how fast this machine has been; TUNE is the margin on top —
@@ -1326,7 +1334,7 @@ def calib_rows():
     plan never schedules by — which is exactly what makes them honest
     calibration data: nobody gamed a number nothing was reading."""
     try:
-        boards = json.load(open(os.path.join(STATE_DIR, "serve.json"),
+        boards = json.load(open(os.path.join(MACHINE_DIR, "serve.json"),
                                 encoding="utf-8"))
     except (OSError, ValueError):
         boards = []
@@ -1370,7 +1378,7 @@ def cmd_calibrate(board):
              "p20": pick(.2), "p80": pick(.8),
              "boards": sorted({r[0] for r in rows}),
              "fitted": datetime.date.today().isoformat()}
-    os.makedirs(STATE_DIR, exist_ok=True)
+    os.makedirs(MACHINE_DIR, exist_ok=True)
     json.dump(calib, open(CALIB_PATH, "w", encoding="utf-8"), indent=1)
     print(f"\nn={len(rows)} done PRDs across {len(calib['boards'])} board(s)")
     if ke:
@@ -1409,7 +1417,7 @@ def overlap(a, b):
                for x in a for y in b)
 
 
-def dispatchable(prd, prds, board=None):
+def dispatchable(prd, prds, board=None, holder=None):
     """None when `claim` would take this PRD now, else why not — one string,
     `<gate>: <why>`, the gate word first so `transitions.gate_claim` raises
     it as it stands and `brief` maps it to a skip word.
@@ -1419,7 +1427,10 @@ def dispatchable(prd, prds, board=None):
     so the scan cannot list as ready what `claim` refuses — the memo
     `a-parked-child-holds-the-parent` is the day they disagreed. The gates:
 
-    - unclaimed — it carries a `claim:`.
+    - unclaimed — it carries a `claim:` naming someone other than `holder`.
+      `holder` is `None` for every caller but `brief` briefing a worker who
+      names itself — the one case where a claim is not a refusal, because
+      the worker holding it is the one asking.
     - leaf — a child is not `done`. A parked child is neither done nor
       coming, so it holds the parent for good: `held by <child> (parked)`.
     - container — children, every one `done`, and no specs or open box of
@@ -1433,7 +1444,8 @@ def dispatchable(prd, prds, board=None):
     The state is not checked here: the callers partition by state first,
     and a `claimed` PRD is in flight, not refused."""
     rel = prd["rel"]
-    if claim_of(prd["fm"]):
+    held = claim_of(prd["fm"])
+    if held and held["who"] != holder:
         return f"unclaimed: {rel} carries `claim: {prd['fm']['claim']}`"
     parked = [c for c in prd["children"]
               if prds[c]["state"] not in LIVE_STATES
@@ -2410,14 +2422,15 @@ def cmd_example(argv):
     if os.path.exists(dest) and not os.path.isdir(dest):
         print(f"pearde: {dest} is a file, not a directory", file=sys.stderr)
         return 2
+    board = os.path.join(dest, BOARD_DIR)
     try:
         import shutil
-        shutil.copytree(EXAMPLE, dest, dirs_exist_ok=True)
+        shutil.copytree(EXAMPLE, board, dirs_exist_ok=True)
     except OSError as e:
-        print(f"pearde: could not copy the example to {dest} — {e}",
+        print(f"pearde: could not copy the example to {board} — {e}",
               file=sys.stderr)
         return 2
-    print(f"example: {os.path.join(dest, 'prds')}")
+    print(f"example: {os.path.join(board, PRDS_DIR)}")
     print(f"      python3 {os.path.abspath(__file__)} scan {dest}")
     return 0
 
