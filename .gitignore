@@ -23,3 +23,9 @@ prds/.view.html
 
 # one-off session measurements, kept beside the work they explain
 /report.md
+
+# local npm install of playwright-core, so probe/verify.sh's NODE_PATH
+# check can resolve it -- not a repo dependency, never committed
+/node_modules/
+/package.json
+/package-lock.json
