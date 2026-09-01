@@ -7,6 +7,11 @@ resources/board/state/
 vicky/
 .obsidian/
 
+# this repo tracks its own prds/ board directly (unlike a board split out
+# into its own local-only repo) -- override the machine-wide `prds/`
+# ignore in ~/.gitignore_global, which exists for that other case
+!prds/
+
 
 # machine-local per board — regenerable
 prds/.plan.json
