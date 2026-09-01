@@ -12,7 +12,7 @@ Live views over the board and the knowledge base. Requires Dataview (DQL + JS).
 
 ```dataview
 TABLE WITHOUT ID file.link AS "PRD", state, origin, priority, complexity, blast AS "blast-radius"
-FROM "prds/knowledge/board"
+FROM "wiki/board"
 SORT choice(state = "blocked", 0, choice(state = "open", 1, choice(state = "analyzing", 2, 3))) ASC, priority DESC
 ```
 
@@ -22,7 +22,7 @@ Dependency first (unresolved needs), then priority. The same three axes the sche
 
 ```dataview
 TABLE WITHOUT ID file.link AS "PRD", needs AS "Gated on", priority, complexity, blast AS "Blast"
-FROM "prds/knowledge/board"
+FROM "wiki/board"
 WHERE state != "done" AND state != "failed"
 FLATTEN needs AS need
 WHERE need.file.state != "done"
@@ -34,7 +34,7 @@ SORT PRD.priority DESC
 
 ```dataview
 TABLE WITHOUT ID file.link AS "PRD", length(file.inlinks) AS "Dependents", state
-FROM "prds/knowledge/board"
+FROM "wiki/board"
 WHERE length(file.inlinks) > 0 AND state != "done"
 SORT length(file.inlinks) DESC
 ```
@@ -43,7 +43,7 @@ SORT length(file.inlinks) DESC
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Child", from AS "Derived from", state, origin
-FROM "prds/knowledge/board"
+FROM "wiki/board"
 WHERE from
 SORT from ASC
 ```
@@ -54,7 +54,7 @@ Which files the touched-and-open PRDs point at — overlapping footprints are me
 
 ```dataview
 TABLE WITHOUT ID footprint AS "Path", length(rows) AS "Open PRDs touching it"
-FROM "prds/knowledge/board"
+FROM "wiki/board"
 WHERE footprint AND state != "done" AND state != "failed"
 FLATTEN footprint AS footprint
 GROUP BY footprint
@@ -66,7 +66,7 @@ LIMIT 20
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Memo", kind, status, subject
-FROM "prds/memos"
+FROM "memos"
 WHERE status != "superseded"
 SORT file.name DESC
 ```
@@ -75,7 +75,7 @@ SORT file.name DESC
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Workflow", length(file.inlinks) AS "PRDs on it"
-FROM "prds/workflows"
+FROM "workflows"
 SORT length(file.inlinks) DESC
 ```
 
@@ -83,7 +83,7 @@ SORT length(file.inlinks) DESC
 
 ```dataview
 TABLE WITHOUT ID type AS "Type", length(rows) AS "Count"
-FROM "prds/knowledge/conclusions" OR "prds/knowledge/sources" OR "prds/knowledge/pending"
+FROM "wiki/conclusions" OR "wiki/sources" OR "wiki/pending"
 WHERE type
 GROUP BY type
 SORT length(rows) DESC
@@ -93,7 +93,7 @@ SORT length(rows) DESC
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Question", priority, requested_by, date
-FROM "prds/knowledge/pending"
+FROM "wiki/pending"
 WHERE status = "pending"
 SORT choice(priority = "high", 0, choice(priority = "med", 1, 2)) ASC, date ASC
 ```
@@ -104,7 +104,7 @@ Inbound link count is a proxy for centrality.
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Node", length(file.inlinks) AS "Inlinks", length(file.outlinks) AS "Outlinks", type
-FROM "prds/knowledge/conclusions" OR "prds/knowledge/sources"
+FROM "wiki/conclusions" OR "wiki/sources"
 WHERE length(file.inlinks) > 0
 SORT length(file.inlinks) DESC
 LIMIT 20
@@ -116,8 +116,8 @@ Sources with no inbound link from a conclusion — candidates for the next `conc
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Source", length(file.inlinks) AS "Inlinks", date
-FROM "prds/knowledge/sources"
-WHERE length(filter(file.inlinks, (l) => startswith(meta(l).path, "prds/knowledge/conclusions"))) = 0
+FROM "wiki/sources"
+WHERE length(filter(file.inlinks, (l) => startswith(meta(l).path, "wiki/conclusions"))) = 0
 SORT length(file.inlinks) DESC, date DESC
 LIMIT 25
 ```
@@ -128,7 +128,7 @@ No inbound, no outbound links. Candidates for `relink`.
 
 ```dataview
 LIST
-FROM "prds/knowledge/conclusions" OR "prds/knowledge/sources"
+FROM "wiki/conclusions" OR "wiki/sources"
 WHERE length(file.inlinks) = 0 AND length(file.outlinks) = 0
 LIMIT 25
 ```
@@ -136,13 +136,13 @@ LIMIT 25
 ## KB — by focus (from WORKFLOW.md)
 
 ```dataviewjs
-const wf = dv.page("prds/knowledge/WORKFLOW");
+const wf = dv.page("wiki/WORKFLOW");
 const focus = (wf?.active_focus ?? []).length ? wf.active_focus : (wf?.active_focus ? [wf.active_focus] : []);
 if (!focus.length) {
   dv.paragraph("_No `active_focus` set in WORKFLOW.md — showing nothing._");
 } else {
   dv.header(4, "Focus: " + focus.join(", "));
-  const pages = dv.pages('"prds/knowledge/conclusions" or "prds/knowledge/sources"')
+  const pages = dv.pages('"wiki/conclusions" or "wiki/sources"')
     .where(p => (p.tags ?? []).some(t => focus.includes(String(t)))
              || focus.some(f => (p.file.path ?? "").toLowerCase().includes(f.toLowerCase())));
   dv.table(["Node", "Type", "Tags", "Date"],
@@ -155,7 +155,7 @@ if (!focus.length) {
 
 ```dataview
 TABLE WITHOUT ID rows.file.link AS "Notes", length(rows) AS "Count"
-FROM "prds/knowledge/conclusions" OR "prds/knowledge/sources"
+FROM "wiki/conclusions" OR "wiki/sources"
 FLATTEN tags AS tag
 WHERE tag
 GROUP BY tag

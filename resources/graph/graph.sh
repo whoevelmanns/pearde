@@ -17,6 +17,10 @@
 # Defaults come from here; PEARDE_GRAPH_MODEL / PEARDE_GRAPH_FOLDER override.
 set -uo pipefail
 
+# The skill root, resolved before any cd — `open` reads init.py's vault
+# register writer from resources/board/.
+SKILL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
 BACKEND=ollama
 MODEL="${PEARDE_GRAPH_MODEL:-glm-5.3-flash:cloud}"
 
@@ -99,6 +103,24 @@ case "$cmd" in
     graphify god-nodes --graph "$GRAPH_JSON"
     ;;
   open)
-    open "obsidian://open?path=$(python3 -c "import os,urllib.parse;print(urllib.parse.quote(os.path.abspath(os.path.join('$GRAPHIFY_OUT','obsidian'))))")"
+    # `obsidian://open?path=` only resolves a vault Obsidian has registered —
+    # an unregistered folder opens its nearest registered ancestor instead
+    # (the board's own vault, which is not this one). So the graph vault is
+    # registered by exact path first, through init.py's own writer, and the
+    # URI names it by id. Obsidian rewrites its register on quit: a
+    # registration made while the app runs is certain after a restart.
+    VAULT_URI=$(python3 -c "
+import os, sys, urllib.parse
+sys.path.insert(0, os.path.join('$SKILL_DIR', 'resources', 'board'))
+vault = os.path.abspath(os.path.join('$GRAPHIFY_OUT', 'obsidian'))
+try:
+    import init
+    _, vid = init.register_vault(vault)
+except Exception:
+    vid = None
+print('obsidian://open?vault=' + vid if vid
+      else 'obsidian://open?path=' + urllib.parse.quote(vault))
+")
+    open "$VAULT_URI"
     ;;
 esac

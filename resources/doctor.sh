@@ -323,6 +323,35 @@ else
   fi
 fi
 
+# ── vault: does ▸vault open THIS board ───────────────────────────────────────
+# `obsidian://open` resolves only against the vaults `obsidian.json` holds. A
+# board with a vault directory but no entry in that register does not fail
+# loudly: the URI opens the nearest registered ancestor instead — the repo
+# root, on a repo that is a vault too — and the person sees a tree that is not
+# the board. That is the failure this row is here to name. No vault directory
+# at all is `off`, not broken: a board is a board without Obsidian.
+if [ -n "$BOARD" ]; then
+  OBSCFG="$HOME/Library/Application Support/obsidian/obsidian.json"
+  [ -f "$OBSCFG" ] || OBSCFG="${XDG_CONFIG_HOME:-$HOME/.config}/obsidian/obsidian.json"
+  BABS=$(cd "$BOARD" 2>/dev/null && pwd -P)
+  if [ ! -d "$BOARD/.obsidian" ]; then
+    if [ -d "$(dirname "$BOARD")/.obsidian" ]; then
+      row vault broken "the vault roots at $(dirname "$BOARD") — Obsidian hides a dot-directory inside a vault, so the whole board is invisible from there"
+    else
+      row vault off "no $BOARD/.obsidian — the status line's ▸vault stays hidden"
+    fi
+    fix "python3 $SKILL_ROOT/resources/pearde.py vault --wait --open $(dirname "$BOARD") — seeds $BOARD/.obsidian and registers it (quit Obsidian when it asks: the register is only writable while the app is closed)"
+  elif [ ! -f "$OBSCFG" ]; then
+    row vault ok "$BOARD/.obsidian · Obsidian not installed here, so nothing to register"
+  elif grep -Fq "\"path\":\"$BABS\"" "$OBSCFG" 2>/dev/null \
+       || grep -Fq "\"path\": \"$BABS\"" "$OBSCFG" 2>/dev/null; then
+    row vault ok "$BOARD/.obsidian · registered with Obsidian — ▸vault opens this board"
+  else
+    row vault broken "$BOARD/.obsidian is not in Obsidian's vault register — ▸vault opens the nearest registered ancestor instead"
+    fix "python3 $SKILL_ROOT/resources/pearde.py vault --wait --open $(dirname "$BOARD") — Obsidian reads the register at launch and rewrites it from memory on quit, so the entry has to be written while it is closed; --wait does that the moment you quit"
+  fi
+fi
+
 # ── members: the boards a master merges ──────────────────────────────────────
 # Only on a master board. A member that is not on disk is the one failure that
 # matters: the plan silently loses a whole project, and the board looks smaller

@@ -11,7 +11,7 @@ Raw findings from research runs. One file = one topic.
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Source", tags, date
-FROM "prds/knowledge/sources"
+FROM "wiki/sources"
 WHERE type = "source"
 SORT date DESC
 ```
@@ -20,7 +20,7 @@ SORT date DESC
 
 ```dataview
 LIST
-FROM "prds/knowledge/sources"
+FROM "wiki/sources"
 WHERE type = "source" AND (!tags OR length(tags) = 0)
 ```
 
@@ -30,7 +30,7 @@ Sources never referenced by a conclusion — candidates to synthesize or prune.
 
 ```dataview
 LIST
-FROM "prds/knowledge/sources"
+FROM "wiki/sources"
 WHERE length(file.inlinks) = 0
 ```
 
@@ -38,7 +38,7 @@ WHERE length(file.inlinks) = 0
 
 ```dataview
 TABLE WITHOUT ID rows.file.link AS "Sources", length(rows) AS "Count"
-FROM "prds/knowledge/sources"
+FROM "wiki/sources"
 FLATTEN tags AS tag
 WHERE tag
 GROUP BY tag

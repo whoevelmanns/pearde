@@ -11,7 +11,7 @@ Synthesized answers built from sources. The KB the agent queries.
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Conclusion", length(file.inlinks) AS "Refs", length(file.outlinks) AS "Cites", date
-FROM "prds/knowledge/conclusions"
+FROM "wiki/conclusions"
 SORT length(file.inlinks) DESC
 LIMIT 25
 ```
@@ -20,7 +20,7 @@ LIMIT 25
 
 ```dataview
 TABLE WITHOUT ID file.link AS "Conclusion", date, file.mtime AS "Modified"
-FROM "prds/knowledge/conclusions"
+FROM "wiki/conclusions"
 SORT file.mtime DESC
 LIMIT 25
 ```
@@ -44,7 +44,7 @@ Not linked from anywhere — verify discoverability.
 
 ```dataview
 LIST
-FROM "prds/knowledge/conclusions"
+FROM "wiki/conclusions"
 WHERE length(file.inlinks) = 0
 ```
 
@@ -52,7 +52,7 @@ WHERE length(file.inlinks) = 0
 
 ```dataview
 TABLE WITHOUT ID rows.file.link AS "Conclusions", length(rows) AS "Count"
-FROM "prds/knowledge/conclusions"
+FROM "wiki/conclusions"
 FLATTEN tags AS tag
 WHERE tag
 GROUP BY tag

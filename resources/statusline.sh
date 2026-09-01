@@ -15,10 +15,10 @@
 # says so: `↑0` would read as "everything is pushed" when there is nowhere to
 # push to. `▸board` is an OSC-8 link to the board's view at
 # 127.0.0.1:8443/board/<name>, matched on the daemon's registered path, and
-# absent when no daemon is running. `▸vault` — beside it — opens the same
-# tree in Obsidian (a native obsidian:// URI, no daemon) and renders whenever
-# the repo root carries a vault. PRD_STATUS_LINK=off renders the label
-# without the escape, for a terminal that shows them raw.
+# absent when no daemon is running. `▸vault` — beside it — opens the board in
+# Obsidian (a native obsidian:// URI, no daemon) and renders whenever the
+# board carries a vault at `.pearde/.obsidian/`. PRD_STATUS_LINK=off renders
+# the label without the escape, for a terminal that shows them raw.
 #
 # It reads four frontmatter keys — `state`, `complexity`, `origin`, and `est`
 # as the weight's last fallback — and matches them
@@ -254,18 +254,35 @@ if [ -n "$BOARD" ]; then
     fi
   fi
 
-  # ▸vault — the board itself in Obsidian. A native obsidian:// URI: the app
-  # resolves `path=` to whichever vault owns the directory and focuses it, so
-  # no plugin, key, or running daemon is needed. The vault is the BOARD's own
-  # .obsidian/ (a vault can root at a dot-directory; only dot-directories
-  # *inside* a vault are invisible), falling back to the repo root's. `%20`
-  # is the only encode the sed does; a board path with other reserved
-  # characters keeps them raw, which the app still resolves on macOS.
+  # ▸vault — the board itself in Obsidian. The vault roots AT the board
+  # (`.pearde/.obsidian/`): a vault can root at a dot-directory, only
+  # dot-directories *inside* one are invisible, so this is the only root that
+  # shows the board's own folders. The repo root is the fallback for a board
+  # from before that.
+  #
+  # `obsidian://open?path=` resolves against the vaults Obsidian has
+  # registered — an unregistered folder does not open, it lands in whichever
+  # registered vault is its ancestor (the repo root, when the repo is a vault
+  # too). So the id is looked up in obsidian.json by exact path and the URI
+  # names the vault directly, which is unambiguous under nesting. No match —
+  # the board was never registered — falls back to `path=`, `%20` its only
+  # encode. `pearde init` registers the board; so does opening it once.
   if [ -d "$BOARD/.obsidian" ]; then VAULT="$BOARD"
   elif [ -d "${BOARD%/*}/.obsidian" ]; then VAULT="${BOARD%/*}"
   fi
   if [ -n "$VAULT" ]; then
-    VL="obsidian://open?path=$(printf '%s' "$VAULT" | sed 's/ /%20/g')"
+    OBS_CFG="$HOME/Library/Application Support/obsidian/obsidian.json"
+    [ -f "$OBS_CFG" ] || OBS_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/obsidian/obsidian.json"
+    VID=""
+    [ -f "$OBS_CFG" ] && VID=$(sed 's/": *"/":"/g; s/": *{/":{/g' "$OBS_CFG" \
+      | grep -o '"[0-9a-f]\{8,\}":{"path":"[^"]*"' \
+      | grep -F ":{\"path\":\"$VAULT\"" \
+      | sed -n 's/^"\([0-9a-f]*\)".*/\1/p' | head -1)
+    if [ -n "$VID" ]; then
+      VL="obsidian://open?vault=$VID"
+    else
+      VL="obsidian://open?path=$(printf '%s' "$VAULT" | sed 's/ /%20/g')"
+    fi
     [ -n "$BOARD_OUT" ] && BOARD_OUT="$BOARD_OUT \033[38;5;240m·\033[0m "
     if [ "${PRD_STATUS_LINK:-on}" = "off" ]; then
       BOARD_OUT="$BOARD_OUT\033[38;5;110m▸vault\033[0m"

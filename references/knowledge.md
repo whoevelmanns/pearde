@@ -6,21 +6,22 @@ holds conclusions and the sources they stand on. One question, one home — a
 decision goes to a memo per @references/memo.md, knowledge here.
 
 ```
-.pearde/wiki/          one folder, the whole layer — the wiki, the vault, the graph
+.pearde/wiki/          one folder, the whole layer — the wiki and its graph
     sources/             external findings, one file per topic; raw, arguing nothing of ours
     conclusions/         synthesized answers, each derived from named sources
     pending/             research questions queued, priority-tagged, not yet run
     graphs/              generated wiki pages over the KB
     .graphify/           the note graph, graph.json (gitignored, regenerable)
-    .obsidian/           the vault preset — this folder is its own Obsidian vault
     WORKFLOW.md          focus, rules, routing — the configuration every verb reads
     Dashboard.md         live Dataview views over all of it
 ```
 
-The folder is the Obsidian vault: open `.pearde/wiki` in Obsidian and the
-dashboard renders, the graph view colors sources and conclusions, nothing
-from outside needs to be open. The folder is gitignored — machine-local
-data, not source. The tool that runs the loop is @resources/knowledge.py:
+The folder is read through the board's vault: the vault roots at `.pearde/`
+(@references/obsidian.md), so the dashboard renders at `wiki/Dashboard.md`
+and the graph view colors sources and conclusions beside the PRDs, the memos
+and the workflows they argue about. Every Dataview source here is written
+`.pearde/`-relative — `wiki/conclusions`, not `conclusions`. The folder is gitignored —
+machine-local data, not source. The tool that runs the loop is @resources/knowledge.py:
 stdlib-only Python, every verb takes `--root`, so another board's folder
 follows the same contract.
 

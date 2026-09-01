@@ -6,7 +6,7 @@
 
 `init` leaves `<dir>/.pearde/` (default: the working directory) on the
 contract: a `settings.md` naming the five knobs by name, a `vision.md` from
-@references/templates/vision.md with `terminals:` commented out, the four
+@references/templates/vision.md with `terminals:` commented out, the three
 machine-local names in `.gitignore` when `<dir>` is inside a git repo, the
 daemon up and watching the board when the port can be bound — it says so and
 goes on when it cannot — and one `doctor` report, every line printed. Then
@@ -37,6 +37,7 @@ import json
 import re
 import shutil
 import subprocess
+import time
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -58,9 +59,9 @@ DEFAULTS = (("language", "English"), ("workers", "3"), ("pipeline", "3"),
             ("weight-default", "50"), ("gantt-day", "8h"))
 
 # Machine-local per board — regenerable. What this repo's own .gitignore
-# holds for the same names.
-# One line covers the whole machine-local corner now that it is one directory.
-IGNORED = (".pearde/.state/", ".pearde/wiki/", ".obsidian/", "/board")
+# holds for the same names. `.obsidian/` is the board's own vault config,
+# written at `.pearde/.obsidian/` and never shared.
+IGNORED = (".pearde/.state/", ".pearde/wiki/", ".obsidian/")
 
 # The Obsidian requirement: dataview (the live views) and local-rest-api
 # (the port a tool reads the vault through). The preset at
@@ -71,6 +72,10 @@ IGNORED = (".pearde/.state/", ".pearde/wiki/", ".obsidian/", "/board")
 # install never fetched is reported, not silently skipped. The REST key is
 # minted fresh — one per board, never shipped in the template.
 OBSIDIAN_PRESET = os.path.join(HERE, "obsidian")
+# `vault --wait` polls for the app to go: half a second apart, ten minutes of
+# patience — long enough for a person to finish what they were doing and quit,
+# short enough that a forgotten command does not sit there for a session.
+WAIT_TICK, WAIT_TICKS = 0.5, 1200
 OBSIDIAN_PLUGINS = ("dataview", "obsidian-local-rest-api")
 
 # Not the same thing as resources/board/knowledge/, and not copied from
@@ -91,6 +96,7 @@ class Refused(Exception):
 FLAGS = {
     "init":     trlib.Flags(("language", "name"), ("example",) + trlib.DRY),
     "settings": trlib.Flags(("board",), trlib.DRY),
+    "vault":    trlib.Flags((), ("wait", "open") + trlib.DRY),
 }
 
 
@@ -149,56 +155,100 @@ def in_git(d):
     return p.returncode == 0
 
 
-def write_board_link(d):
-    """Obsidian will not show a dot-directory. It skips every path whose name
-    starts with a `.` before any setting is read, and `userIgnoreFilters` only
-    adds ignores — there is nothing to switch off. So a board at `<d>/.pearde`
-    is invisible in a vault opened at `<d>`, which is the whole of the read
-    layer gone.
+def obsidian_config():
+    """Obsidian's vault register — the file that decides what
+    `obsidian://open` can resolve. macOS first, then the Linux/XDG path.
+    Returns the path when the app has one, else None: a machine that never
+    ran Obsidian gets no file written."""
+    candidates = [
+        os.path.expanduser("~/Library/Application Support/obsidian/obsidian.json"),
+        os.path.join(os.environ.get("XDG_CONFIG_HOME",
+                                    os.path.expanduser("~/.config")),
+                     "obsidian", "obsidian.json"),
+    ]
+    return next((c for c in candidates if os.path.isfile(c)), None)
 
-    The way through is a visible name beside it: `<d>/board` -> `.pearde`, a
-    relative symlink, so the vault walks into the board under a name it will
-    show and every note keeps its real path on disk. Machine-local and
-    gitignored — nothing in the history depends on it. Returns the link's name
-    when it made one."""
-    board = os.path.join(d, ".pearde")
-    at = os.path.join(d, "board")
-    if not os.path.isdir(board):
-        return None
-    if os.path.islink(at):
-        return None if os.readlink(at) == ".pearde" else None
-    if os.path.exists(at):
-        return None                               # a real `board/` wins
+
+def obsidian_running():
+    """Is the app holding its vault list in memory right now. macOS names the
+    process `Obsidian`, Linux `obsidian`; neither found (or no pgrep) reads as
+    not running, which is the safe answer — the caller only ever uses it to
+    decide whether to warn."""
+    for name in ("Obsidian", "obsidian"):
+        try:
+            if subprocess.run(["pgrep", "-x", name],
+                              capture_output=True).returncode == 0:
+                return True
+        except OSError:
+            return False
+    return False
+
+
+def register_vault(vault):
+    """Step 4c: the register. `obsidian://open` resolves against the vaults
+    Obsidian already knows — an unregistered folder does not open, it silently
+    lands in whichever registered vault is its ancestor (the repo root, on a
+    board whose repo is itself a vault). So the board is written into
+    `obsidian.json` here: a fresh 16-hex id, its absolute path, a timestamp.
+    An entry with the same path is kept as it is.
+
+    **A write only survives while the app is closed.** Obsidian loads this
+    file once at launch and rewrites it *from memory* when it quits — an entry
+    added underneath a running app is not read by that app (the URI answers
+    "Unable to find a vault for the URL") and is then erased on quit. The
+    order that works is: quit, write, launch. `cmd_vault` is that order, and
+    `--wait` does the writing the moment the process goes.
+
+    Returns ("added", id), ("known", id), or (None, None) when Obsidian has
+    no config on this machine."""
+    cfg = obsidian_config()
+    if not cfg:
+        return None, None
     try:
-        os.symlink(".pearde", at)
-    except OSError:
-        return None
-    return "board"
+        data = json.load(open(cfg, encoding="utf-8"))
+    except (OSError, ValueError):
+        return None, None
+    vaults = data.setdefault("vaults", {})
+    for vid, entry in vaults.items():
+        if os.path.realpath(str(entry.get("path", ""))) == os.path.realpath(vault):
+            return "known", vid
+    vid = os.urandom(8).hex()
+    vaults[vid] = {"path": vault, "ts": int(time.time() * 1000)}
+    editlib.write_atomic(cfg, json.dumps(data))
+    return "added", vid
 
 
 def write_obsidian(d):
-    """Step 4b: the vault. Copies the vendored preset and plugins to
-    `<dir>/.obsidian/` — dataview, obsidian-local-rest-api, the graph and app
-    configuration — and mints a fresh REST key into the plugin's data.json,
-    mirrored at `.pearde/wiki/.obsidian-api-key` where the loop's tools
-    read it. Everything is already there is kept (a hand-tuned vault wins).
-    A plugin whose bundle is not in the preset — the install has not run, or
-    could not reach the network — is returned in the second list and named on
-    the console, because a vault missing dataview renders no view at all.
+    """Step 4b: the vault, and it roots at the board. `<dir>/.pearde/.obsidian/`
+    — not `<dir>/.obsidian/`: Obsidian hides a dot-directory *inside* a vault,
+    so a vault at the repo root cannot show `.pearde/` at all, while a vault
+    whose own root is `.pearde/` shows every one of its children. Every
+    vault-relative path the board writes — the Dataview sources, the generated
+    wikilinks — is written against this root.
+
+    Copies the vendored preset and plugins in — dataview,
+    obsidian-local-rest-api, the graph and app configuration — and mints a
+    fresh REST key into the plugin's data.json, mirrored at
+    `.pearde/wiki/.obsidian-api-key` where the loop's tools read it. Everything
+    already there is kept (a hand-tuned vault wins). A plugin whose bundle is
+    not in the preset — the install has not run, or could not reach the
+    network — is returned in the second list and named on the console, because
+    a vault missing dataview renders no view at all.
     Returns (installed, missing, key)."""
-    dest = os.path.join(d, ".obsidian")
+    vault = os.path.join(d, ".pearde")
+    dest = os.path.join(vault, ".obsidian")
     plugins, missing = [], []
     if not os.path.isdir(OBSIDIAN_PRESET):
         return [], list(OBSIDIAN_PLUGINS), None
-    os.makedirs(os.path.join(d, ".obsidian"), exist_ok=True)
+    os.makedirs(dest, exist_ok=True)
     for entry in sorted(os.listdir(OBSIDIAN_PRESET)):
         src = os.path.join(OBSIDIAN_PRESET, entry)
-        dst = os.path.join(d, ".obsidian", entry)
+        dst = os.path.join(dest, entry)
         if entry == "plugins":
             for plugin in OBSIDIAN_PLUGINS:
                 src_p = os.path.join(src, plugin)
                 dst_p = os.path.join(dst, plugin)
-                if os.path.isdir(os.path.join(d, ".obsidian", "plugins", plugin)):
+                if os.path.isdir(os.path.join(dest, "plugins", plugin)):
                     continue                      # already installed wins
                 if not os.path.isfile(os.path.join(src_p, "main.js")):
                     missing.append(plugin)        # install never fetched it
@@ -217,13 +267,25 @@ def write_obsidian(d):
     # at all (the loop above reported it into `missing`). Writing the key
     # cannot create the directory it belongs to and crash init: makedirs, and
     # the key lands whenever the bundle later arrives.
-    cfg_path = os.path.join(d, ".obsidian", "plugins",
+    cfg_path = os.path.join(dest, "plugins",
                             "obsidian-local-rest-api", "data.json")
-    if not os.path.exists(cfg_path):
+    if os.path.exists(cfg_path):
+        try:                              # the plugin's own key wins
+            key = json.load(open(cfg_path, encoding="utf-8"))["apiKey"]
+        except (OSError, ValueError, KeyError):
+            pass
+    else:
         os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
         editlib.write_atomic(cfg_path, json_text(cfg))
+    # The mirror follows the plugin, never the other way round: a key that
+    # disagrees with data.json is a 401 on every call, and the file a tool
+    # reads is the one that has to be wrong-proof. Rewritten whenever it
+    # differs — including a mirror left behind by an older vault root.
     key_path = os.path.join(d, ".pearde", "wiki", ".obsidian-api-key")
-    if not os.path.exists(key_path):
+    have = ""
+    if os.path.exists(key_path):
+        have = open(key_path, encoding="utf-8").read().strip()
+    if have != key:
         os.makedirs(os.path.dirname(key_path), exist_ok=True)
         editlib.write_atomic(key_path, key + "\n")
     return plugins, missing, key
@@ -294,7 +356,7 @@ def cmd_init(argv):
                  os.path.join(board, "vision.md")]
         if in_git(d):
             paths.append(os.path.join(d, ".gitignore"))
-        paths.append(os.path.join(d, ".obsidian", "plugins", "dataview"))
+        paths.append(os.path.join(board, ".obsidian", "plugins", "dataview"))
         print(f"dry · board {name} · language {language} — pearde settings "
               "language=<l> changes it")
         print("  would write: " + " · ".join(paths)
@@ -314,17 +376,24 @@ def cmd_init(argv):
             added = write_gitignore(d)
             if added:
                 print(f"init: .gitignore += {' '.join(added)}")
-        link = write_board_link(d)
-        if link:
-            print(f"init: {link}/ -> .pearde/ — Obsidian hides a "
-                  "dot-directory, and this is the name it will show")
         plugins, missing, _ = write_obsidian(d)
         if plugins:
-            print(f"init: obsidian vault at .obsidian/ — plugins: "
+            print(f"init: obsidian vault at .pearde/ (its own root, so every "
+                  f"board folder shows) — plugins: "
                   f"{', '.join(plugins)} · dataview serves the live views "
                   "from the first open, local-rest-api (local-rest-api with MCP) answers on "
                   "127.0.0.1:27124 (key: .pearde/wiki/.obsidian-api-key) "
                   "after Obsidian loads the vault once")
+        state, _vid = register_vault(board)
+        if state == "added" and obsidian_running():
+            print("init: registered .pearde/ with Obsidian — but Obsidian is "
+                  "running, and it rewrites its vault list from memory when "
+                  "it quits, which erases this. Run: pearde vault --wait "
+                  "--open, then quit Obsidian — the entry is written the "
+                  "moment it exits and the vault opens")
+        elif state == "added":
+            print("init: registered .pearde/ with Obsidian — the status "
+                  "line's ▸vault opens it")
         if missing:
             print(f"init: no bundle for {', '.join(missing)} — the vault "
                   "opens without them and renders no view. Fetch them with: "
@@ -367,6 +436,69 @@ def cmd_settings(argv):
     return 0
 
 
+# ── vault ─────────────────────────────────────────────────────────────────────
+
+def cmd_vault(argv):
+    """[<dir>] [--wait] [--open] — put the board in Obsidian's vault register,
+    which is what makes `obsidian://open` resolve to it.
+
+    The register (`obsidian.json`) is read once, at launch, and written back
+    from memory on quit. So an entry added under a running app is invisible to
+    it and gone afterwards — the app answers "Unable to find a vault for the
+    URL" and then erases the line. This command holds that order: it writes
+    only while Obsidian is closed. `--wait` waits for the running app to exit
+    and writes the instant it does; `--open` launches the vault after writing.
+    The vault directory itself is seeded when it is not there yet."""
+    args = trlib.Args(argv, FLAGS["vault"], "vault")
+    d = os.path.abspath(args.pos[0] if args.pos else os.getcwd())
+    board = os.path.join(d, ".pearde")
+    if not os.path.isdir(board):
+        raise Refused(f"no board at {board} — pearde init {d} writes one")
+    if args.dry:
+        print(f"dry · would register {board} with Obsidian"
+              + (" · seeds .obsidian/ first" if not os.path.isdir(
+                  os.path.join(board, ".obsidian")) else ""))
+        return 0
+    if not os.path.isdir(os.path.join(board, ".obsidian")):
+        plugins, missing, _ = write_obsidian(d)
+        print(f"vault: seeded {board}/.obsidian"
+              + (f" — plugins: {', '.join(plugins)}" if plugins else "")
+              + (f" · no bundle for {', '.join(missing)}" if missing else ""))
+    if obsidian_running():
+        if "wait" not in args.flags:
+            raise Refused(
+                "Obsidian is running — it rewrites obsidian.json from memory "
+                "when it quits, so anything written now is erased and never "
+                "read. Quit it and run this again, or run it with --wait and "
+                "quit: the entry lands the moment the process goes")
+        print("vault: waiting for Obsidian to quit — the register is only "
+              "writable while it is closed. Quit it now (⌘Q)…", flush=True)
+        for _ in range(WAIT_TICKS):
+            if not obsidian_running():
+                break
+            time.sleep(WAIT_TICK)
+        else:
+            raise Refused(f"Obsidian still running after "
+                          f"{int(WAIT_TICKS * WAIT_TICK)}s — nothing written")
+        time.sleep(1)                 # let the app finish its own last write
+    state, vid = register_vault(board)
+    if state is None:
+        print("vault: Obsidian has no config on this machine — nothing to "
+              "register. The vault directory is there for when it does")
+        return 0
+    uri = f"obsidian://open?vault={vid}"
+    print(f"vault: {board} {'registered' if state == 'added' else 'already registered'}"
+          f" · {uri}")
+    if "open" in args.flags:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        try:
+            subprocess.run([opener, uri], check=False)
+            print(f"vault: opened it — ▸vault on the status line is the same URI")
+        except OSError:
+            print(f"vault: open it with: {opener} '{uri}'")
+    return 0
+
+
 # ── the surface ───────────────────────────────────────────────────────────────
 
 def _command(name, fn):
@@ -386,7 +518,8 @@ def _command(name, fn):
 
 
 COMMANDS = {"init": _command("init", cmd_init),
-            "settings": _command("settings", cmd_settings)}
+            "settings": _command("settings", cmd_settings),
+            "vault": _command("vault", cmd_vault)}
 
 
 def main(argv):

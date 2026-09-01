@@ -1,6 +1,6 @@
 {
   "collapse-filter": false,
-  "search": "-file:\"prd\" -path:\"specs\" -path:\"prds/knowledge/.graphify\" -path:\"prds/knowledge/graphs\" -path:\"prds/knowledge/pending\" -path:\".absorbed\" -file:\"Dashboard\" -path:\".pearde/graphify\" -path:\".claude\"",
+  "search": "-file:\"prd\" -path:\"specs\" -path:\"wiki/.graphify\" -path:\"wiki/graphs\" -path:\"wiki/pending\" -path:\".absorbed\" -file:\"Dashboard\" -path:\"graphify\"",
   "showTags": true,
   "showAttachments": true,
   "hideUnresolved": true,
@@ -8,49 +8,49 @@
   "collapse-color-groups": false,
   "colorGroups": [
     {
-      "query": "path:\"prds/knowledge/board\"",
+      "query": "path:\"wiki/board\"",
       "color": {
         "a": 1,
         "rgb": 12382067
       }
     },
     {
-      "query": "path:\"prds/memos\"",
+      "query": "path:\"memos\"",
       "color": {
         "a": 1,
         "rgb": 16692479
       }
     },
     {
-      "query": "path:\"prds/workflows\"",
+      "query": "path:\"workflows\"",
       "color": {
         "a": 1,
         "rgb": 6116761
       }
     },
     {
-      "query": "path:\"prds/knowledge/conclusions\"",
+      "query": "path:\"wiki/conclusions\"",
       "color": {
         "a": 1,
         "rgb": 4357119
       }
     },
     {
-      "query": "path:\"prds/knowledge/sources\"",
+      "query": "path:\"wiki/sources\"",
       "color": {
         "a": 1,
         "rgb": 5066061
       }
     },
     {
-      "query": "path:\"prds/knowledge/pending\"",
+      "query": "path:\"wiki/pending\"",
       "color": {
         "a": 1,
         "rgb": 16251222
       }
     },
     {
-      "query": "path:\"prds/knowledge/graphs\"",
+      "query": "path:\"wiki/graphs\"",
       "color": {
         "a": 1,
         "rgb": 10306297

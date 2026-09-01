@@ -581,7 +581,8 @@ def cmd_board(store, args):
     store.ensure()
     board_root = store.root.parent                # <board> — .pearde, the KB's parent
     prds = board_root / "prds"                     # <board>/prds, the PRD tree
-    vault_root = board_root.parent                 # the Obsidian vault: the repo root
+    vault_root = board_root                        # the Obsidian vault: the board
+                                                   # itself, `.pearde` — its own root
     def scalar(value):
         # prd.md frontmatter carries trailing comments — "open  # open|..." —
         # so cut on the first " #", and treat the empty-list marker as empty
@@ -632,7 +633,7 @@ def cmd_board(store, args):
             slug for slug, memo in memos.items()
             if leaf in memo["cites"] or leaf in memo["text"]
             or slug in prd["text"])
-    flat = {name.split("/")[-1]: f".pearde/wiki/board/{name}"
+    flat = {name.split("/")[-1]: f"wiki/board/{name}"
             for name in prds_found}
     written, removed = [], []
     for name, prd in prds_found.items():

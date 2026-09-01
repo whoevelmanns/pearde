@@ -1,16 +1,49 @@
 # Obsidian — talking to the vault natively
 
-The repo is the vault. Obsidian sits on top of the repo root and renders what
-pearde already writes: `.pearde/prds/**/prd.md` (through the generated board notes),
-`.pearde/memos/`, `.pearde/workflows/`, the knowledge layer under
-`.pearde/wiki/`, every reference and spec. Nothing is duplicated into a
-second location — the vault is this repo seen through Obsidian's index, and
-its link resolution, backlinks and graph view are a person's read layer for
-the board's own data.
+The board is the vault. Obsidian roots at `.pearde/` — not the repo root —
+and renders what pearde already writes: `prds/**/prd.md` (through the
+generated board notes), `memos/`, `workflows/`, the knowledge layer under
+`wiki/`. Nothing is duplicated into a second location — the vault is the
+board seen through Obsidian's index, and its link resolution, backlinks and
+graph view are a person's read layer for the board's own data.
+
+The root is `.pearde/` because Obsidian skips every path whose name starts
+with a `.` before any setting is read, and `userIgnoreFilters` only adds
+ignores. From a vault at the repo root the whole board is invisible; from a
+vault whose *own* root is `.pearde/` every child of it shows. So every
+vault-relative path the board writes — the Dataview sources in
+`Dashboard.md`, the wikilinks in `wiki/board/` — is written against
+`.pearde/`, and a board from before this reads its notes one level off until
+`knowledge.py board` regenerates them.
+
+A vault directory is not enough on its own: `obsidian://open` resolves only
+against Obsidian's own register (`~/Library/Application Support/obsidian/obsidian.json`,
+`~/.config/obsidian/obsidian.json` on Linux). A folder that is not in it does
+not open — the URI lands in the nearest registered ancestor, the repo root
+when the repo is a vault too, which is exactly the wrong tree. The status
+line's `▸vault` names the vault by the id that file holds for the board's
+exact path.
+
+**The register is only writable while Obsidian is closed.** The app reads it
+once at launch and writes it back *from memory* on quit: an entry added under
+a running app is not seen by that app (`Unable to find a vault for the URL`)
+and is erased when it exits. The order that holds is quit → write → launch,
+and one command is that order:
+
+```sh
+pearde vault --wait --open        # quit Obsidian when it says to
+```
+
+It seeds `.pearde/.obsidian/` if it is missing, waits for the process to go,
+writes the entry, and opens the vault. Without `--wait` it refuses while the
+app is running rather than writing something that will be erased. `init` calls
+the same writer, and says this when it finds Obsidian up. `doctor`'s `vault`
+row reads the register back and is `broken` when the entry is not there.
 
 Two plugins are the requirement, their settings at `@resources/board/obsidian/`
 and their bundles fetched by `install.sh --apply` at pinned versions, and
-seeded by `@resources/board/init.py` into any new board's `.obsidian/`:
+seeded by `@resources/board/init.py` into any new board's
+`.pearde/.obsidian/`:
 
 - **dataview** — executes the DQL/DataviewJS views in `Dashboard.md` and the
   `_index.md` files when the vault is open.
@@ -37,8 +70,10 @@ Obsidian app — the files remain, the port does not.
 ```
 https://127.0.0.1:27124              base URL (HTTPS, self-signed certificate)
 Authorization: Bearer <key>          every call, no exceptions
-<vault>/.pearde/wiki/.obsidian-api-key   the key a tool reads — mirrors
-                                     .obsidian/plugins/obsidian-local-rest-api/data.json
+<board>/wiki/.obsidian-api-key       the key a tool reads — mirrors
+                                     .obsidian/plugins/obsidian-local-rest-api/data.json,
+                                     and is rewritten to match it whenever
+                                     the two disagree
 GET  /                               alive? -> {"status": "OK", "authenticated": …}
 GET  /vault/<path>                   one note's bytes
 PUT  /vault/<path>                   write one note (whole file)
@@ -70,12 +105,12 @@ curl -sk -X POST https://127.0.0.1:27124/search/ -H "Authorization: Bearer $K" \
   -d '{"==": [{"var": "frontmatter.state"}, "open"]}'
 
 # read the dashboard a person sees
-curl -sk https://127.0.0.1:27124/vault/.pearde/wiki/Dashboard.md \
+curl -sk https://127.0.0.1:27124/vault/wiki/Dashboard.md \
   -H "Authorization: Bearer $K"
 ```
 
-The deep views stay in Dataview (DQL over `.pearde/wiki/board`,
-`.pearde/memos`, `.pearde/workflows` — see `Dashboard.md`); the REST `search/`
+The deep views stay in Dataview (DQL over `wiki/board`, `memos`,
+`workflows` — vault-relative, so `.pearde/`-relative — see `Dashboard.md`); the REST `search/`
 answers one flat predicate per call. A round that needs joins uses
 `knowledge.py` and `plan.py` directly; REST is the door for everything a
 vault-shaped question needs — backlinks via `file.inlinks` stay in
@@ -83,7 +118,7 @@ Dataview's DQL, which runs in-app.
 
 ## What pearde guarantees
 
-- **`init` seeds it.** A new board's `.obsidian/` ships with both plugins
+- **`init` seeds it.** A new board's `.pearde/.obsidian/` ships with both plugins
   from the preset the install fetched (`@resources/board/obsidian/`), a fresh API key minted in the v5
   schema, mirrored at `.pearde/wiki/.obsidian-api-key`. One manual step
   remains, unavoidable: Obsidian loads a vault's plugins when the person

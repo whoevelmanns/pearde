@@ -59,8 +59,9 @@ bash @resources/graph/graph.sh open @.             # .pearde/graphify/obsidian a
 
 ## The vault
 
-`.pearde/graphify/obsidian/` is its own vault, separate from the repo's — the
-repo root is already an Obsidian vault, and the graph's notes stay out of it.
+`.pearde/graphify/obsidian/` is its own vault, separate from the board's —
+`.pearde/` is already an Obsidian vault, and the graph's notes stay out of it
+(the board vault ignores `graphify/`).
 `graph.sh open` opens it in Obsidian. The vault is output: edit nothing in it,
 edit the corpus and re-extract instead.
 
