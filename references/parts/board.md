@@ -26,9 +26,9 @@ prds/
   sentence, `terminals:` naming the PRDs whose completion is it, `edges:` for
   a dependency nobody wrote as `needs:`. How the plan reads it is
   @references/parts/order.md.
-- A parent with children is **not dispatchable** until every child is `done`.
-  Work flows to the leaves. A parked child is not `done` and holds its
-  parent; a parent whose children are all `done` and that has no specs or
-  open box of its own is a container — `collect` closes it, `claim` refuses
-  it. The gates are one function, `plan.dispatchable`, and `scan`'s ready
-  band and `claim` both read it.
+- A parent with children is **not dispatchable** until every child is `done`:
+  work flows to the leaves. What that gate tests exactly — leaf, container,
+  parked child, `needs:`, footprint, `workflow:` — is one function,
+  `plan.dispatchable`, and it is written out once, under **The command is the
+  gate** in @references/parts/states.md. `scan`'s ready band and `claim` both
+  read that one function, so what the scan offers is what `claim` takes.

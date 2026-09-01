@@ -10,7 +10,7 @@ A dispatcher, not a home. No logic lives here: each name forwards to the
 script that owns it, arguments in the order that script takes them, exit
 code passed through. The board is resolved by the script that reads it, the
 way @resources/board/plan.py `find_board` does — the path given, or the
-nearest `prds/` walking up from the working directory.
+nearest `.pearde/` walking up from the working directory.
 
 Discovery. Every `resources/board/*.py` that exposes
 `COMMANDS = {"<name>": <callable>}` is imported and its names are routed. A
@@ -61,7 +61,7 @@ ROOT = skill_root()
 RES = os.path.join(ROOT, "resources")
 BOARD_PY = os.path.join(RES, "board")
 
-# The contract table of @prds/the-board-runs-itself/one-command/prd.md, one
+# The contract table of @.pearde/prds/the-board-runs-itself/one-command/prd.md, one
 # row per name pearde forwards. `script` is under resources/; `verbs` are the
 # words the script takes first — when the first argument is one of them the
 # arguments go through untouched, otherwise `prefix` is put in front. A row

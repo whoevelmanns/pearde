@@ -28,6 +28,9 @@ scout="$root/scout"
 snaps="$scout/snapshots"
 buckets="$scout/buckets.txt"
 per_bucket="${SCOUT_PER_BUCKET:-30}"
+# One snapshot/day; keep enough to serve any `delta <days>` window callers
+# actually use (README documents up to ~90) plus slack for gaps in the cron.
+snap_keep="${SCOUT_SNAP_KEEP:-90}"
 
 die() { echo "scout: $*" >&2; exit 1; }
 
@@ -58,6 +61,20 @@ cmd_sweep() {
 
 	echo >&2
 	echo "snapshot: $out  ($n buckets, $(wc -l < "$out" | tr -d ' ') rows)" >&2
+
+	# Cap: keep only the snap_keep most recent snapshots so snapshots/ does
+	# not grow unbounded — one ~700-line TSV per sweep, forever, otherwise.
+	local all total over extra
+	all=$(ls -1 "$snaps"/*.tsv 2>/dev/null | sort)
+	total=$(echo "$all" | grep -c .)
+	over=$((total - snap_keep))
+	extra=""
+	[ "$over" -gt 0 ] && extra=$(echo "$all" | head -n "$over")
+	if [ -n "$extra" ]; then
+		echo "$extra" | while IFS= read -r f; do rm -f "$f"; done
+		echo "pruned $(echo "$extra" | wc -l | tr -d ' ') snapshot(s) older than the $snap_keep kept" >&2
+	fi
+
 	cmd_delta 0 2>/dev/null || echo "run again tomorrow for a delta" >&2
 }
 

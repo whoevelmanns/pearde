@@ -38,7 +38,10 @@ right: the master carries the merged plan, each member keeps its own.
 Everything is local. The board is the files; this serves them, and the edits
 the view makes go back into the same files through one set of writers
 (edit.py). The registry and log live in state/ beside this script
-(machine-local, gitignored): serve.json, serve.log.
+(machine-local, gitignored): serve.json, serve.log. The log is a rolling
+tail, not a record — the daemon keeps the last LOG_MAX_LINES of it and drops
+the 2xx request lines, so what survives is transitions, reload notices and
+tracebacks.
 
 HTTP API, all JSON, all 127.0.0.1-only:
 
@@ -109,9 +112,35 @@ import transitions as translib  # noqa: E402 — the one writer of `state:`
 
 PORT = int(os.environ.get("PEARDE_PORT", "8443"))
 DIR = os.path.dirname(os.path.abspath(__file__))
-APP_DIR = os.path.join(DIR, "state")
+APP_DIR = planlib.MACHINE_DIR
 REG_PATH = os.path.join(APP_DIR, "serve.json")
 LOG_PATH = os.path.join(APP_DIR, "serve.log")
+LOG_MAX_LINES = 2000   # the log is a rolling tail, not a record
+LOG_TRIM_S = 60.0      # how often the daemon trims its own log
+
+
+def trim_log(path=None):
+    """Keep the last LOG_MAX_LINES of the log, in place.
+
+    The daemon's stdout and stderr are the log: `ensure` spawns it with the
+    file opened `"a"`, so both fds carry O_APPEND and every write seeks to
+    the current end. Shortening the file underneath them is safe — the next
+    write lands at the new EOF, not at a stale offset — so the trim rewrites
+    the same inode instead of rotating to a second file the fds would not
+    follow. Lines, not bytes: a byte cap cuts a traceback mid-line, and a
+    traceback is the one thing this file exists to keep.
+    """
+    path = path or LOG_PATH
+    try:
+        with open(path, "r+", encoding="utf-8", errors="replace") as fh:
+            lines = fh.readlines()
+            if len(lines) <= LOG_MAX_LINES:
+                return
+            fh.seek(0)
+            fh.writelines(lines[-LOG_MAX_LINES:])
+            fh.truncate()
+    except OSError:
+        pass  # no log yet, or it is not ours to trim — never fatal
 POLL_S = 1.0       # how often each board is stat-swept
 SETTLE_S = 0.4     # a change must hold still this long before a sync
 WAIT_MAX_S = 25    # long-poll ceiling; clients just re-poll
@@ -495,7 +524,11 @@ def restart(stamp):
 
 def watch():
     last_view = None
+    last_trim = time.monotonic()
     while True:
+        if time.monotonic() - last_trim >= LOG_TRIM_S:
+            last_trim = time.monotonic()
+            trim_log()   # the daemon keeps its own log bounded while it runs
         stamp = source_stamp()
         if stamp != BOOT and stamp != REFUSED:
             restart(stamp)
@@ -596,6 +629,22 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):  # requests go to serve.log, quietly
         sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
+
+    def log_request(self, code="-", size="-"):
+        """Only the requests that went wrong.
+
+        The view long-polls /wait for as long as a page is open, so a line
+        per request is a line per second per page — which is how this log
+        reached hundreds of megabytes. A 2xx tells us nothing the board does
+        not already say; a 4xx or 5xx is the reason someone opens this file.
+        """
+        n = getattr(code, "value", code)
+        try:
+            n = int(n)
+        except (TypeError, ValueError):
+            n = 0
+        if not (200 <= n < 300):
+            super().log_request(code, size)
 
     def reply(self, code, body, ctype="application/json"):
         raw = body if isinstance(body, bytes) else (
@@ -1107,6 +1156,7 @@ def cmd_run():
 def cmd_ensure(arg):
     if not running():
         os.makedirs(APP_DIR, exist_ok=True)
+        trim_log()       # a log left long by an older build starts bounded
         log = open(LOG_PATH, "a")
         subprocess.Popen([sys.executable, os.path.abspath(__file__), "run"],
                          stdout=log, stderr=log, start_new_session=True)

@@ -4,7 +4,6 @@ __pycache__/
 .DS_Store
 resources/board/state/
 .gstack/
-vicky/
 .obsidian/
 
 # this repo tracks its own prds/ board directly (unlike a board split out
@@ -13,16 +12,21 @@ vicky/
 !prds/
 
 
+# third-party bundles, fetched by `pearde install --apply` and pinned there.
+# The vault's own settings (data.json, the .json presets) stay tracked.
+resources/board/obsidian/plugins/*/main.js
+resources/board/obsidian/plugins/*/manifest.json
+resources/board/obsidian/plugins/*/styles.css
+
 # machine-local per board — regenerable
-prds/.plan.json
-prds/.round.md
-prds/.history.jsonl
-prds/.transitions.jsonl
-prds/.claims/
-prds/.view.html
+.pearde/
 
 # one-off session measurements, kept beside the work they explain
 /report.md
+/report-*.md
+/handover.md
+
+/board
 
 # local npm install of playwright-core, so probe/verify.sh's NODE_PATH
 # check can resolve it -- not a repo dependency, never committed

@@ -15,7 +15,7 @@ is yours and no tool touches it.
 | `actual`    | orchestrator, optional         | a record. The plan never schedules by it; `plan.py calibrate` fits real hours from it |
 | `claim`     | `pearde claim` writes it, `release` and `retry` clear it | the sweep, elapsed on `done`                      |
 | `repo`      | user                           | the worker brief. Optional                        |
-| `workflow`  | user · the drill, on the tree it writes · orchestrator on `specced`, from the analyst's report | the worker brief, `@resources/workflows.py check`, the scan line. A slug in `prds/workflows/`. Optional |
+| `workflow`  | user · the drill, on the tree it writes · orchestrator on `specced`, from the analyst's report | the worker brief, `@resources/workflows.py check`, the scan line. A slug in `.pearde/workflows/`. Optional |
 | `needs`     | user                           | a hard gate in `plan`'s order. PRD dir names. Optional |
 | `footprint` | user / orchestrator            | the overlap check in step 5, `plan`'s pairwise `after` edges when specs carry none. Paths. Optional |
 | `origin`    | whoever creates the PRD        | the split in the progress line, the tripwire in @references/parts/derived.md. `requested` \| `derived` |
@@ -29,7 +29,7 @@ is yours and no tool touches it.
 | `footprint` | analyst    | the overlap check in step 5        |
 | `workflow`  | analyst    | overrides the PRD's `workflow`, for that unit only |
 | `est`       | analyst    | optional. Read as the weight only when `complexity` is absent |
-| the file    | analyst · the orchestrator, narrowly | the analyst writes the specs. The orchestrator may add one, and only to close a rule the PRD's own body already states; a requirement the PRD does not make is REFINE and stays the analyst's — `prds/memos/the-orchestrator-may-write-a-spec.md` |
+| the file    | analyst · the orchestrator, narrowly | the analyst writes the specs. The orchestrator may add one, and only to close a rule the PRD's own body already states; a requirement the PRD does not make is REFINE and stays the analyst's — `.pearde/memos/the-orchestrator-may-write-a-spec.md` |
 
 `state` is the only key the loop cannot run without. The rest default:
 

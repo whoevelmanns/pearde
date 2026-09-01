@@ -26,7 +26,7 @@ is a worse dependency than a 3k-star active one.
 | `routes.md` | **index one** — every page a ranking comes from, one shell block each |
 | `findings.md` | **index two** — what won, on which axis, when |
 | `buckets.txt` | the taxonomy — `name<TAB>query` per line; **the knob** |
-| `snapshots/` | the accumulated star counts, one TSV per day |
+| `snapshots/` | star counts, one TSV per day, capped at the 90 most recent (`SCOUT_SNAP_KEEP`) |
 | `reading-list.md` | the curated, mechanism-mapped list |
 | `templates/` | quality-gate configs + workflow for wiring a new tree |
 | `SKILL.md` | this skill's entry |
@@ -40,6 +40,9 @@ search call per bucket, sort=stars, top N). The **first** sweep is a baseline;
 every sweep after it is a measurement. Run it daily on a local cron and the
 delta accumulates while nobody looks — no cloud needed. A GH Actions template
 (`templates/scout.yml`) exists for a repo that chooses to run the sweep in CI.
+Each sweep also prunes `snapshots/` down to the 90 most recent TSVs (override
+with `SCOUT_SNAP_KEEP`) — enough daily history for any `delta [days]` window
+this doc mentions, plus slack for gaps in the cron, without growing forever.
 
 ### `scout.sh delta [days]`
 What gained the most stars since ~N days ago, computed by **diffing our own

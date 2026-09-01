@@ -9,7 +9,7 @@ A persona is what gets noticed first, what gets pushed back on, what counts as
 done. The role is what the session does; the persona is who does it. One is
 active at a time. @references/personas/INDEX.md is the roster.
 
-**A persona is stored on no board file.** No key in `prds/settings.md`, no
+**A persona is stored on no board file.** No key in `.pearde/settings.md`, no
 file beside the board. It is session state, and the session's environment is
 where it lives: `PEARDE_AS`, exported as `engineer` by the line
 `install --apply` prints beside the alias, read by every command that moves a

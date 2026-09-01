@@ -5,8 +5,11 @@
     python3 workflows.py show  <slug> [board] the file
     python3 workflows.py brief <slug> [board] the workflow as one page, atomics inlined
     python3 workflows.py check [board]        one problem per line; silent when clean
+    python3 workflows.py add <slug> <atomic|workflow> <subject> [board]
+                                               write <slug>.md from the template, body on
+                                               stdin — refused when the slug is taken
 
-A workflow is `prds/workflows/<slug>.md`. It is not a PRD: no state, never
+A workflow is `.pearde/workflows/<slug>.md`. It is not a PRD: no state, never
 claimed, never dispatched, invisible to the loop and to the progress line. It
 records how a job is done and gets better every time it is followed.
 @references/workflow.md is the format. This file is its only reader, so the
@@ -95,8 +98,8 @@ def find_board(arg):
 
 
 def workflows_dir(board):
-    """(path, external). `prds/workflows/` unless `workflows:` in
-    prds/settings.md points elsewhere. Unlike `memos:`, elsewhere is not a
+    """(path, external). `.pearde/workflows/` unless `workflows:` in
+    .pearde/settings.md points elsewhere. Unlike `memos:`, elsewhere is not a
     mirror of a foreign system — it is the library itself, shared by several
     boards, so it gets the whole check wherever it lives."""
     st = os.path.join(board, "settings.md")
@@ -142,6 +145,37 @@ def scan(board):
                        key=lambda kv: (kv[1]["kind"] != "workflow", kv[0])))
 
 
+TEMPLATES_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "references", "templates")
+
+
+def add(board, slug, kind, subject, body, date):
+    """Write `<slug>.md` to the library, shaped like `<kind>.md` in
+    @references/templates — the slug key, `subject`, `date` and `runs: 0`
+    filled, `body` (already `# <slug> — <phrase>` on down) as everything
+    under the frontmatter. Refused when the slug is already taken, by either
+    kind — one namespace, one file per slug. Raises `ValueError`; the caller
+    turns that into whatever refusal its own contract uses."""
+    if slug in scan(board):
+        raise ValueError(f"`{slug}` is already in the library")
+    if kind not in ("workflow", "atomic"):
+        raise ValueError(f"add: kind `{kind}` is neither workflow nor atomic")
+    if not os.path.isfile(os.path.join(TEMPLATES_DIR, f"{kind}.md")):
+        raise ValueError(f"add: no {kind}.md in {TEMPLATES_DIR}")
+    d, _ = workflows_dir(board)
+    if not os.path.isdir(d):
+        os.makedirs(d)
+    path = os.path.join(d, f"{slug}.md")
+    fm = (f"---\n{kind}: {slug}\nsubject: {subject}\ndate: {date}\n"
+          f"runs: 0\n---\n\n")
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        f.write(fm + body.strip("\n") + "\n")
+    os.replace(tmp, path)
+    return path
+
+
 def members(board):
     """[(name, path)] — the member boards a master board merges.
 
@@ -160,11 +194,19 @@ def members(board):
 def _refs_one(board, prefix=""):
     """[(rel, value, board)] — every `workflow:` in a prd.md or a spec on one
     board, the value as written. A non-scalar shape is carried out rather
-    than dropped: the reader that finds it is the reader that reports it."""
+    than dropped: the reader that finds it is the reader that reports it.
+
+    Walks `<board>/prds`, not `board` itself: a PRD tree lives one level
+    under the board root, same as `memos.py board_prds` — walking `board`
+    would still find every ref (the tree is a subtree either way) but would
+    label each one `prds/<rel>`, one level off from what a reader expects."""
     refs = []
     lib, _ = workflows_dir(board)
     lib = os.path.abspath(lib)
-    for root, dirs, names in os.walk(board):
+    prds_root = os.path.join(board, "prds")
+    if not os.path.isdir(prds_root):
+        return refs
+    for root, dirs, names in os.walk(prds_root):
         if os.path.abspath(root) == lib:
             dirs[:] = []
             continue
@@ -177,7 +219,7 @@ def _refs_one(board, prefix=""):
             fm, _, _ = parse(path)
             v = (fm or {}).get("workflow")
             if v:
-                refs.append((prefix + os.path.relpath(path, board), v, board))
+                refs.append((prefix + os.path.relpath(path, prds_root), v, board))
     return refs
 
 
@@ -385,6 +427,22 @@ def brief(board, slug):
 
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else "check"
+    if cmd == "add":
+        if len(argv) < 5:
+            print("workflows: add <slug> <atomic|workflow> <subject> [board] "
+                  "— the body on stdin", file=sys.stderr)
+            return 2
+        slug, kind, subject = argv[2], argv[3], argv[4]
+        board = find_board(argv[5] if len(argv) > 5 else None)
+        import datetime
+        try:
+            path = add(board, slug, kind, subject, sys.stdin.read(),
+                       datetime.date.today().isoformat())
+        except ValueError as e:
+            print(f"workflows: refused — {e}", file=sys.stderr)
+            return 1
+        print(path)
+        return 0
     if cmd in ("show", "brief"):
         if len(argv) < 3:
             print(f"workflows: {cmd} needs a slug", file=sys.stderr)

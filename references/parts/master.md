@@ -6,7 +6,7 @@ A **master board** merges other boards to plan across projects: one scan, one
 plan, one timeline, one progress line over several repos.
 
 ```yaml
-# prds/settings.md, at the master
+# .pearde/settings.md, at the master
 ---
 name: master
 language: English
@@ -21,9 +21,9 @@ members:
 - `members:` in `settings.md` **is** what makes a master board. Otherwise it is
   an ordinary board: its own PRDs, memos, view.
 - An entry is `- <path>` or `- <name>: <path>`. A relative path resolves
-  against the master's `prds/`. A path at a repo root gains `/prds`. The name
+  against the master's `.pearde/`. A path at a repo root gains `/prds`. The name
   defaults to the directory the board sits in, and `<name>: <path>` pins it.
-- **Nothing moves.** Every member keeps its own `prds/`, `settings.md`,
+- **Nothing moves.** Every member keeps its own `.pearde/prds/`, `settings.md`,
   `memos/`, view. PRDs, specs and memos are written where they live. The master
   holds only the plan and the progress line.
 
@@ -32,7 +32,7 @@ members:
 cannot collide with the master's own PRDs. Every handle takes it: `run
 @model/nucleus`, `needs: @model/nucleus`.
 
-**The vision.** `prds/vision.md` at the master writes `terminals:` and
+**The vision.** `.pearde/vision.md` at the master writes `terminals:` and
 `edges:` the way `needs:` is written — a member PRD is `@<member>/<rel>` —
 plus the one form `needs:` lacks: `@<name>/<rel>`, with the `name:` from the
 master's `settings.md`, is the master's own PRD, so its own terminals stand
@@ -64,7 +64,7 @@ The live service watches every member and reconciles within about a second.
 | `language`                       | the PRD's own board. The master's is for its own PRDs and the round                      |
 | `workers`, `pipeline`            | the master — it is the one dispatching                                                   |
 | `complexity` scoring             | the member — one repo's units do not size another's                                      |
-| `repo` for a worker brief        | the PRD's own `repo:`, else the member's repo root — the directory holding its `prds/`   |
+| `repo` for a worker brief        | the PRD's own `repo:`, else the member's repo root — the directory holding its `.pearde/prds/`   |
 
 **Naming.** The first round that meets a master board with no `name:` asks the
 user for one and writes it to `settings.md`. Until then the name is inferred

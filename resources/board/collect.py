@@ -45,14 +45,14 @@ A step that stops writes nothing after it. The worker's word is never taken
 for the verify: `--trust` is the orchestrator's word, said on the line.
 
 **The baseline.** "The claim predates it" is answered by what `claim`
-recorded under `prds/.claims/<prd>/` — the tracked diff, the untracked
+recorded under `.pearde/.claims/<prd>/` — the tracked diff, the untracked
 list, the gate's output — through `snapshot()` here. With no record, a
 file's mtime against the claim's timestamp decides for the whole file, and
 the gate has no baseline to be measured against, so it has to exit 0.
 
 **Board state written between transitions rides.** `answer` writes a
 `prd.md` no collect is about to commit; `owe()` lists that path in
-`prds/.claims/riders` and the next collect on the board adds it and names
+`.pearde/.claims/riders` and the next collect on the board adds it and names
 it on the line. What collect itself writes never rides — it is in the
 commit it makes.
 
@@ -74,7 +74,10 @@ import plan as planlib  # noqa: E402 — beside this script
 import edit as editlib  # noqa: E402 — beside this script
 import transitions as translib  # noqa: E402 — the one printer of the line
 
-HISTORY_FILE = translib.TRANSITIONS_FILE   # the transition log, never the daemon's burn-down
+# collect writes done/failed transitions straight to the same log
+# transitions.py record() appends to — never to .history.jsonl, the
+# daemon's one-row-a-day burn-down.
+TRANSITION_FILE = translib.TRANSITIONS_FILE
 CLAIMS_DIR = ".claims"
 RIDERS_FILE = "riders"
 # The declaration — transitions.py `Args` is the parser, shared with every
@@ -193,10 +196,15 @@ def contract_line(prd):
     return t
 
 
-def repo_of(prd, board_root):
+def repo_of(prd, board, board_root):
     """Where the PRD's code lives. `repo:` that is a directory — absolute, or
-    relative to the board's repo — is it; a name that is no directory, or no
-    `repo:` at all, is the board's own repo."""
+    relative to the board's repo — is it. With no `repo:`: when the board is
+    its own git repo (`board_root == board` — a nested `.pearde` with a
+    `.git` of its own), the repo enclosing it, `repo_root` of the board's
+    own parent — a nested board defaults to the code repo it sits in, never
+    to itself. When the board is not its own repo — `board_root` was found
+    walking up *past* the board, so it already is the code repo — unchanged,
+    the board's own repo, exactly as before this default existed."""
     raw = str(prd["fm"].get("repo", "") or "").strip()
     if raw:
         for cand in (raw, os.path.join(board_root, raw)):
@@ -204,6 +212,10 @@ def repo_of(prd, board_root):
                 root = planlib.repo_root(cand)
                 if root:
                     return root
+    if board_root == board:
+        enclosing = planlib.repo_root(os.path.dirname(board_root))
+        if enclosing:
+            return enclosing
     return board_root
 
 
@@ -346,9 +358,12 @@ def settle_shared(root, paths):
 
 
 def dirty_paths(root):
-    """{path: "tracked" | "untracked"} for every path `git status` reports,
-    relative to `root`. `-uall` so an untracked directory is its files, and
-    `-z` so a space in a name is not two names."""
+    """{path: "tracked" | "untracked" | "rename-source"} for every path
+    `git status` reports, relative to `root`. `-uall` so an untracked
+    directory is its files, and `-z` so a space in a name is not two names.
+    A rename or a copy reports two paths — the new one under its own XY,
+    the original under `rename-source` — so a caller staging one side by
+    side the other does not lose the deletion a rename's old path carries."""
     raw = git_out(root, "status", "--porcelain", "-uall", "-z")
     out, items, i = {}, raw.split("\0"), 0
     while i < len(items):
@@ -359,6 +374,7 @@ def dirty_paths(root):
         xy, path = ent[:2], ent[3:]
         out[path] = "untracked" if xy == "??" else "tracked"
         if xy[0] in "RC":          # the original follows as its own entry
+            out[items[i]] = "rename-source"
             i += 1
     return out
 
@@ -717,14 +733,17 @@ def dry_line(board, prds, rel, prd, persona, paths, out=print):
     line = translib.dry_line(board, prds, rel, frm, "done", persona)
     head, _, tail = line.rpartition(" · as ")
     translib.say_dry(board, f"{head} · round file owed · as {tail}",
-                     paths + [os.path.join(prd["board_path"], HISTORY_FILE)],
+                     paths + [os.path.join(prd["board_path"], TRANSITION_FILE)],
                      out)
 
 
-def history_row(board, rel, frm, to, now):
+def transition_row(board, rel, frm, to, now):
+    """A `{t,prd,from,to}` row appended to `.transitions.jsonl` — the same
+    shape and file transitions.py record() writes for every CLI-driven
+    move; this is the one collect makes on its own for done/failed."""
     row = {"t": now.strftime("%Y-%m-%d %H:%M"), "prd": rel, "from": frm,
            "to": to}
-    with open(os.path.join(board, HISTORY_FILE), "a", encoding="utf-8") as f:
+    with open(os.path.join(board, TRANSITION_FILE), "a", encoding="utf-8") as f:
         f.write(json.dumps(row, sort_keys=True) + "\n")
 
 
@@ -745,9 +764,26 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
            if prd.get("board") else None)
     for f in feet:
         if own and f.startswith(own):
-            groups.setdefault(repo, set()).add(f[len(own):])
+            p = f[len(own):]
         elif not f.startswith(planlib.MEMBER_SIGIL):
-            groups.setdefault(repo, set()).add(f)
+            p = f
+        else:
+            continue
+        # a footprint path `repo_of` filed under a repo that does not hold
+        # it at all is the exact silent drop this replaces: `collect` must
+        # not write `done` over code it never found — refused loudly here,
+        # before any group's `dirty_paths` loop ever runs. "Holds it" means
+        # on disk (an untracked new file) or in the index (`git ls-files` —
+        # still true of a path deleted from the working tree but not yet
+        # staged, so a spec whose finish is a deletion still passes); a path
+        # that DOES exist but is merely clean is not this — it goes to
+        # plan.add=[] further down, no bug, nothing to say.
+        full = os.path.join(repo, p)
+        tracked = git_out(repo, "ls-files", "-z", "--", p).strip("\0")
+        if not os.path.exists(full) and not tracked:
+            raise Stop(f"{rel}: footprint {p} is not under {repo} — "
+                       f"repo_of matched no repo for it; nothing written")
+        groups.setdefault(repo, set()).add(p)
     for a in opts["also"]:
         ap = os.path.abspath(a)
         root = planlib.repo_root(ap)
@@ -762,6 +798,28 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
     base = baseline(board, rel)
     riders = owed(board)
     board_rel = os.path.relpath(board, board_root)
+    # What another held PRD's footprint already claims, relative to the repo
+    # the footprints are written against — only siblings whose code lives in
+    # this run's `repo` can share a dirty path with it. A dirty path the
+    # union holds and a sibling's footprint holds too may carry the
+    # sibling's edits: a commit here is this PRD's record, and hunks the
+    # claim's baseline does not explain are attributable to no one, so the
+    # file is refused — `--widen` takes it whole.
+    others = {}
+    for r, p in prds.items():
+        if r == rel or p["state"] not in HELD:
+            continue
+        if repo_of(p, board, board_root) != repo:
+            continue
+        sig = f"{planlib.MEMBER_SIGIL}{p['board']}/" if p.get("board") else None
+        claimed = []
+        for f in planlib.spec_data(p)[1]:
+            if sig and f.startswith(sig):
+                claimed.append(f[len(sig):])
+            elif not f.startswith(planlib.MEMBER_SIGIL):
+                claimed.append(f)
+        if claimed:
+            others[r] = claimed
     held = [os.path.relpath(p["dir"], board_root) for r, p in prds.items()
             if r != rel and p["state"] in HELD]
 
@@ -822,12 +880,26 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
                 p["add"].append(path)
             elif inside(path, union):
                 nh = new_hunks(root, path) if kind == "tracked" else None
+                if not predates(root, path, kind):
+                    share = sorted(r for r, claimed in others.items()
+                                   if root == repo and inside(path, claimed))
+                    if share:
+                        raise Stop(f"{rel}: {path} is in "
+                                   + ", ".join(share)
+                                   + "'s footprint too — not only this "
+                                   f"PRD's edits; `--widen {path}` takes "
+                                   "it whole")
                 if nh not in (None, "", "all"):
                     p["partial"][path] = nh
                 elif predates(root, path, kind):
                     p["stop"].append(path)
                 else:
                     p["add"].append(path)
+            elif kind == "rename-source" and inside(path, union):
+                # a rename's deletion half: the new path entered above (or
+                # rides inherited) — staging the old path is what keeps the
+                # private index from carrying HEAD's old blob forever
+                p["add"].append(path)
             elif root == board_root and path in riders:
                 p["add"].append(path)
                 p["riders"].append(path)
@@ -876,7 +948,7 @@ def collect_one(board, rel, opts, out=print):
                    f"is finished ({closed}/{total})")
 
     # 2 — the verify, then the gate — never the worker's word
-    repo = repo_of(prd, board_root)
+    repo = repo_of(prd, board, board_root)
     base = baseline(board, rel)
     report, trusted, known = [], False, False
     if opts.get("trust"):
@@ -906,7 +978,7 @@ def collect_one(board, rel, opts, out=print):
                     editlib.append_section(pmd, "Failure", text)
                     editlib.del_key(pmd, "claim")
                     editlib.set_key(pmd, "state", "failed")
-                    history_row(board, rel, prd["state"], "failed", now)
+                    transition_row(board, rel, prd["state"], "failed", now)
                     out(progress_line(board, rel, prd["state"], "failed",
                                       opts["as"], "round file owed"))
                     return 1
@@ -1044,7 +1116,7 @@ def collect_one(board, rel, opts, out=print):
       settle_shared(board_root, [pmd_rel])
 
     # 7 — the line, the row
-    history_row(board, rel, prd["state"], "done", now)
+    transition_row(board, rel, prd["state"], "done", now)
     extra = " · ".join(x for x in [
         "trusted" if trusted else "", "gate red, known" if known else "",
         f"commit {' '.join(shas)}", *said, posted, "round file owed"] if x)
@@ -1063,7 +1135,7 @@ def container(prd, prds, board):
                  ).startswith("container:"))
 
 
-def last_child_commit(kids, board_root):
+def last_child_commit(kids, board, board_root):
     """The `commit:` of the child that landed last — the newest of the
     children's shas by commit date, each read in the repo the child wrote;
     two in the same second are ordered by how deep in history they sit.
@@ -1073,7 +1145,7 @@ def last_child_commit(kids, board_root):
         raw = str(c["fm"].get("commit", "") or "").split()
         if not raw or raw[0] == "none":
             continue
-        root = repo_of(c, board_root)
+        root = repo_of(c, board, board_root)
         r = subprocess.run(["git", "-C", root, "log", "-1", "--format=%ct",
                             raw[0]], capture_output=True, text=True)
         if r.returncode != 0 or not r.stdout.strip():
@@ -1101,7 +1173,7 @@ def close_container(board, rel, prd, prds, board_root, opts, now, out=print):
     prd_rel = os.path.relpath(prd["dir"], board_root)
     actual = fmt_hours(sum(planlib.hours(c["fm"].get("actual"))
                            for c in kids))
-    sha = last_child_commit(kids, board_root)
+    sha = last_child_commit(kids, board, board_root)
     message = f"{prd['name']} — done: every child landed\n\nprd: {prd_rel}\n"
     phrase = "container: every child done — pearde collect closes it"
     if opts.get("dry"):
@@ -1131,7 +1203,7 @@ def close_container(board, rel, prd, prds, board_root, opts, now, out=print):
             raise Stop(f"{rel}: git commit failed in {board_root} — the "
                        f"record put back, nothing written: {e}")
         settle_shared(board_root, [pmd_rel])
-    history_row(board, rel, prd["state"], "done", now)
+    transition_row(board, rel, prd["state"], "done", now)
     extra = " · ".join([f"container, {len(kids)} children",
                         f"commit {sha}", f"record {own}", posted,
                         "round file owed"])

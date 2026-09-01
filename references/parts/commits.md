@@ -34,7 +34,7 @@ proved no other `claimed` PRD writes that footprint.
 - **The inherited tree is not the board's.** Step 1 records what is dirty
   before the round starts. Those paths are never added, whatever footprint
   they fall in. Name them once in the round.
-  `collect` reads that record from `prds/.claims/<prd>/` — the tracked diff,
+  `collect` reads that record from `.pearde/.claims/<prd>/` — the tracked diff,
   the untracked list and the gate's output at `claim:`, written by
   `snapshot()` in @resources/board/collect.py. A dirty path outside the
   footprint is listed once and left. A dirty path inside the footprint that
@@ -52,7 +52,7 @@ proved no other `claimed` PRD writes that footprint.
   `--widen <file>` takes the file whole, or the worker leaves one untouched
   line between the edits.
 - **The PRD's own folder is committed whole, and its `done` is in the same commit.**
-  Nothing under `prds/<prd>/` is staged by hunk or stopped as
+  Nothing under `.pearde/prds/<prd>/` is staged by hunk or stopped as
   inherited — the record has one writer, the board — and `state: done`,
   `actual:`, the cleared `claim:` and the posted `## Report` are written
   before the commit that carries them; `commit:`, the one key that cannot
@@ -67,10 +67,19 @@ proved no other `claimed` PRD writes that footprint.
   parent with specs or boxes of its own is ordinary work.
 - **Board state written between transitions rides the next collect.** An
   `answer` writes a `prd.md` no collect is about to commit; `owe()` lists
-  the path in `prds/.claims/riders`, and the next collect on the board adds
+  the path in `.pearde/.claims/riders`, and the next collect on the board adds
   it and says `rides <path>` on the line.
 - **A path the worker wrote outside its footprint is a wrong footprint.**
   Commit it with the rest and say so.
+- **The round that moves an interface runs the probes that assert it.** A
+  commit that changes what a tool prints, where a payload sits, or whether a
+  route exists can leave a landed PRD's `probe/verify.sh` red without the
+  commit going red — the probe lives in the PRD folder and nothing re-runs
+  it. Read the change backward: which harnesses name the moved thing in their
+  `want:` lines, and run those before landing (`bash resources/doctor.sh
+  --harnesses` is the whole census, one line per red harness). A probe whose
+  contract moved on purpose asserts the move — `/round`'s removal is
+  asserted as a 404 — rather than going quietly red.
 - **A workflow file a collect edited is added with the rest, and named in the
   message.** It is the one path in the commit that no `footprint:` declares:
   the library is the board's, not the PRD's, so the PRD's footprint does not
@@ -107,6 +116,6 @@ there, same subject, and never ride a commit in the repo the PRD wrote.
 **Never push.** The commit is the board's, the push is the user's. Report what
 is ahead and stop.
 
-`commits: off` in `prds/settings.md` holds all of it — each transition then
+`commits: off` in `.pearde/settings.md` holds all of it — each transition then
 names its dirty footprint. While on, a `*<dirty>` count climbing across rounds
 is a board whose commits are not landing.

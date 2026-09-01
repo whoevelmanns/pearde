@@ -12,7 +12,7 @@ Three axes decide what runs next. None of them is a clock.
    On-axis PRDs dispatch deepest-first: the longest serial chain first,
    because every hour it waits is an hour added to the finish. `priority`
    breaks ties within a depth. A PRD off the axis dispatches after all
-   on-axis work, by priority. The axis is `prds/vision.md`: `terminals:`
+   on-axis work, by priority. The axis is `.pearde/vision.md`: `terminals:`
    names the PRDs whose completion is the vision, and a PRD's depth is the
    longest serial chain from it to one, over `needs:` plus `edges:` — a
    `done` PRD on the chain costs no hop, and a parent lands after its
@@ -86,7 +86,7 @@ The weight of one PRD, first that answers:
 2. its own `complexity`
 3. its own `est`
 4. the average weight of every scored PRD on the board
-5. `weight-default` from `prds/settings.md`, when nothing is scored
+5. `weight-default` from `.pearde/settings.md`, when nothing is scored
 
 A parent with live children weighs zero — the work is in the children, and
 weighing it too counts the same work twice. A held PRD weighs what is LEFT of

@@ -1,7 +1,7 @@
 # The round file
 
-`prds/.round.md` — the session's own memory, fifteen lines, rewritten at every
-transition. Machine-local and git-ignored, like `prds/.plan.json`: it is what
+`.pearde/.state/round.md` — the session's own memory, fifteen lines, rewritten at every
+transition. Machine-local and git-ignored, like `.pearde/.state/plan.json`: it is what
 one session is holding, not what the board is.
 
 A context window ends without warning. When it does, everything the round
@@ -44,7 +44,11 @@ file wrong the moment a worker moves.
   explain graduates to a memo, per @references/parts/memos.md; this is the
   scratch it is drafted in.
 - **Asked** is the live frontier: what went to the user and whether it came
-  back. A question in here is never re-asked.
+  back. A question in here is never re-asked. It is also what the drill gate
+  reads: a claim over an unput frontier refuses with `asking N — drill first`
+  until the round lists the questions — by title, the words the scan's drill
+  section prints — and a question marked `answered` or `out` here stops
+  gating.
 - **Edits** is every workflow edit this round applied or refused, per
   @references/parts/loop.md step 6. A refusal is the half that has to be
   written down: the file is unchanged, so nothing on disk records that the run

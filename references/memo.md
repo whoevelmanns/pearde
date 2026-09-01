@@ -5,7 +5,7 @@ Different lifetimes: a PRD goes `done` and stops mattering, a memo outlives
 the work it governed.
 
 ```
-prds/memos/<slug>.md
+.pearde/memos/<slug>.md
 ```
 
 - No `state`. Never claimed, specced, or dispatched.
@@ -66,6 +66,11 @@ one parser reads all three.
 | `## Alternatives considered`| what lost, and on what count. Never empty          |
 | `## Consequences`           | what this costs, including what it does not fix    |
 
+Where the decision rests on recorded knowledge, `Why` wikilinks the
+conclusion — `[[<slug>]]`, the note under `.pearde/wiki/conclusions/`. The
+memo cites, the KB holds the provenance; no frontmatter key for it, the body
+is the only place a reference can be argued with.
+
 `Why` and `Alternatives considered` are the one place on the board where
 paragraphs are correct, per @references/language.md. Compress them.
 
@@ -76,7 +81,7 @@ rejected or never seen.
 ## An external source
 
 A repo whose decisions already live in another system does not move them —
-one fact, one home. Point `memos:` in `prds/settings.md` at that dir:
+one fact, one home. Point `memos:` in `.pearde/settings.md` at that dir:
 
 ```yaml
 memos: ../.mi/docs/memos

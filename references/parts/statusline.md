@@ -36,3 +36,13 @@ link to the board:
   an answer. It is the id, not the name, because the id is what you type back.
 - `▸board` is an OSC-8 hyperlink to the live view. `PRD_STATUS_LINK=off`
   prints the label bare. Optional.
+- `▸vault` opens the board as an Obsidian vault — a native `obsidian://open`
+  URI, so it needs no plugin, key, or daemon, and renders whenever
+  `.pearde/.obsidian/` is there (@references/obsidian.md), daemon or no. The
+  vault roots at the board, not the repo: Obsidian hides a dot-directory
+  inside a vault, so `.pearde/` is invisible from a repo-root vault and
+  visible in whole from its own. The URI names the vault by the id
+  `obsidian.json` holds for that exact path (`?vault=<id>`) — a path Obsidian
+  has not registered opens its ancestor vault instead, which is the repo
+  root on a repo that is a vault too; an unregistered board falls back to
+  `?path=`. `pearde init` registers it. Same `PRD_STATUS_LINK=off` rule.

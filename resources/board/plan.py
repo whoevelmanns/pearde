@@ -47,26 +47,58 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import memos as memolib  # noqa: E402 — the skill root, one dir up
+import questions as qlib  # noqa: E402 — the drill count, one reader with list
 import render as renderlib  # noqa: E402 — beside this script
 import workflows as wflib  # noqa: E402 — the skill root, one dir up
 
 # ── board ─────────────────────────────────────────────────────────────────────
 
+# The board is one directory at a project root, beside `.obsidian/` — it holds
+# `prds/`, `memos/`, `wiki/` and `workflows/`, so a reader can see what the tool
+# keeps without being told. `.state/` inside it is the machine-local corner:
+# the plan, the two journals, the round file and the rendered view, none of them
+# committed, all of them regenerable.
+BOARD_DIR = ".pearde"
+STATE_DIR = ".state"
+PRDS_DIR = "prds"
+
+
+def state_dir(board):
+    """`<board>/.state`, made if it is not there. Every writer goes through
+    this — the board is a directory a person creates by hand, so the corner
+    the tool writes into cannot be assumed to exist."""
+    d = os.path.join(board, STATE_DIR)
+    os.makedirs(d, exist_ok=True)
+    return d
+
+
+# One constant per machine, not per board — the guard's session cache, the
+# calibration fit and the daemon's board registry all live under here.
+# Distinct from STATE_DIR, which is a board-relative name: a board is a
+# directory a person creates by hand, this is the tool's own install
+# location, and the two must never collide under one name.
+MACHINE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state")
+
+
+def prds_dir(board):
+    return os.path.join(board, PRDS_DIR)
+
+
 def find_board(arg):
     if arg:
         p = os.path.abspath(arg)
-        if os.path.basename(p) == "prds" and os.path.isdir(p):
+        if os.path.basename(p) == BOARD_DIR and os.path.isdir(p):
             return p
-        if os.path.isdir(os.path.join(p, "prds")):
-            return os.path.join(p, "prds")
-        die(f"no prds/ board at {arg}")
+        if os.path.isdir(os.path.join(p, BOARD_DIR)):
+            return os.path.join(p, BOARD_DIR)
+        die(f"no {BOARD_DIR}/ board at {arg}")
     d = os.getcwd()
     while True:
-        if os.path.isdir(os.path.join(d, "prds")):
-            return os.path.join(d, "prds")
+        if os.path.isdir(os.path.join(d, BOARD_DIR)):
+            return os.path.join(d, BOARD_DIR)
         nxt = os.path.dirname(d)
         if nxt == d:
-            die("no prds/ board found walking up from the cwd")
+            die(f"no {BOARD_DIR}/ board found walking up from the cwd")
         d = nxt
 
 
@@ -162,7 +194,25 @@ def members(board):
         # absolute always: this path is handed to the daemon, which walks it
         # from a working directory that has nothing to do with the board's
         path = os.path.abspath(os.path.join(board, path))
-        if os.path.basename(path) != "prds" and os.path.isdir(
+        # A member names a BOARD, not a prds dir: the old layout had the two
+        # coincide (`<root>/prds`), so appending `/prds` when it exists was
+        # right. Since the board moved to `<repo>/.pearde`, that test also
+        # fires on a nested board — `.pearde` holding `prds/` — and the
+        # double board then double-joins in _scan_one (`.pearde/prds/prds`),
+        # which walks nothing and silently drops every member PRD. Distinguish:
+        # the board dir IS its `.git`-holding `.pearde` (its own git repo) or
+        # holds the board's settings.md — then it is the board, and _scan_one
+        # wants just it.
+        # A member path is a board when it IS a `.pearde` — its own git
+        # repo, or it holds the board's settings.md, or its basename says so.
+        # Passing such a path through the `/prds` append below would make
+        # `_scan_one` walk `.pearde/prds/prds` and scan nothing: a nested
+        # board member read as empty. Any other path with a `prds/` inside
+        # is the old repo-root member, and `/prds` is appended as before.
+        is_nested_board = (os.path.basename(path) == BOARD_DIR
+                           or os.path.isfile(os.path.join(path, "settings.md"))
+                           or os.path.isdir(os.path.join(path, ".git")))
+        if not is_nested_board and os.path.isdir(
                 os.path.join(path, "prds")):
             path = os.path.join(path, "prds")
         name = name or re.sub(r"[^A-Za-z0-9_.-]", "-", project_name(path))
@@ -192,10 +242,11 @@ def qualify_paths(prd, paths):
 
 def _scan_one(board, prefix="", bname=None):
     prds = {}
-    for root, dirs, files in os.walk(board):
+    scan_root = prds_dir(board)
+    for root, dirs, files in os.walk(scan_root):
         dirs[:] = [d for d in dirs if d not in ("specs",)]
-        if "prd.md" in files and root != board:
-            local = os.path.relpath(root, board)
+        if "prd.md" in files and root != scan_root:
+            local = os.path.relpath(root, scan_root)
             rel = prefix + local
             fm, title, body = parse_prd(os.path.join(root, "prd.md"))
             prds[rel] = {
@@ -212,7 +263,7 @@ def _scan_one(board, prefix="", bname=None):
                 # where a reader finds the file: the real path for a member,
                 # the contract path for the board's own
                 "footer": (os.path.join(root, "prd.md") if bname
-                           else f"prds/{local}/prd.md"),
+                           else f"{BOARD_DIR}/{PRDS_DIR}/{local}/prd.md"),
             }
     return prds
 
@@ -613,7 +664,7 @@ def fmt_age(minutes):
 # The round's own memory — @references/parts/round.md. Fifteen lines the
 # orchestrator rewrites at every transition, so a compacted session recovers
 # by reading one file instead of re-deriving the round from the tree.
-ROUND_FILE = ".round.md"
+ROUND_FILE = os.path.join(STATE_DIR, "round.md")
 
 
 # The states the loop moves work through. A board state outside LIVE_STATES is
@@ -960,7 +1011,7 @@ def landing(board, everything):
 # ── map file ──────────────────────────────────────────────────────────────────
 
 def load_map(board):
-    path = os.path.join(board, ".plan.json")
+    path = os.path.join(state_dir(board), "plan.json")
     if os.path.isfile(path):
         return json.load(open(path, encoding="utf-8")), path
     return {"after": {}, "schedule": {}}, path
@@ -1075,6 +1126,12 @@ def gantt_payload(board, prds, mp, settings):
             "boxes": [closed, total],
             "collect": collect,
             "kids": len(p.get("children") or []),
+            # prd.md's own mtime — cheap (one stat, no git call), unlike the
+            # archive's done_at which needs `git log --follow` per PRD and is
+            # deliberately kept out of this per-second-rebuilt payload. Used
+            # by the board view to sort the done column by how recently each
+            # PRD last changed.
+            "mtime": os.path.getmtime(os.path.join(p["dir"], "prd.md")),
         })
     land, repos = landing(board, everything)
     return {
@@ -1111,7 +1168,7 @@ def gantt_payload(board, prds, mp, settings):
     }
 
 
-HISTORY_FILE = ".history.jsonl"
+HISTORY_FILE = os.path.join(STATE_DIR, "history.jsonl")
 
 
 def read_history(board):
@@ -1133,7 +1190,7 @@ def read_history(board):
     return rows[-400:]
 
 
-TRANSITIONS_FILE = ".transitions.jsonl"
+TRANSITIONS_FILE = os.path.join(STATE_DIR, "transitions.jsonl")
 
 
 def read_transitions(board, last=30):
@@ -1163,7 +1220,7 @@ def read_transitions(board, last=30):
 # its file on every tool call, and the call that runs `pearde status` is
 # the last one it saw.
 GUARD_DIR = os.environ.get("PEARDE_GUARD_STATE") or os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "state", "guard")
+    MACHINE_DIR, "guard")
 
 
 def guard_sessions():
@@ -1245,6 +1302,7 @@ def write_history(board, prds=None):
             row["left"] += 1
             row["hleft"] += h
     row["hleft"], row["hdone"] = round(row["hleft"], 2), round(row["hdone"], 2)
+    state_dir(board)   # the burn-down is the first thing a fresh board writes
     path = os.path.join(board, HISTORY_FILE)
     rows = [r for r in read_history(board) if r.get("d") != today] + [row]
     tmp = path + ".tmp"
@@ -1256,14 +1314,14 @@ def write_history(board, prds=None):
 
 
 # ── calibration ───────────────────────────────────────────────────────────────
-# One constant per machine, not per board: how many real hours a unit of
-# weight costs THIS agent, fitted from every done PRD that recorded an
-# `actual:` on every board the service has ever registered. The plan still
-# schedules in weight — the constant only translates at the display edge,
-# so a bad fit can mislabel an axis but never re-order the work.
+# How many real hours a unit of weight costs THIS agent, fitted from every
+# done PRD that recorded an `actual:` on every board the service has ever
+# registered. The plan still schedules in weight — the constant only
+# translates at the display edge, so a bad fit can mislabel an axis but
+# never re-order the work. Lives under MACHINE_DIR, defined near state_dir()
+# above — same "one constant per machine" reasoning as the guard's cache.
 
-STATE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "state")
-CALIB_PATH = os.path.join(STATE_DIR, "calibration.json")
+CALIB_PATH = os.path.join(MACHINE_DIR, "calibration.json")
 
 # The one hand-tunable knob. Hours shown = weight × fitted kw × TUNE.
 # The fit says how fast this machine has been; TUNE is the margin on top —
@@ -1295,7 +1353,7 @@ def calib_rows():
     plan never schedules by — which is exactly what makes them honest
     calibration data: nobody gamed a number nothing was reading."""
     try:
-        boards = json.load(open(os.path.join(STATE_DIR, "serve.json"),
+        boards = json.load(open(os.path.join(MACHINE_DIR, "serve.json"),
                                 encoding="utf-8"))
     except (OSError, ValueError):
         boards = []
@@ -1339,7 +1397,7 @@ def cmd_calibrate(board):
              "p20": pick(.2), "p80": pick(.8),
              "boards": sorted({r[0] for r in rows}),
              "fitted": datetime.date.today().isoformat()}
-    os.makedirs(STATE_DIR, exist_ok=True)
+    os.makedirs(MACHINE_DIR, exist_ok=True)
     json.dump(calib, open(CALIB_PATH, "w", encoding="utf-8"), indent=1)
     print(f"\nn={len(rows)} done PRDs across {len(calib['boards'])} board(s)")
     if ke:
@@ -1378,7 +1436,7 @@ def overlap(a, b):
                for x in a for y in b)
 
 
-def dispatchable(prd, prds, board=None):
+def dispatchable(prd, prds, board=None, holder=None):
     """None when `claim` would take this PRD now, else why not — one string,
     `<gate>: <why>`, the gate word first so `transitions.gate_claim` raises
     it as it stands and `brief` maps it to a skip word.
@@ -1388,7 +1446,10 @@ def dispatchable(prd, prds, board=None):
     so the scan cannot list as ready what `claim` refuses — the memo
     `a-parked-child-holds-the-parent` is the day they disagreed. The gates:
 
-    - unclaimed — it carries a `claim:`.
+    - unclaimed — it carries a `claim:` naming someone other than `holder`.
+      `holder` is `None` for every caller but `brief` briefing a worker who
+      names itself — the one case where a claim is not a refusal, because
+      the worker holding it is the one asking.
     - leaf — a child is not `done`. A parked child is neither done nor
       coming, so it holds the parent for good: `held by <child> (parked)`.
     - container — children, every one `done`, and no specs or open box of
@@ -1402,7 +1463,8 @@ def dispatchable(prd, prds, board=None):
     The state is not checked here: the callers partition by state first,
     and a `claimed` PRD is in flight, not refused."""
     rel = prd["rel"]
-    if claim_of(prd["fm"]):
+    held = claim_of(prd["fm"])
+    if held and held["who"] != holder:
         return f"unclaimed: {rel} carries `claim: {prd['fm']['claim']}`"
     parked = [c for c in prd["children"]
               if prds[c]["state"] not in LIVE_STATES
@@ -1784,6 +1846,33 @@ ANSWER_LINE_RE = re.compile(
     r"^\s*\*\*(Q?\d+[a-z]?)\*\*\s*"
     r"(?:\*?\(answered\s+([^)]*)\)\*?\s*)?[\u2014\u2013:-]*\s*(.*)$")
 
+
+def drill_questions(board):
+    """[(rel, qid, title, out)] \u2014 the drill, as data.
+
+    The unanswered questions `questions.unanswered` counts, each marked `out`
+    when the round file's `## Asked` already lists it \u2014 by title, normalized,
+    because that file holds the words the round put to the user and drill.md
+    sends a question there precisely so it is never re-put. Two entry points,
+    one reader: `cmd_scan`'s drill section prints the list, and
+    transitions.py `gate_claim` counts the ones still unput and refuses when
+    two or more stand \u2014 @references/drill.md \u00a7 The board's own frontier."""
+    un = qlib.unanswered(board)
+    if not un:
+        return un
+    try:
+        text = open(os.path.join(board, ROUND_FILE), encoding="utf-8").read()
+    except OSError:
+        text = ""
+    asked = re.sub(r"\s+", " ",
+                   "\n".join(_h2_sections(text, "Asked"))).lower().strip()
+    out = []
+    for rel, qid, title in un:
+        normed = re.sub(r"\s+", " ", title.lower()).strip()
+        out.append((rel, qid, title,
+                    bool(title) and normed in asked))
+    return out
+
 # `### Q1: the fork` — the question's own title, so an answer can be read
 # without opening the PRD it came out of.
 QUESTION_HEAD_RE = re.compile(r"(?m)^###\s+(Q?\d+[a-z]?)\s*[:.\u2014\u2013-]?\s*(.*)$")
@@ -1957,9 +2046,19 @@ def cmd_scan(board):
     if ax:
         on = sum(1 for x in t["live"] if ax["depth"].get(x) is not None)
         axis_note = f" · axis: {on} on · {len(t['live']) - on} off"
+    # the drill count — the second entry point of @references/drill.md § The
+    # board's own frontier: over one unanswered question, the drill section
+    # below stands first and nothing is dispatched until the round is out.
+    drill = drill_questions(board)
+    asking = ""
+    if drill:
+        askers = len({rel for rel, _q, _t, _o in drill})
+        asking = (f" · asking {len(drill)} over {askers} PRD"
+                  + ("s" if askers != 1 else ""))
     print(f"board: {board} · {len(prds)} PRDs"
           + (f" · master of {len(mem)}: " + ", ".join(mem) if mem else "")
           + (f" · workers={r['workers']}" if r else "")
+          + asking
           + axis_note)
     if vis and vis["vision"]:
         print(f"vision: {vis['vision']}")
@@ -2039,6 +2138,17 @@ def cmd_scan(board):
     ready = [x for x in free
              if not why[x] and not needs.get(x) and not after.get(x)]
     gated = [x for x in free if x not in ready]
+    # The drill section, FIRST — above collect, the pressure order's own head:
+    # the scan opens on the questions waiting on the user. A question already
+    # out — the round file's `## Asked` carries it — is marked `out`, carried
+    # and never re-put; `claim` counts the unput ones and refuses.
+    if len(drill) >= 2:
+        askers = len({rel for rel, _q, _t, _o in drill})
+        print(f"\ndrill — asking {len(drill)} over {askers} PRD"
+              + ("s" if askers != 1 else "")
+              + " · one round to the user before any claim")
+        for rel, qid, title, is_out in drill:
+            print(f"  {rel} · {qid} {title}" + (" · out" if is_out else ""))
     for title, group in (
             (f"collect — {len(collect)} finished, waiting to be closed",
              collect),
@@ -2379,14 +2489,15 @@ def cmd_example(argv):
     if os.path.exists(dest) and not os.path.isdir(dest):
         print(f"pearde: {dest} is a file, not a directory", file=sys.stderr)
         return 2
+    board = os.path.join(dest, BOARD_DIR)
     try:
         import shutil
-        shutil.copytree(EXAMPLE, dest, dirs_exist_ok=True)
+        shutil.copytree(EXAMPLE, board, dirs_exist_ok=True)
     except OSError as e:
-        print(f"pearde: could not copy the example to {dest} — {e}",
+        print(f"pearde: could not copy the example to {board} — {e}",
               file=sys.stderr)
         return 2
-    print(f"example: {os.path.join(dest, 'prds')}")
+    print(f"example: {os.path.join(board, PRDS_DIR)}")
     print(f"      python3 {os.path.abspath(__file__)} scan {dest}")
     return 0
 

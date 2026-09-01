@@ -8,7 +8,7 @@ how a job is done, and gets better every time it is followed.
 grammar and the report section.
 
 ```
-prds/workflows/<slug>.md
+.pearde/workflows/<slug>.md
 ```
 
 | kind         | file says          | is                                                |
@@ -19,7 +19,7 @@ prds/workflows/<slug>.md
 - No `state`. Never claimed, specced, or dispatched — invisible to scan and to
   the progress line, yet on the board.
 - One flat directory, one file per slug, no nesting. `workflows:` in
-  `prds/settings.md` points elsewhere, default `workflows/`.
+  `.pearde/settings.md` points elsewhere, default `workflows/`.
 - Frontmatter is a **closed set**, and exactly one of the two slug keys.
 - `## Do` and `## Done when` are never empty. `## Fails when` is empty until a
   run fills it.
@@ -29,6 +29,7 @@ prds/workflows/<slug>.md
 | moment              | what happens                                                        |
 |---------------------|----------------------------------------------------------------------|
 | a job repeats       | a new file, by hand or from the drill's tree, at `runs: 0`           |
+| nothing fits at spec time | the analyst's route, written by `specced`, `runs: 0`           |
 | a run hits a wall   | the text changes — a lesson folded into `## Do` or `## Fails when`, `updated` moved |
 | a run ends          | the collect below — `runs` +1, the edits applied or refused, the files on the PRD's commit |
 
@@ -99,7 +100,7 @@ What decides an edit:
 | the PRD's                             | refused     | the contract was wrong, and a route cannot carry that      |
 
 A refusal is said out loud — which of the two it was — and recorded in
-`prds/.round.md` per @references/parts/round.md. The file is unchanged, so
+`.pearde/.state/round.md` per @references/parts/round.md. The file is unchanged, so
 nothing else on disk would say the run proposed it.
 
 Four rules the collect holds the edit to:

@@ -3,7 +3,7 @@ complexity:          # analyst — 1-100, this unit's share of the PRD's weight
 # est:               # OPTIONAL record. Nothing schedules on time; do not
 #                    #   estimate duration. Price COMPUTE cost here instead,
 #                    #   in the units it is spent in, when it changes scope.
-# workflow:          # OPTIONAL — a slug in prds/workflows/, overriding the
+# workflow:          # OPTIONAL — a slug in .pearde/workflows/, overriding the
 #                    #   PRD's for this unit only. @references/workflow.md
 footprint:           # analyst — every dir/file this spec touches; the
   - <dir/or/file>    #   orchestrator unions a PRD's footprints to avoid

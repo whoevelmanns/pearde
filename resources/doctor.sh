@@ -11,6 +11,8 @@
 # `broken` (installed and not working — the failure that otherwise runs
 # straight past). A broken part carries its exact fix on the next line.
 # `skills`, `index`, `statusline`, `board` and `briefs` always report.
+# `plugins` reports when an adapter carries a `plugins:` list — suggestions
+# for the machine, never a failure.
 # `memos`, `workflows`, `view` and `plan` need a board in scope, `origin`
 # needs PRDs in it, and `members` only exists on a master board.
 #
@@ -64,7 +66,7 @@ echo
 # knows which directory their agent scans, and there is deliberately no list
 # of agents here. @references/install.md is that step.
 SKN=0; SKBAD=""
-for f in "$SKILL_ROOT"/skills/*.md; do
+for f in "$SKILL_ROOT"/references/skills/*.md; do
   [ -e "$f" ] || continue
   SKN=$((SKN + 1))
   base="$(basename "$f" .md)"
@@ -73,11 +75,11 @@ for f in "$SKILL_ROOT"/skills/*.md; do
   ds=$(awk 'NR==1 && $0 !~ /^---/ {exit} /^---/ {n++; if (n==2) exit; next}
             n==1 && $1=="description:" {print "y"; exit}' "$f")
   if [ -z "$nm" ]; then SKBAD="$SKBAD
-skills/$base.md has no name: in frontmatter — it is not a skill"
+references/skills/$base.md has no name: in frontmatter — it is not a skill"
   elif [ "$nm" != "$base" ]; then SKBAD="$SKBAD
-skills/$base.md says name: $nm — an install would build it as $nm/"
+references/skills/$base.md says name: $nm — an install would build it as $nm/"
   elif [ -z "$ds" ]; then SKBAD="$SKBAD
-skills/$base.md has no description: — nothing decides when it fires"
+references/skills/$base.md has no description: — nothing decides when it fires"
   fi
 done
 # One name, one module. pearde.py discovers resources/board/*.py and says
@@ -87,7 +89,7 @@ CLASH=$(python3 "$SKILL_ROOT/resources/pearde.py" help 2>&1 >/dev/null | sed -n 
 [ -n "$CLASH" ] && SKBAD="$SKBAD
 $CLASH"
 if [ "$SKN" -eq 0 ]; then
-  row skills broken "skills/ holds no .md file — there is nothing to install"
+  row skills broken "references/skills/ holds no .md file — there is nothing to install"
   fix "one file per skill, frontmatter name: matching the file name, and description:"
 elif [ -n "$SKBAD" ]; then
   NS=$(printf '%s' "$SKBAD" | grep -c . )
@@ -95,9 +97,96 @@ elif [ -n "$SKBAD" ]; then
   printf '%s\n' "$SKBAD" | while IFS= read -r l; do [ -n "$l" ] && note "$l"; done
   fix "frontmatter is what makes a skill findable — @references/install.md; one name per module under resources/board/ — python3 $SKILL_ROOT/resources/pearde.py help"
 else
-  NAMES=$(for f in "$SKILL_ROOT"/skills/*.md; do basename "$f" .md; done | tr '\n' ' ')
+  NAMES=$(for f in "$SKILL_ROOT"/references/skills/*.md; do basename "$f" .md; done | tr '\n' ' ')
   row skills ok "$SKN well-formed · $NAMES"
   note "installed where your agent looks — @references/install.md, then: bash $DIR/install.sh --apply <skills-dir>"
+fi
+
+# ── plugins: what the adapters suggest for this machine ───────────────────────
+# An adapter may carry a `plugins:` list — the extensions its agent runs the
+# round with (`claude.json` ships one; see references/plugins.md for why these
+# four). Plugins are Claude-Code-only today, so the list lives on the adapter
+# that names that agent — an adapter for any other runtime simply carries no
+# list and this row stays silent. The install record lives in the agent's own
+# config dir ($CLAUDE_CONFIG_DIR, falling back to ~/.claude), which is this
+# machine's data and nothing this checklist can repair — so the row is `off`,
+# never `broken`, and every missing plugin carries the exact two commands
+# that install it. A round runs without them; they make it cheaper.
+PKEYS=""
+if [ -d "$DIR/board/adapters" ]; then
+  PIP=$(python3 - "$DIR/board/adapters" <<'PYEOF'
+import json, os, sys
+ad = sys.argv[1]
+for fn in sorted(os.listdir(ad)):
+    if not fn.endswith(".json"):
+        continue
+    try:
+        with open(os.path.join(ad, fn), encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        continue
+    for p in data.get("plugins") or []:
+        if not isinstance(p, dict) or not p.get("name"):
+            continue
+        name = p["name"]
+        mkt = p.get("marketplace") or name
+        repo = p.get("repo") or ""
+        print("%s\t%s\t%s\t%s" % (fn[:-5], name, mkt, repo))
+PYEOF
+)
+fi
+if [ -n "${PIP:-}" ]; then
+  PKEYS=$(printf '%s\n' "$PIP" | awk -F'\t' '{print $2 "@" $3}' | sort -u | tr '\n' ' ')
+  PINST=$(python3 - "$PKEYS" <<'PYEOF'
+import json, os, sys
+keys = [k for k in sys.argv[1].split() if "@" in k]
+dirs = [os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"),
+        os.path.expanduser("~/.claude")]
+have = set()
+for d in dict.fromkeys(dirs):
+    p = os.path.join(d, "plugins", "installed_plugins.json")
+    if not os.path.isfile(p):
+        continue
+    try:
+        with open(p, encoding="utf-8") as f:
+            have |= set((json.load(f).get("plugins") or {}).keys())
+    except Exception:
+        pass
+for k in keys:
+    print("%s\t%s" % (k, "y" if k in have else "n"))
+PYEOF
+)
+  PMISS=""
+  PN=$(printf '%s\n' "$PIP" | grep -c .)
+  POKN=0
+  while IFS=$'\t' read -r padapter pname pmkt prepo; do
+    [ -n "$pname" ] || continue
+    if printf '%s\n' "$PINST" | awk -F'\t' -v k="$pname@$pmkt" '$1==k && $2=="y" {found=1} END{exit !found}'; then
+      POKN=$((POKN + 1))
+    else
+      PMISS="$PMISS
+$padapter|$pname|$pmkt|$prepo"
+    fi
+  done <<EOF
+$PIP
+EOF
+  if [ -z "$(printf '%s' "$PMISS" | tr -d '\n')" ]; then
+    row plugins ok "$POKN suggested · all installed on this machine"
+  else
+    PNMISS=$(printf '%s\n' "$PMISS" | grep -c .)
+    ROWNAMES=$(printf '%s\n' "$PMISS" | grep . | cut -d'|' -f2 | tr '\n' ' ')
+    row plugins off "$POKN of $PN suggested installed · missing: $ROWNAMES"
+    printf '%s\n' "$PMISS" | while IFS= read -r l; do
+      [ -n "$l" ] || continue
+      padapter=${l%%|*}; rest=${l#*|}; pname=${rest%%|*}; rest=${rest#*|}; pmkt=${rest%%|*}; prepo=${rest#*|}
+      if [ -n "$prepo" ]; then
+        fix "claude plugin marketplace add $prepo && claude plugin install $pname@$pmkt  (suggested by adapter $padapter — @references/plugins.md)"
+      else
+        fix "claude plugin install $pname@$pmkt  (suggested by adapter $padapter — @references/plugins.md)"
+      fi
+    done
+    note "plugins are suggestions, not requirements — the round runs without them; @references/plugins.md says what each one is for"
+  fi
 fi
 
 # ── index: does the map still match the tree? ─────────────────────────────────
@@ -155,11 +244,16 @@ fi
 # PreToolUse hook — @references/parts/guard.md. Where hooks are configured IS
 # knowable here, unlike a status line: the settings file sits in the repo the
 # board lives in, so this checks that file and `--fix` writes the block.
+# The same walk the `board` row below and @resources/guard.py `board_of` do:
+# the nearest ancestor holding `.pearde/`, not a literal `prds/` — that was
+# the pre-migration contract, and on a machine with another project's board
+# sitting a level up (its own leftover `prds/`) the old literal walk picked
+# THAT project's .claude/settings.json instead of this repo's.
 GSET=""
 d="$START"
-while [ "$d" != "/" ]; do
-  [ -d "$d/prds" ] && { GSET="$d/.claude/settings.json"; break; }
-  d="$(dirname "$d")"
+while [ -n "$d" ] && [ "$d" != "/" ]; do
+  [ -d "$d/.pearde" ] && { GSET="$d/.claude/settings.json"; break; }
+  p=$(dirname "$d"); [ "$p" = "$d" ] && break; d="$p"
 done
 if [ -z "$GSET" ]; then
   :
@@ -188,46 +282,73 @@ else
 fi
 
 # ── board: on the contract path, with settings ────────────────────────────────
+# The same walk @resources/board/plan.py `find_board` and @resources/guard.py
+# `board_of` do: the nearest ancestor holding `.pearde/`, not a literal
+# `prds/` — that was the pre-migration contract. BOARD is the `.pearde/` root;
+# PRDS is where the PRDs actually live, one level under it.
 BOARD=""; d="$START"
 while [ -n "$d" ] && [ "$d" != "/" ]; do
-  [ -d "$d/prds" ] && { BOARD="$d/prds"; break; }
+  [ -d "$d/.pearde" ] && { BOARD="$d/.pearde"; break; }
   # dirname's fixpoint is not always `/` — on a Windows drive path it is `C:`,
   # and without this guard the loop never exits. A no-op on POSIX.
   p=$(dirname "$d"); [ "$p" = "$d" ] && break; d="$p"
 done
 if [ -z "$BOARD" ]; then
-  # a board off the contract path is found, not skipped: three levels down,
-  # dot-dirs too
+  # a board still on the old layout is found, not skipped: three levels
+  # down, dot-dirs too — a leftover root-level `prds/` with no `.pearde/`
+  # beside it.
   OFF=$(find "$START" -maxdepth 3 -type d -name prds 2>/dev/null | head -3)
   if [ -n "$OFF" ]; then
-    row board broken "no prds/ at the repo root · found $(echo "$OFF" | tr '\n' ' ')"
-    fix "git mv $(echo "$OFF" | head -1) $START/prds — the board path is the contract"
+    OFFROOT=$(dirname "$(echo "$OFF" | head -1)")
+    row board broken "no .pearde/ board · found $(echo "$OFF" | tr '\n' ' ') on the old layout"
+    # git mv refuses a destination whose parent is not there, so the fix has
+    # to make `.pearde/` first — a fix line that fails when it is pasted is
+    # not a fix line.
+    fix "mkdir -p $OFFROOT/.pearde && git mv $(echo "$OFF" | head -1) $OFFROOT/.pearde/prds — the board path is the contract; move memos/, workflows/, settings.md, vision.md and .state/ alongside it the same way"
   else
-    row board off "no board — pearde init creates prds/"
+    row board off "no board — pearde init creates .pearde/"
     fix "python3 $SKILL_ROOT/resources/pearde.py init [<dir>] — a board, asking nothing"
   fi
 else
-  ROOT=$(git -C "$BOARD" rev-parse --show-toplevel 2>/dev/null)
-  N=$(find "$BOARD" -type f -name prd.md 2>/dev/null | wc -l | tr -d ' ')
-  # compare physical paths — /tmp vs /private/tmp is a spelling, not a move.
-  # On Git for Windows, `rev-parse --show-toplevel` can answer in native
-  # form (`C:/Users/...`) while `$BOARD`/`pwd -P` stay in Git Bash's own
-  # POSIX form (`/c/Users/...`) — same place, two spellings. `cd` accepts
-  # either, so resolving $ROOT through it too puts both sides in the one
-  # form this shell already uses, instead of comparing spellings.
-  PBOARD=$(cd "$BOARD" 2>/dev/null && pwd -P)
-  PROOT=$(cd "$ROOT" 2>/dev/null && pwd -P)
-  if [ -n "$ROOT" ] && [ "$PBOARD" != "$PROOT/prds" ]; then
-    row board broken "$BOARD is not $ROOT/prds"
-    fix "git mv $BOARD $ROOT/prds"
-  elif [ ! -f "$BOARD/settings.md" ]; then
+  PRDS="$BOARD/prds"
+  N=$(find "$PRDS" -type f -name prd.md 2>/dev/null | wc -l | tr -d ' ')
+  if [ ! -f "$BOARD/settings.md" ]; then
     row board broken "$N PRDs · no settings.md"
     fix "python3 $SKILL_ROOT/resources/pearde.py init $(dirname "$BOARD") — writes it, language English unless --language"
   else
     # a missing `language:` reads at its default — English, the way every
     # other key reads, @references/settings.md. Not broken: said, not asked.
     LANG=$(grep -E '^[[:space:]]*language:' "$BOARD/settings.md" | head -1 | sed 's/.*language:[[:space:]]*//')
-    row board ok "$BOARD · $N PRDs · language ${LANG:-English (default)}"
+    row board ok "$PRDS · $N PRDs · language ${LANG:-English (default)}"
+  fi
+fi
+
+# ── vault: does ▸vault open THIS board ───────────────────────────────────────
+# `obsidian://open` resolves only against the vaults `obsidian.json` holds. A
+# board with a vault directory but no entry in that register does not fail
+# loudly: the URI opens the nearest registered ancestor instead — the repo
+# root, on a repo that is a vault too — and the person sees a tree that is not
+# the board. That is the failure this row is here to name. No vault directory
+# at all is `off`, not broken: a board is a board without Obsidian.
+if [ -n "$BOARD" ]; then
+  OBSCFG="$HOME/Library/Application Support/obsidian/obsidian.json"
+  [ -f "$OBSCFG" ] || OBSCFG="${XDG_CONFIG_HOME:-$HOME/.config}/obsidian/obsidian.json"
+  BABS=$(cd "$BOARD" 2>/dev/null && pwd -P)
+  if [ ! -d "$BOARD/.obsidian" ]; then
+    if [ -d "$(dirname "$BOARD")/.obsidian" ]; then
+      row vault broken "the vault roots at $(dirname "$BOARD") — Obsidian hides a dot-directory inside a vault, so the whole board is invisible from there"
+    else
+      row vault off "no $BOARD/.obsidian — the status line's ▸vault stays hidden"
+    fi
+    fix "python3 $SKILL_ROOT/resources/pearde.py vault --wait --open $(dirname "$BOARD") — seeds $BOARD/.obsidian and registers it (quit Obsidian when it asks: the register is only writable while the app is closed)"
+  elif [ ! -f "$OBSCFG" ]; then
+    row vault ok "$BOARD/.obsidian · Obsidian not installed here, so nothing to register"
+  elif grep -Fq "\"path\":\"$BABS\"" "$OBSCFG" 2>/dev/null \
+       || grep -Fq "\"path\": \"$BABS\"" "$OBSCFG" 2>/dev/null; then
+    row vault ok "$BOARD/.obsidian · registered with Obsidian — ▸vault opens this board"
+  else
+    row vault broken "$BOARD/.obsidian is not in Obsidian's vault register — ▸vault opens the nearest registered ancestor instead"
+    fix "python3 $SKILL_ROOT/resources/pearde.py vault --wait --open $(dirname "$BOARD") — Obsidian reads the register at launch and rewrites it from memory on quit, so the entry has to be written while it is closed; --wait does that the moment you quit"
   fi
 fi
 
@@ -267,7 +388,7 @@ if [ -n "$BOARD" ] && grep -qE '^[[:space:]]*members:' "$BOARD/settings.md" 2>/d
 fi
 
 # ── vision: where the board says it is going, and whether the names hold ─────
-# `prds/vision.md` names the PRDs whose completion is the destination, and the
+# `.pearde/vision.md` names the PRDs whose completion is the destination, and the
 # plan orders toward them. A terminal or an edge end that names no PRD is a
 # silent failure: the PRD it meant is off the axis, and the scan just says so
 # in a number. `plan.py vision --check` is the one reader.
@@ -384,6 +505,30 @@ if [ -n "$BOARD" ]; then
   fi
 fi
 
+# ── knowledge: the research layer, whole in one folder ───────────────────────
+# prds/knowledge/ is not a PRD folder and holds no state — the scan walks past
+# it like memos/. What can be wrong is the layer itself: frontmatter the tools
+# cannot read, wikilinks pointing at nothing, a graph left behind by writes.
+# knowledge.py doctor is the one reader; `off` means the board never researches.
+if [ -n "$BOARD" ] && [ -d "$BOARD/knowledge" ]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    row knowledge broken "prds/knowledge/ present, no python3 to read it"
+    fix "install python3 — knowledge.py is the only reader of the format"
+  else
+    KPROB=$(python3 "$DIR/knowledge.py" --root "$BOARD/knowledge" doctor 2>&1)
+    if [ $? -eq 0 ] && [ -z "$(echo "$KPROB" | grep '✗')" ]; then
+      KN=$(printf '%s' "$KPROB" | sed -n 's/.*— \([0-9]*\) notes.*/\1/p')
+      row knowledge ok "$KN note$([ "$KN" = 1 ] || echo s) on record · graph in sync · pending honest"
+    else
+      row knowledge broken "the research layer does not check out"
+      echo "$KPROB" | grep '✗' | while IFS= read -r l; do
+        [ -n "$l" ] && printf '  %-11s %-7s %s\n' "" "" "${l#*✗ }"
+      done
+      fix "run knowledge.py relink / fix the notes it names — @references/knowledge.md is the contract"
+    fi
+  fi
+fi
+
 # ── briefs: the worker briefs, one source, every placeholder named ──────────
 # A brief is printed by `pearde brief` from the blocks between
 # `<!-- brief:<name> -->` … `<!-- /brief -->` in references/parts/workers.md.
@@ -463,11 +608,15 @@ winpath_json() { winpath "$1" | sed 's/\\/\\\\/g'; }
 # this row answers is whether the live view — the thing a person looks at and
 # edits through — is up and watching THIS board. Matched on the registered
 # path, never the name: a board keys by its declared `name:`, and grepping the
-# directory would report a watched board as unwatched.
+# directory would report a watched board as unwatched. PBOARD is the same
+# board through `pwd -P`: the service keys by `os.path.abspath`, and a board
+# reached through a symlinked cwd registers under the one spelling while this
+# shell holds the other (/tmp vs /private/tmp is the everyday macOS case).
 if [ -n "$BOARD" ]; then
   SRV_PORT="${PEARDE_PORT:-8443}"
   SRV=$(curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
   WBOARD_JSON="$(winpath_json "$BOARD")"
+  PBOARD=$(cd "$BOARD" 2>/dev/null && pwd -P)
   if [ -z "$SRV" ]; then
     row view off "not running — the board reads and plans without it"
     fix "python3 $DIR/board/serve.py ensure $BOARD"
@@ -543,13 +692,25 @@ if [ -n "$BOARD" ]; then
     HG=0; HU=0; HF=0; HFAILED=""; HUNPINNED=""
     HT0=$(date +%s)
     HTMP=$(mktemp -d)
+    # Every harness gets its own out/rc file and runs at once — the row's
+    # wall-clock is the slowest harness, not the sum of all of them.
+    # ponytail: unbounded parallelism, fine for ~40 short bash scripts; add a
+    # `wait -n` job cap only if a harness ever needs the whole box.
+    ji=0
     while IFS= read -r h; do
       [ -n "$h" ] || continue
+      ji=$((ji + 1))
+      ( PEARDE_HARNESSES=1 bash "$h" </dev/null >"$HTMP/out.$ji" 2>&1; echo $? > "$HTMP/rc.$ji" ) &
+    done <<EOF
+$HLIST
+EOF
+    wait
+    ji=0
+    while IFS= read -r h; do
+      [ -n "$h" ] || continue
+      ji=$((ji + 1))
       rel="${h#"$START"/}"; rel="${rel#"$SKILL_ROOT"/}"
-      PEARDE_HARNESSES=1 bash "$h" </dev/null >"$HTMP/out" 2>&1
-      hrc=$?
-      # The pin is read as the idiom, not as semantics: a test comparing the
-      # harness's own executed total against an integer literal.
+      hrc=$(cat "$HTMP/rc.$ji")
       if grep -qE '\$\(\([[:space:]]*[Pp][Aa][Ss][Ss][[:space:]]*\+[[:space:]]*[Ff][Aa][Ii][Ll][[:space:]]*\)\)[^=]*(=|-eq)[[:space:]]*"?[0-9]+' "$h"; then
         pinned=1
       else
@@ -560,8 +721,8 @@ if [ -n "$BOARD" ]; then
         # the marker every harness on this board prints, at the start of its
         # own line — matching `FAIL` anywhere on a line quotes a passing
         # check whose name happens to contain the word
-        first=$(grep -m1 -E '^[[:space:]]*FAIL' "$HTMP/out" | sed 's/^[[:space:]]*//')
-        [ -z "$first" ] && first=$(tail -1 "$HTMP/out" | sed 's/^[[:space:]]*//')
+        first=$(grep -m1 -E '^[[:space:]]*FAIL' "$HTMP/out.$ji" | sed 's/^[[:space:]]*//')
+        [ -z "$first" ] && first=$(tail -1 "$HTMP/out.$ji" | sed 's/^[[:space:]]*//')
         HFAILED="$HFAILED
 $rel — exit $hrc${first:+ · $first}"
       elif [ "$pinned" = 1 ]; then
@@ -591,6 +752,64 @@ EOF
       note "pin it: [ \"\$((PASS+FAIL))\" = <n> ] || no \"expected <n> checks, ran \$((PASS+FAIL))\""
     fi
   fi
+fi
+
+# ── jstests: the view's own browser gates, actually run ──────────────────────
+# viewtest.js and hotreload-test.js drive a real Chrome against the rendered
+# board and the live-reload loop. Nothing ran them — no CI, no hook — so a
+# regression in either one only ever surfaced by a person remembering the
+# command. Same cost as `harnesses`, so same gate: opt-in with --harnesses.
+#
+# viewtest.js --example needs no live service — it renders its own copy of
+# the example board with plan.py and opens it as a file. hotreload-test.js
+# needs the view service actually serving this board (a URL to click through
+# and to move view.js under), so without one running it is reported `off`
+# rather than skipped silently.
+if [ "$HFLAG" = 1 ]; then
+  if [ -n "${PEARDE_HARNESSES:-}" ]; then
+    row jstests off "not run inside a harness"
+  elif ! command -v node >/dev/null 2>&1; then
+    row jstests broken "node not found — viewtest.js and hotreload-test.js need it"
+    fix "install node, then: npm i playwright-core --prefix $DIR/board"
+  elif ! node -e "require.resolve('playwright-core')" >/dev/null 2>&1; then
+    row jstests off "node found, playwright-core missing — both tests need it"
+    fix "npm i playwright-core --prefix $DIR/board"
+  else
+    JOUT=$(node "$DIR/board/viewtest.js" --example 2>&1); JRC=$?
+    JLINE=$(printf '%s\n' "$JOUT" | tail -1)
+    if [ "$JRC" != 0 ]; then
+      row jstests broken "viewtest.js --example failed · $JLINE"
+      printf '%s\n' "$JOUT" | grep -m3 '^  FAIL' | while IFS= read -r l; do note "$(printf '%s' "$l" | sed 's/^  //')"; done
+      fix "node $DIR/board/viewtest.js --example"
+    else
+      SRV_PORT="${PEARDE_PORT:-8443}"
+      HRSRV=$(curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
+      if [ -z "$HRSRV" ] || [ -z "$BOARD" ]; then
+        row jstests ok "viewtest.js --example · $JLINE"
+        note "hotreload-test.js not run — needs the view service serving this board"
+        note "run: python3 $DIR/board/serve.py ensure $BOARD && node $DIR/board/hotreload-test.js http://127.0.0.1:$SRV_PORT/board/<name>"
+      else
+        BN=$(printf '%s' "$HRSRV" | tr '{' '\n' \
+             | grep -F "\"$BOARD\"" | sed -n 's/.*"name": "\([^"]*\)".*/\1/p' | head -1)
+        if [ -z "$BN" ]; then
+          row jstests ok "viewtest.js --example · $JLINE"
+          note "hotreload-test.js not run — this board is not registered with the running service"
+        else
+          HROUT=$(node "$DIR/board/hotreload-test.js" "http://127.0.0.1:$SRV_PORT/board/$BN" 2>&1); HRRC=$?
+          HRLINE=$(printf '%s\n' "$HROUT" | tail -1)
+          if [ "$HRRC" != 0 ]; then
+            row jstests broken "viewtest ok · hotreload-test.js failed · $HRLINE"
+            printf '%s\n' "$HROUT" | grep -m3 '^  FAIL' | while IFS= read -r l; do note "$(printf '%s' "$l" | sed 's/^  //')"; done
+            fix "node $DIR/board/hotreload-test.js http://127.0.0.1:$SRV_PORT/board/$BN"
+          else
+            row jstests ok "viewtest.js --example · $JLINE · hotreload-test.js · $HRLINE"
+          fi
+        fi
+      fi
+    fi
+  fi
+else
+  row jstests off "not run — opt in: bash $DIR/doctor.sh --harnesses $START"
 fi
 
 echo

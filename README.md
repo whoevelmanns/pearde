@@ -1,7 +1,7 @@
 # pearde — the PRD board
 
-A board of PRDs — product requirement definitions — as files under `prds/`,
-one session that moves them through nine states with one command each, and a
+A board of PRDs — product requirement definitions — as files under
+`.pearde/prds/`, one session that moves them through nine states with one command each, and a
 live page that draws the board. Nothing leaves the machine: Python 3, no
 dependency, no build step.
 
@@ -30,12 +30,12 @@ every shape at once. `pearde init` with no flag writes an empty board.
 
 | path | is | written by |
 |---|---|---|
-| `prds/<name>/prd.md` | one PRD: frontmatter carries `state:`, `priority:`, `needs:`, `footprint:`; the body is the request as a contract | `add` writes it, the commands move `state:`, an analyst adds `## Questions` |
-| `prds/<name>/specs/` | one implementable unit per file, with `- [ ]` boxes an implementer ticks as it works | the analyst; `specced` reads and refuses |
-| `prds/memos/` | decisions the code will not explain — what was chosen, what it beat, why | `pearde memo add <subject>` |
-| `prds/workflows/` | how a kind of job is done, as steps a worker follows and improves on every run | seeded with the board; a worker's edits, pasted at collect |
-| `prds/settings.md` | the board's knobs: `language`, `workers`, `pipeline`, `weight-default`, `gantt-day`, and the optional ones | `init`, then `pearde settings <key>=<value>` |
-| `prds/vision.md` | the destination in one sentence, and `terminals:` — the PRDs whose completion is it — which orders the queue | `init` writes the template; you write the sentence |
+| `.pearde/prds/<name>/prd.md` | one PRD: frontmatter carries `state:`, `priority:`, `needs:`, `footprint:`; the body is the request as a contract | `add` writes it, the commands move `state:`, an analyst adds `## Questions` |
+| `.pearde/prds/<name>/specs/` | one implementable unit per file, with `- [ ]` boxes an implementer ticks as it works | the analyst; `specced` reads and refuses |
+| `.pearde/memos/` | decisions the code will not explain — what was chosen, what it beat, why | `pearde memo add <subject>` |
+| `.pearde/workflows/` | how a kind of job is done, as steps a worker follows and improves on every run | seeded with the board; a worker's edits, pasted at collect |
+| `.pearde/settings.md` | the board's knobs: `language`, `workers`, `pipeline`, `weight-default`, `gantt-day`, and the optional ones | `init`, then `pearde settings <key>=<value>` |
+| `.pearde/vision.md` | the destination in one sentence, and `terminals:` — the PRDs whose completion is it — which orders the queue | `init` writes the template; you write the sentence |
 
 A directory holding `prd.md` is a PRD, and a child directory holding its own
 is a child PRD. `specs/`, `memos/` and `workflows/` hold none, so the scan
@@ -67,13 +67,14 @@ stateDiagram-v2
 
 | step | command | the orchestrator decides |
 |---|---|---|
-| 1 scan | `pearde scan` · `pearde sweep` once per session · read `prds/.round.md` · `pearde init` when there is no board | nothing — read |
+| 1 scan | `pearde scan` · `pearde sweep` once per session · read `.pearde/.state/round.md` · `pearde init` when there is no board | nothing — read |
 | 2 answer | `pearde answer <prd> Q<n> "<text>"` per answer | what to put to the user, per @references/drill.md, and what they said |
 | 3 refine | `pearde refine <prd> < report` | whether the analyst's `## Split` table is usable; a drill when it is not |
-| 4 spec ahead | `pearde claim <prd> <worker>` · `pearde brief <prd>` → dispatch | which persona the job wears |
-| 5 implement | the same two commands | which persona the job wears |
-| 6 collect | read the report · apply or refuse `## Workflow` edits · `pearde collect <prd>` | whether to believe the report; whether an edit was the atomic's |
-| 7 drill, then stop | one drill round over the frontier · rewrite `prds/report.md` and `prds/.round.md` · `pearde view wait` | the forks and their three answers |
+| 4 spec ahead | `pearde claim <prd> <worker>` · `pearde brief <prd> --worker <worker>` → dispatch as `pearde-analyst` | which persona the job wears |
+| 5 implement | the same two commands, dispatched as `pearde-implementer` | which persona the job wears |
+| 6 collect | read the returned line · apply or refuse `## Workflow` edits · `pearde collect <prd>` | whether to believe the report; whether an edit was the atomic's |
+| 7 knowledge | `python3 resources/knowledge.py query "<the frontier's open question>"` per PRD about to be drilled | whether the record already answers it — cite the note under `## Answers` and skip the question, or let the drill stand |
+| 8 drill, then stop | one drill round over the frontier · rewrite `.pearde/report.md` and `.pearde/.state/round.md` · `pearde view wait` | the forks and their three answers |
 
 The tool moves, the orchestrator chooses: every command checks its own gate
 and refuses what @references/parts/states.md forbids, and the right-hand
@@ -96,7 +97,7 @@ and each is one file:
 | the question in front of you | the one file |
 |---|---|
 | what the round does next | @references/parts/loop.md |
-| what a compaction lost | `prds/.round.md`, then `scan`. @references/parts/round.md |
+| what a compaction lost | `.pearde/.state/round.md`, then `scan`. @references/parts/round.md |
 | what to hand a worker, and who it works as | @references/parts/workers.md |
 | what a state means, and what moves it | @references/parts/states.md |
 | what the progress line prints | @references/parts/progress.md |
@@ -138,15 +139,18 @@ other boards as members and plans across them; `doctor` says of every part
 whether it is `ok`, `off` or `broken`, with the command that fixes it; the
 `guard` is a hook that refuses a hand-written `state:` and a board walked by
 hand; the status line puts the progress terms in your terminal; `scout` finds
-what is worth studying; `install` is the first line above, explained. Open
-`@@master`, `@@doctor`, `@@guard`, `@@statusline`, `@@scout` or `@@install`
-when one of them is in your way.
+what is worth studying; `graph` maps a folder into a queryable knowledge graph
+with an Obsidian vault out; `knowledge` keeps what was learned from outside —
+sources and conclusions with provenance, queried before anything new is
+researched; `install` is the first line above, explained. Open `@@master`,
+`@@doctor`, `@@guard`, `@@statusline`, `@@scout`, `@@graph`, `@@knowledge` or
+`@@install` when one of them is in your way.
 
 ## Glossary
 
 | word | is |
 |---|---|
-| PRD | one request as a contract, `prds/<name>/prd.md`, in one of the nine states |
+| PRD | one request as a contract, `.pearde/prds/<name>/prd.md`, in one of the nine states |
 | spec | one implementable unit of a PRD, `specs/specNN.md`, done in one sitting |
 | box | `- [ ]` under `## Acceptance` — a check that can fail, ticked when it ran |
 | footprint | the paths a PRD or spec touches; two claimed PRDs never share one |
@@ -156,8 +160,8 @@ when one of them is in your way.
 | band | one section of the scan, in dispatch order: collect, waiting on you, in flight, ready, gated |
 | collect | the transition that verifies, commits the footprint and writes `done` |
 | claim | a worker holding a PRD, with a name and a time on the line |
-| memo | a decision record under `prds/memos/`, with what it beat and why |
-| workflow | an ordered route of atomics a worker follows, `prds/workflows/` |
+| memo | a decision record under `.pearde/memos/`, with what it beat and why |
+| workflow | an ordered route of atomics a worker follows, `.pearde/workflows/` |
 | atomic | one step of a workflow: what to do, when it is done, how it fails |
 | persona | who is working — a field, a bias and a way of reading |
 | consult | one problem put to one persona, mid-round, without switching |

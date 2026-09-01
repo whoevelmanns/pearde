@@ -1,7 +1,7 @@
 # The report
 
 The one document on the board written for a person. One file,
-`prds/report.md`, rewritten whole every time. Nothing parses it.
+`.pearde/report.md`, rewritten whole every time. Nothing parses it.
 
 Reader: whoever the work is for, reading fast, who has never seen the board.
 They want three things — what is planned, what is being worked on now, and
@@ -9,7 +9,7 @@ what is stuck or waiting on them.
 
 ## One state, not a log
 
-- **One file.** `prds/report.md`, next to `settings.md`. A board is needed to
+- **One file.** `.pearde/report.md`, next to `settings.md`. A board is needed to
   write one; with none in scope, write the text and say where it goes.
 - **Rewritten whole.** Never appended, never a dated entry, never a section
   per round. The file says what is true today and nothing about yesterday —

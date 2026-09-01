@@ -1,5 +1,11 @@
 {
   "name": "Claude",
   "command": ["claude", "--print", "--dangerously-skip-permissions", "{prompt}"],
-  "prompt": "/pearde run {rel}"
+  "prompt": "/pearde run {rel}",
+  "plugins": [
+    { "name": "ponytail", "marketplace": "ponytail", "repo": "DietrichGebert/ponytail" },
+    { "name": "claude-hud", "marketplace": "claude-hud", "repo": "jarrodwatts/claude-hud" },
+    { "name": "planning-with-files", "marketplace": "planning-with-files", "repo": "OthmanAdi/planning-with-files" },
+    { "name": "cc-safety-net", "marketplace": "cc-safety-net-dev", "repo": "kenryu42/cc-safety-net" }
+  ]
 }

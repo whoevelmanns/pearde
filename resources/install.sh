@@ -1,5 +1,5 @@
 #!/bin/bash
-# pearde install — build one skill folder per file in skills/.
+# pearde install — build one skill folder per file in references/skills/.
 #
 #   install.sh <skills-dir>           say what it would make
 #   install.sh --apply <skills-dir>   make it
@@ -13,8 +13,12 @@
 # its own folder. Five links per skill and every `@<path>` in the repo
 # resolves through the install exactly as it does here:
 #
-#   <skills-dir>/<name>/SKILL.md -> skills/<name>.md
+#   <skills-dir>/<name>/SKILL.md -> references/skills/<name>.md
 #                       README.md · index.md · references · resources
+#
+# Two Obsidian plugins the knowledge vault needs are fetched here rather than
+# vendored — pinned versions, downloaded into resources/board/obsidian/plugins/
+# where `pearde init` copies them into each board's vault.
 #
 # Links, never copies — one source of truth. A real file or directory already
 # sitting where a link goes is reported and never replaced: it may hold your
@@ -54,7 +58,7 @@ stop() { printf '  %-14s %-8s ! %s\n' "" "" "$1"; BLOCKED=1; }
 # are the repo's, shared by every skill.
 source_of() {
   case "$2" in
-    SKILL.md) printf '%s/skills/%s.md' "$ROOT" "$1" ;;
+    SKILL.md) printf '%s/references/skills/%s.md' "$ROOT" "$1" ;;
     *)        printf '%s/%s' "$ROOT" "$2" ;;
   esac
 }
@@ -68,7 +72,7 @@ echo
 # with a link into itself. Step 1 of @references/install.md, enforced.
 SELF="$(basename "$ROOT")"
 
-for f in "$ROOT"/skills/*.md; do
+for f in "$ROOT"/references/skills/*.md; do
   [ -e "$f" ] || continue
   name="$(basename "$f" .md)"
   at="$DEST/$name"
@@ -80,11 +84,11 @@ for f in "$ROOT"/skills/*.md; do
     gate="$ROOT/SKILL.md"
     # relative, so the repo survives being moved — an absolute link into a
     # path that no longer exists is a skill that silently stops loading
-    want_gate="skills/$name.md"
+    want_gate="references/skills/$name.md"
     if [ -L "$gate" ] && [ "$(readlink "$gate")" = "$want_gate" ]; then
-      say "$name" ok "$at · SKILL.md -> skills/$name.md"
+      say "$name" ok "$at · SKILL.md -> references/skills/$name.md"
     elif [ "$MODE" = apply ]; then
-      ln -sfn "$want_gate" "$gate" && did "retired the installer — SKILL.md -> skills/$name.md"
+      ln -sfn "$want_gate" "$gate" && did "retired the installer — SKILL.md -> references/skills/$name.md"
       note_git=1
     elif [ "$MODE" = remove ]; then
       say "$name" self "$at is this repo · restore the installer with: git checkout SKILL.md"
@@ -130,6 +134,72 @@ for f in "$ROOT"/skills/*.md; do
     did "built $at"
   else
     say "$name" missing "$at — $missing of ${#LINKS[@]} links"
+  fi
+done
+
+# The worker types. `references/agents/` becomes `agents/` beside `skills/` in
+# and it carries the model each worker runs on — an analyst on the cheaper one,
+# an implementer on the one that writes the code. Without them every worker
+# runs the orchestrator's model on a job that never needed it.
+AGENTS="$(dirname "$DEST")/agents"
+for f in "$ROOT"/references/agents/*.md; do
+  [ -e "$f" ] || continue
+  name="$(basename "$f" .md)"
+  at="$AGENTS/$name.md"
+  if [ -L "$at" ] && [ "$(cd "$(dirname "$(readlink "$at")")" 2>/dev/null && pwd -P)" = "$ROOT/references/agents" ]; then
+    say "$name" ok "$at"
+  elif [ -e "$at" ] && [ ! -L "$at" ]; then
+    say "$name" copy "$at is a real file, not a link"
+    stop "reconcile it yourself, then re-run"
+  elif [ "$MODE" = remove ]; then
+    [ -L "$at" ] && { rm -f "$at"; did "removed $at"; } || say "$name" missing "$at"
+  elif [ "$MODE" = apply ]; then
+    mkdir -p "$AGENTS" && ln -sfn "$f" "$at" && did "$at -> references/agents/$name.md"
+  else
+    say "$name" missing "$at"
+  fi
+done
+
+# The Obsidian plugins the knowledge vault needs — dataview for the live views
+# and local-rest-api for the port a tool reads the vault through. They are
+# third-party bundles of a few megabytes, so they are fetched here rather than
+# vendored: the repo carries the version to fetch and nothing else, and
+# `init.py` copies whatever this step left in the preset into each board's
+# vault. Pinned, because a vault that opens is worth more than the newest
+# plugin. `--apply` downloads; the report mode only says what is missing.
+PLUGIN_DIR="$ROOT/resources/board/obsidian/plugins"
+PLUGINS=(
+  "dataview blacksmithgu/obsidian-dataview 0.5.68"
+  "obsidian-local-rest-api coddingtonbear/obsidian-local-rest-api 5.1.0"
+)
+for row in "${PLUGINS[@]}"; do
+  set -- $row
+  name="$1"; repo="$2"; ver="$3"
+  at="$PLUGIN_DIR/$name"
+  if [ -s "$at/main.js" ] && [ -s "$at/manifest.json" ]; then
+    have="$(sed -n 's/.*"version"[^"]*"\([^"]*\)".*/\1/p' "$at/manifest.json" | head -1)"
+    if [ "$have" = "$ver" ]; then say "$name" ok "$at · $ver"; continue; fi
+    say "$name" stale "$at · $have, want $ver"
+  fi
+  if [ "$MODE" = remove ]; then
+    rm -f "$at/main.js" "$at/manifest.json" "$at/styles.css"
+    did "removed the $name bundle — data.json kept"
+    continue
+  fi
+  if [ "$MODE" != apply ]; then say "$name" missing "$at · $ver"; continue; fi
+  mkdir -p "$at"
+  ok=1
+  for f in main.js manifest.json styles.css; do
+    url="https://github.com/$repo/releases/download/$ver/$f"
+    curl -fsSL --retry 2 -o "$at/$f.part" "$url" || { ok=0; break; }
+    mv -f "$at/$f.part" "$at/$f"
+  done
+  if [ "$ok" = 1 ]; then
+    did "$name $ver -> $at"
+  else
+    rm -f "$at"/*.part
+    say "$name" failed "could not fetch $ver from $repo"
+    stop "the vault installs without it — re-run --apply when the network is back"
   fi
 done
 

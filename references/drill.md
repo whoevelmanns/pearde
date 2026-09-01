@@ -139,10 +139,18 @@ round is history and is left alone.
 
 ## The board's own frontier
 
-A blocked board is a drill whose questions are already written down. Step 7 of
+A blocked board is a drill whose questions are already written down. Step 8 of
 @references/parts/loop.md is that entry point: nothing dispatchable means every
 remaining PRD waits on a person, and the round's last act is one drill round
 over all of them rather than a report naming them.
+
+The count on the scan is the second entry point: when `pearde scan` prints the
+**drill** section — more than one unanswered question on the board, the header
+saying `asking N over M PRDs` — the round opens on that drill before anything
+is dispatched, even though the rest of the board is moving. The drill is the
+orchestrator's, so `pearde claim` refuses with `asking N — drill first` until
+the questions are out; one question standing is not a gate, and is put as any
+round is. Zero prints nothing.
 
 Round one's frontier is the board itself — every unanswered `## Questions`,
 every PRD parked on a person with no round written, every `refine` with no
@@ -153,7 +161,7 @@ after every answer, and the drill ends when it is empty.
 - **One round for the board, never one per PRD.** Five stuck PRDs are one
   numbered round, not five conversations.
 - **A question already out is carried, not re-put** — `## Asked` in
-  `prds/.round.md` is what is out. Widen instead: ask what the stalled question
+  `.pearde/.state/round.md` is what is out. Widen instead: ask what the stalled question
   depends on. A frontier that is entirely already out is where the round stops.
 - **Answers go back where they were asked** — `## Answers` in each PRD, numbers
   matching, then `open`; a `refine` answer becomes children per step 3 of the
@@ -194,5 +202,5 @@ Attach a workflow while the tree is being written, not later. `python3
 fits a branch, write `workflow: <slug>` on that child, so the worker that
 eventually takes it is handed the route with its brief. A branch nothing fits
 carries no key — the brief alone is the honest state, and writing a new
-workflow is `workflow add`, an act of the orchestrator's at `runs: 0`, never
-the drill's.
+workflow is the analyst's, at spec time — `## Route` in its report, `runs: 0`
+from `specced` — never the drill's.

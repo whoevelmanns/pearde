@@ -27,6 +27,7 @@ Anything that has no answer yet goes to [Open](#open) — a queue, not a gap.
 | star momentum for a repo we do not own | our own snapshots (`scout.sh delta`) | github api · ossinsight · star-history | 2026-08-26 | strong |
 | a page as text an agent can hold | `r.jina.ai` | one route only | 2026-08-26 | weak |
 | one widget API → terminal + web + native desktop | no single framework; `ratatui`+`ratzilla` (Rust) or `Textual`+`textual-web` (Python), each terminal-native and reusing the app on Win/Linux/macOS | gh stars · crates/pypi downloads · last-push cadence | 2026-08-27 | strong (as a rejection) |
+| community plugins to install alongside pearde | `ponytail`, `claude-hud`, `planning-with-files`, `cc-safety-net`; `claude-mem`/`claude-obsidian` rejected as duplicate of our knowledge layer | gh stars (2 search buckets) · repo state (push, license, archived) | 2026-08-31 | weak (both axes are GitHub-hosted) |
 | train and run a small model inside a Rust harness | `candle` | crates recent-dl · gh stars+state · scorecard · osv | 2026-08-28 | strong |
 
 ## Findings
@@ -208,6 +209,31 @@ scorecard at all; only `tch` is in the dataset, at 3.2, with `Code-Review` and
 `Token-Permissions` both 0. That is not evidence `candle` is safer — it is
 evidence the ML-in-Rust corner is largely outside the hygiene ecosystem, and
 the `deny.toml` gate is carrying that risk alone.
+
+### community plugins to install alongside pearde
+
+**Pick** `ponytail`, `claude-hud`, `planning-with-files`, `cc-safety-net`;
+`caveman` already installed. **Beats** `claude-mem`, `claude-obsidian`,
+`engram`, `recall` — all rejected as duplicates of pearde's own knowledge
+layer, which is the whole point of this tree.
+
+| plugin | stars | pushed | license | job |
+|---|---|---|---|---|
+| DietrichGebert/ponytail | 117,852 | 2026-08-07 | MIT | lazy-senior-dev output discipline |
+| JuliusBrussee/caveman | 101,970 | (installed) | — | token compression — already active on this machine |
+| thedotmack/claude-mem | 92,716 | 2026-08-31 | Apache-2.0 | **rejected** — replaces the knowledge layer pearde already is |
+| jarrodwatts/claude-hud | 27,742 | (active) | — | visibility: context usage, tools, agents |
+| OthmanAdi/planning-with-files | 26,489 | 2026-08-31 | MIT | crash-proof markdown plans |
+| kenryu42/cc-safety-net | 1,517 | (active) | — | pre-execution guard vs destructive git/fs commands |
+
+**Why** stars came from two GitHub search buckets (`topic:claude-code-plugin`,
+`topic:claude-plugin`, sorted by stars) plus targeted lookups; the state axes
+(pushed date, license, archived) separate the live from the frozen — caveman's
+own family (`cavekit`, `cavemem`) is frozen and says so in its README, which is
+honest but disqualifying for a new install.
+
+**Overturned by** any pick going archived/frozen, or by pearde shipping the
+plugin's job natively (as it already did to `claude-mem`).
 
 ## Open
 

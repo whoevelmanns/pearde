@@ -1,4 +1,4 @@
-<!-- prds/report.md — the whole file, rewritten every time. No frontmatter:
+<!-- .pearde/report.md — the whole file, rewritten every time. No frontmatter:
      nothing reads this but a person. @references/report.md is the format. -->
 
 # <What the work is> — where it stands

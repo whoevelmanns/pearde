@@ -67,7 +67,7 @@ import questions as qlib        # noqa: E402 — the round check `release … qu
 
 TEMPLATE = os.path.join(os.path.dirname(ROOT), "references", "templates",
                         "prd.md")
-TRANSITIONS_FILE = ".transitions.jsonl"
+TRANSITIONS_FILE = os.path.join(".state", "transitions.jsonl")
 
 # The states of @references/parts/states.md, and the one parked state a
 # handle writes. Anything else is the user's own and only `--force` writes it.
@@ -156,14 +156,28 @@ def round_problems(prd):
 # One function per gate, each raising Refused with the gate named and what
 # would clear it. `transition` picks the gate off the (from, to) edge.
 
-def gate_claim(board, prds, prd):
+def gate_claim(board, prds, prd, holder=None):
     """`plan.dispatchable` is the gate — the one predicate the scan's ready
     band reads too, so what `scan` offers is what `claim` takes. The reason
     arrives with its gate word in front (`unclaimed:`, `leaf:`, `container:`,
-    `needs:`, `footprint:`, `workflow:`) and is raised as it stands."""
-    why = planlib.dispatchable(prd, prds, board)
+    `needs:`, `footprint:`, `workflow:`, `asking`) and is raised as it stands.
+
+    `holder` names the worker asking, so a claim it already holds is not
+    the `unclaimed` gate — every caller but `brief` briefing a named worker
+    leaves it `None`, which is `dispatchable`'s original, stricter test.
+
+    After the dispatchable gates, the drill: two or more unanswered questions
+    not yet out — `@plan.drill_questions` reading the round file's `## Asked`
+    beside the count — and nothing is dispatched, `asking N — drill first`,
+    because the drill is the orchestrator's and a worker has no user to ask.
+    One question left is step 2's ordinary put, not a gate."""
+    why = planlib.dispatchable(prd, prds, board, holder=holder)
     if why:
         raise Refused(why)
+    pending = [q for q in planlib.drill_questions(board) if not q[3]]
+    if len(pending) >= 2:
+        raise Refused(f"asking {len(pending)} — drill first; the unanswered "
+                      "questions go to the user before anything is dispatched")
 
 
 def gate_release(board, prds, prd, to):
@@ -421,6 +435,7 @@ def record(prd, frm, to):
            "prd": prd["local"], "from": frm, "to": to}
     row.update(hand_over(prd["board_path"]))
     path = os.path.join(prd["board_path"], TRANSITIONS_FILE)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(row, sort_keys=True) + "\n")
 
@@ -554,19 +569,19 @@ def add(board, title, persona, priority=0, body="", parent=None, out=print,
     slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:60]
     if not slug:
         raise Refused("add: the title has no letters to slug")
-    base = board
+    base = planlib.prds_dir(board)
     if parent:
         prds = planlib.scan(board)
         base = prds[resolve(prds, parent)]["dir"]
     d = os.path.join(base, slug)
     if os.path.exists(d):
         raise Refused(f"add: the slug `{slug}` is taken — "
-                      f"{os.path.relpath(d, board)} exists")
+                      f"{os.path.relpath(d, base)} exists")
     text = from_template(title, int(priority or 0), body or "")
     if len(body.strip().splitlines()) > BIG_LINES or \
             body.lower().count("when this is done") > 1:
         out("big — expect a split")     # a warning; it gates nothing
-    rel = os.path.relpath(d, board)
+    rel = os.path.relpath(d, base)
     if dry:
         prds = planlib.scan(board)
         fake_prd(board, rel, text, prds)
@@ -576,7 +591,7 @@ def add(board, title, persona, priority=0, body="", parent=None, out=print,
         return rel
     os.makedirs(d)
     editlib.write_atomic(os.path.join(d, "prd.md"), text)
-    rel = os.path.relpath(d, board)
+    rel = os.path.relpath(d, base)
     record({"local": rel, "board_path": board}, None, "open")
     out(progress_line(board, rel, "—", "open", persona))
     return rel

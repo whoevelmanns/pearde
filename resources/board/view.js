@@ -296,6 +296,13 @@ remode();
 ppu = M.ppu;
 const span = () => M.hi - M.lo;
 const x = u => LEFT + (u - M.lo) * ppu - scroll.scrollLeft;
+/* the two marks the plan is actually read between. Both axes have them, and
+   both express them differently — vision counts weight from zero, dates count
+   days from an anchor — so everything that wants "now" or "the vision" asks
+   here rather than re-deriving it per mode. */
+const nowU = () => mode === "vision" ? 0 : nowDay();
+const visU = () => mode === "vision"
+  ? CPM.length : Math.max(...tasks.map(t => t.endDay), 0);
 
 const GROUPS = {
   tree:  {label:"tree", key:t => t.rel, sort:() => 0},
@@ -893,15 +900,12 @@ function draw() {
   ctx.restore();
 
   /* 4 — now and the vision, over the field, under the chrome */
-  const nowU = mode === "vision" ? 0 : nowDay();
-  const visU = mode === "vision" ? CPM.length
-    : Math.max(...tasks.map(t => t.endDay), 0);
   ctx.save();
   ctx.beginPath(); ctx.rect(LEFT, HEAD, W - LEFT, H - HEAD); ctx.clip();
   ctx.setLineDash([3, 3]);
-  line(x(nowU), HEAD, x(nowU), H, T.ink3, 1.25);
+  line(x(nowU()), HEAD, x(nowU()), H, T.ink3, 1.25);
   ctx.setLineDash([]);
-  line(x(visU), HEAD, x(visU), H, T.ink, 1.5);
+  line(x(visU()), HEAD, x(visU()), H, T.ink, 1.5);
   ctx.restore();
 
   /* 5 — the header: the scale */
@@ -933,9 +937,9 @@ function draw() {
   }
   // the two tags that name the ends of the axis
   if (mode !== "vision") tag("now · " + new Date().toLocaleDateString(undefined,
-      {weekday:"short", month:"short", day:"numeric"}), x(nowU), "mid");
+      {weekday:"short", month:"short", day:"numeric"}), x(nowU()), "mid");
   tag(mode === "vision" ? "vision · " + fmtW(CPM.length) + " of work in front"
-      : "vision · " + fmtD(visU), x(visU), "end");
+      : "vision · " + fmtD(visU()), x(visU()), "end");
   ctx.restore();
   line(LEFT, HEAD, W, HEAD, T.sep);
 
@@ -1501,10 +1505,19 @@ function panTo(u, smooth) {
 }
 
 /* ── zoom: interpolated, because a jump loses the reader's place ────────── */
+/* Which framing the plot is in, and the one being animated towards. Every
+   route to a new scale runs through `setZoom`, so tagging it there is what
+   keeps the dropdown honest: a preset says its own name, a wheel or a drag
+   says `custom`, and nothing has to guess a framing back out of a number. */
+let viewTag = "default", presetTag = null;
 let zoomAnim = 0;
-function setZoom(next, keepPx) {
-  const at = keepPx === undefined ? (plot.clientWidth - LEFT) / 2 : keepPx;
-  const u = (scroll.scrollLeft + at) / ppu + M.lo;
+/* hold the unit `u` at pixel `at` (measured from the plot's left edge) while
+   the scale becomes `next`. The spacer is widened before the scroller is
+   moved — a scrollLeft written against the old width is silently clamped, and
+   an anchor that has been clamped is not an anchor. */
+function setZoomAt(next, u, at) {
+  const tag = presetTag || "custom";
+  if (tag !== viewTag) { viewTag = tag; paintViewSel(); }
   ppu = Math.min(M.max, Math.max(M.min, next));
   spacer.style.width = Math.max(plot.clientWidth,
     LEFT + span() * ppu + 24) + "px";
@@ -1512,16 +1525,29 @@ function setZoom(next, keepPx) {
   retree();
   draw(); drawMini();
 }
-function glide(target, keepPx) {
+/* the same move, with the anchor read off the screen: whatever is under that
+   pixel now is what stays under it. This is what a wheel or a +/− wants. */
+function setZoom(next, keepPx) {
+  const at = keepPx === undefined ? (plot.clientWidth - LEFT) / 2 : keepPx;
+  setZoomAt(next, (scroll.scrollLeft + at) / ppu + M.lo, at);
+}
+/* `anchorU` names the unit to hold; without one the anchor is whatever is
+   under `keepPx` at the moment each frame runs. A framing wants the former —
+   the mark it is framing to does not exist on the screen yet. */
+function glide(target, keepPx, tag, anchorU) {
+  presetTag = tag || null;
   cancelAnimationFrame(zoomAnim);
   target = Math.min(M.max, Math.max(M.min, target));
-  if (reduced) return setZoom(target, keepPx);
+  const to = v => anchorU === undefined ? setZoom(v, keepPx)
+                                        : setZoomAt(v, anchorU, keepPx || 0);
+  if (reduced) { to(target); presetTag = null; return; }
   const from = ppu, t0 = performance.now(), ms = 220;
   const step = now => {
     const k = Math.min(1, (now - t0) / ms);
     const e = 1 - Math.pow(1 - k, 3);             // ease out, Apple-ish
-    setZoom(from + (target - from) * e, keepPx);
+    to(from + (target - from) * e);
     if (k < 1) zoomAnim = requestAnimationFrame(step);
+    else presetTag = null;
   };
   zoomAnim = requestAnimationFrame(step);
 }
@@ -1587,6 +1613,11 @@ function flashRail(hold) {
 /* one door for every gesture: clamp, persist, re-lay the plot — ROW is only
    true after `place` — then repaint the control from what actually happened */
 function setRows(next, say) {
+  // `say` marks the gestures: a hand on the rail has left the default framing,
+  // so a later resize must not scale the rows back out from under it
+  if (say !== undefined && viewTag !== "custom") {
+    viewTag = "custom"; paintViewSel();
+  }
   vscale = Math.max(0, Math.min(100, next));
   if (onBars) vsBar = vscale; else vsCol = vscale;
   try { localStorage.setItem("pearde.vscale", vsBar + "," + vsCol); }
@@ -1697,19 +1728,66 @@ function setNames(next) {
 }
 
 function fitAll() {
-  glide((plot.clientWidth - LEFT - 16) / span(), 0);
   scroll.scrollLeft = 0;
   scroll.scrollTop = 0;
+  glide((plot.clientWidth - LEFT - 16) / span(), 0, "fit");
   place();
 }
 
-function zoomButtons() {
-  $("zooms").innerHTML = M.zooms
-    .map(([n, v]) => `<button data-z="${v}">${n}</button>`).join("") +
-    '<button id="fit" title="fit the whole plan (f)">fit</button>';
-  for (const b of $("zooms").querySelectorAll("[data-z]"))
-    b.onclick = () => glide(+b.dataset.z);
-  $("fit").onclick = fitAll;
+/* ── the default view ─────────────────────────────────────────────────────
+   The plan is read between two marks: now, and the vision. `fit` frames the
+   whole track, which spends the left third of the screen on landed weight
+   nobody is deciding anything about; the presets frame a fixed scale, which
+   is a guess at how much plan there is. The default frames the question —
+   now at the left edge, the vision at the right, and the rows scaled until
+   every one of them is on the screen. It is what the board opens on, what a
+   mode switch re-establishes, and what a resize keeps.
+
+   Horizontally it anchors first and zooms second: put `now` at the plot's
+   left edge, then glide the scale with that pixel held, so the anchor is
+   true for every frame of the animation rather than only the last one. */
+function fitDefault(snap) {
+  const from = nowU(), to = Math.max(visU(), from + 1e-6);
+  const w = Math.max(120, plot.clientWidth - LEFT - 16);
+  setRows(100);                        // vertically: all of it, as best it fits
+  scroll.scrollTop = 0;
+  const target = w / (to - from);
+  if (snap) {
+    presetTag = "default";
+    setZoomAt(target, from, 0);
+    presetTag = null;
+  } else glide(target, 0, "default", from);
+}
+
+/* One door for the dropdown, the keys and the mode switch: a framing is
+   either the default, the whole track, or a named scale in units per pixel. */
+function applyView(v, snap) {
+  if (v === "default") return fitDefault(snap);
+  if (v === "fit") return fitAll();
+  const n = +v;
+  if (!isFinite(n) || !n) return;
+  if (snap) { presetTag = v; setZoom(n); presetTag = null; }
+  else glide(n, undefined, v);
+}
+
+/* the framings this axis offers, in the order a reader would try them:
+   the default, then the named scales coarse-ward, then the whole track.
+   `custom` is not chosen — it is where the wheel and the drags land, and it
+   is in the list only so the control can say the plot has left a framing. */
+function viewOptions() {
+  return [["default", "default"], ...M.zooms.map(([n, v]) => [String(v), n]),
+          ["fit", "fit all"], ["custom", "custom"]];
+}
+function paintViewSel() {
+  const s = $("zsel");
+  if (s) s.value = viewTag;
+}
+function viewSelect() {
+  const sel = $("zsel");
+  sel.innerHTML = viewOptions()
+    .map(([v, n]) => `<option value="${v}">${n}</option>`).join("");
+  sel.onchange = () => applyView(sel.value);
+  paintViewSel();
 }
 
 function setMode(next) {
@@ -1718,14 +1796,14 @@ function setMode(next) {
   $("mDates").classList.toggle("on", mode === "dates");
   $("sub").textContent = mode === "vision"
     ? "distance to the vision" : "the worker-limited calendar";
-  zoomButtons();
+  viewSelect();
   build();
-  ppu = Math.max(M.min, Math.min(M.max,
-    (plot.clientWidth - LEFT - 16) / span()));
-  scroll.scrollLeft = 0;
   lastWin = null;
   retree();
   place();
+  // the two axes are different quantities, so a scale carries nothing across —
+  // a framing does. Snapped, because a mode switch is a cut, not a move.
+  applyView(viewTag === "custom" ? "default" : viewTag, 1);
 }
 
 /* ═══ focus ════════════════════════════════════════════════════════════════
@@ -1981,8 +2059,11 @@ $("onlycollect").onclick = () => {
 let rt = 0;
 bind(window, "resize", () => {
   clearTimeout(rt);
-  rt = setTimeout(() => { fitFrame(); resize(); retree(); place(); movePill(); },
-                  60);
+  rt = setTimeout(() => {
+    fitFrame(); resize(); retree(); place(); movePill();
+    // the default is a fit, and a fit to the old window is not one
+    if (viewTag === "default") fitDefault(1);
+  }, 60);
 });
 /* focus slides rather than appears, so the plot's width changes over a couple
    of hundred milliseconds rather than in one step. A transition fires no
@@ -2041,6 +2122,7 @@ bind(window, "keydown", e => {
   else if (e.key === "ArrowUp" || e.key === "k") { e.preventDefault(); move(-1); }
   else if (e.key === "Enter" && selected) openDrawer(selected);
   else if (e.key === "f") fitAll();
+  else if (e.key === "d") fitDefault();
   else if (e.key === "v") setMode(mode === "vision" ? "dates" : "vision");
   else if (e.key === "b") $("pick").click();
   else if (e.key === "c") $("onlycrit").click();
@@ -2911,7 +2993,13 @@ class PeardeBoard extends LitElement {
     const out = [];
     for (const [st, rowsIn] of cols) {
       if (!rowsIn.length && !STATE_ORDER.includes(st)) continue;
-      rowsIn.sort((p, q) => q.prio - p.prio || p.rel.localeCompare(q.rel));
+      // done ordered by when it last changed, most recent first — priority
+      // stops mattering the moment a PRD is finished, and "what landed
+      // recently" is what a person opening this column actually wants.
+      // Every other column keeps the dispatch order: priority, then name.
+      rowsIn.sort(st === "done"
+        ? (p, q) => q.mtime - p.mtime
+        : (p, q) => q.prio - p.prio || p.rel.localeCompare(q.rel));
       out.push(this.column(st, rowsIn));
     }
     return out;
@@ -3325,7 +3413,7 @@ function drawNow() {
 }
 
 /* ── what's up: the board in a person's words, and how old they are ───────
-   `prds/report.md` over `GET /report` — the file `pearde report` rewrites
+   `.pearde/report.md` over `GET /report` — the file `pearde report` rewrites
    whole, already in the register @@report asks for.
 
    This section is a RENDERER, not an author. Sentences generated from the
@@ -3401,7 +3489,7 @@ class PeardeWhatsup extends LitElement {
         open this board through the service to see them</div>`;
     if (!this.text)
       return html`<div class="blank">no report yet — <code>pearde report</code>
-        writes <code>prds/report.md</code>, the board in plain words</div>`;
+        writes <code>.pearde/report.md</code>, the board in plain words</div>`;
     const p = reportParts(this.text);
     const age = REPORT_MTIME == null ? null
       : Math.max(0, Date.now() / 1000 - REPORT_MTIME);
@@ -3409,7 +3497,7 @@ class PeardeWhatsup extends LitElement {
     return html`
       <div class="hd"><h2>${p.title || "what's up"}</h2>
       ${age === null ? "" : html`<span class="age${stale ? " stale" : ""}"
-        title="how long since prds/report.md was last written — the file's own
+        title="how long since .pearde/report.md was last written — the file's own
                modification time, not the dateline inside it"
         >written ${ago(age)}${stale ? " · stale" : ""}</span>`}</div>
       ${p.lede ? html`<p class="lede">${inline(firstSentences(p.lede, 2))}</p>`
@@ -3452,7 +3540,7 @@ const inline = s => {
 };
 
 /* ── the report view: the board for a person ──────────────────────────────
-   `prds/report.md` as the seventh view — prose, so it gets the few marks
+   `.pearde/report.md` as the seventh view — prose, so it gets the few marks
    prose needs and nothing a PRD body gets. Read on every draw; the file is
    rewritten whole by `pearde report`, and a swap redraws the open view. */
 function md(text) {
@@ -3482,7 +3570,7 @@ class PeardeReport extends LitElement {
         through the service to see it</div>`;
     if (!this.text)
       return html`<div class="blank">no report yet — <code>pearde report</code>
-        writes <code>prds/report.md</code>, the board in plain words</div>`;
+        writes <code>.pearde/report.md</code>, the board in plain words</div>`;
     return html`<article class="prose">${md(this.text)}</article>`;
   }
 }

@@ -1,0 +1,18 @@
+{
+  "alwaysUpdateLinks": true,
+  "newLinkFormat": "shortest",
+  "useMarkdownLinks": false,
+  "attachmentFolderPath": "attachments",
+  "showLineNumber": true,
+  "promptDelete": false,
+  "userIgnoreFilters": [
+    "graphify/",
+    ".state/",
+    ".claims/",
+    "wiki/.graphify/",
+    "wiki/Dashboard.report.md",
+    "wiki/graphs/",
+    "wiki/pending/",
+    "wiki/sources/.absorbed/"
+  ]
+}
