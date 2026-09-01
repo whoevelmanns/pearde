@@ -117,6 +117,8 @@ whose scope it changed. Nothing else points at it.
 | @resources/board/viewtest.js | the view's gate — a rendered page in a real browser |
 | @resources/board/hotreload-test.js | the view's hot-reload gate — one live page, a view source moved under it (`node hotreload-test.js <served-board-url>`) |
 | @resources/board/adapters/claude.json | the Start button's default launch target — one JSON per adapter (`{"name","command","prompt"}`, optional `"plugins"` list of suggestions), read live by serve.py; doctor reports missing ones |
+| @resources/board/adapters/junie.json | a pearde-unaware agent's launch target — the literal command to run, no `pearde`-specific assumptions |
+| @resources/board/local-patches/reapply.sh | re-applies every local-only `*.patch` in this directory after a sync from pearde-src drops it — run after every sync; empty today, a patch lands here again only when a local-only view.js change needs to survive the next sync |
 | @resources/board/lit-core.min.js | Lit 3, vendored — the page's component base |
 | @resources/board/edit.py | the writers — one line at a time |
 | @resources/board/collect.py | `collect` — verify, commit the footprint, `done`, one call |
