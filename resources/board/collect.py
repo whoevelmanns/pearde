@@ -224,9 +224,35 @@ def fmt_hours(h):
 
 # ── git ───────────────────────────────────────────────────────────────────────
 
+def _bash():
+    """A bare "bash" on Windows can resolve to the WSL launcher stub under
+    WindowsApps — a reparse-point shim that always re-execs into a WSL
+    distro regardless of PATH order — and that stub fails with
+    `execvpe(/bin/bash) failed` outside any installed distro. Prefer a real
+    Git for Windows bash when one is findable; unchanged everywhere else."""
+    if os.name != "nt":
+        return "bash"
+    override = os.environ.get("PEARDE_BASH")
+    if override and os.path.isfile(override):
+        return override
+    clean_path = os.pathsep.join(
+        p for p in os.environ.get("PATH", "").split(os.pathsep)
+        if "WindowsApps" not in p)
+    found = shutil.which("bash", path=clean_path)
+    if found:
+        return found
+    for candidate in (r"C:\Program Files\Git\bin\bash.exe",
+                       r"C:\Program Files\Git\usr\bin\bash.exe"):
+        if os.path.isfile(candidate):
+            return candidate
+    return "bash"
+
+
 def run(cmd, cwd, script=None):
     """(exit, output) — stdout and stderr in one stream, the order a reader
     saw them in."""
+    if cmd and cmd[0] == "bash":
+        cmd = [_bash(), *cmd[1:]]
     try:
         r = subprocess.run(cmd, cwd=cwd, input=script, capture_output=True,
                            text=True)
@@ -253,8 +279,14 @@ def git_out(root, *args, input=None, shared=False):
     env = None
     if root in INDEX and not shared:
         env = dict(os.environ, GIT_INDEX_FILE=INDEX[root])
+    # Windows' text=True decodes with the system locale's codepage (cp1252
+    # here), not UTF-8 — a diff touching any of this board's German text
+    # (umlauts throughout prd.md/spec files) makes the subprocess reader
+    # thread's decode fail silently, leaving r.stdout None while returncode
+    # stays 0 (git itself succeeded). git's own output is UTF-8 regardless
+    # of platform, so decode it as that explicitly.
     r = subprocess.run(("git", "-C", root) + args, capture_output=True,
-                       text=True, input=input, env=env)
+                       text=True, encoding="utf-8", input=input, env=env)
     if r.returncode != 0:
         raise Stop(f"git {args[0]} failed in {root}: "
                    f"{(r.stderr or r.stdout).strip()}")
