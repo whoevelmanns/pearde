@@ -579,11 +579,15 @@ winpath_json() { winpath "$1" | sed 's/\\/\\\\/g'; }
 # this row answers is whether the live view — the thing a person looks at and
 # edits through — is up and watching THIS board. Matched on the registered
 # path, never the name: a board keys by its declared `name:`, and grepping the
-# directory would report a watched board as unwatched.
+# directory would report a watched board as unwatched. PBOARD is the same
+# board through `pwd -P`: the service keys by `os.path.abspath`, and a board
+# reached through a symlinked cwd registers under the one spelling while this
+# shell holds the other (/tmp vs /private/tmp is the everyday macOS case).
 if [ -n "$BOARD" ]; then
   SRV_PORT="${PEARDE_PORT:-8443}"
   SRV=$(curl -fsS -m 2 "http://127.0.0.1:$SRV_PORT/status" 2>/dev/null)
   WBOARD_JSON="$(winpath_json "$BOARD")"
+  PBOARD=$(cd "$BOARD" 2>/dev/null && pwd -P)
   if [ -z "$SRV" ]; then
     row view off "not running — the board reads and plans without it"
     fix "python3 $DIR/board/serve.py ensure $BOARD"
