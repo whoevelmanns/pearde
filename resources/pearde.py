@@ -31,6 +31,7 @@ import glob
 import importlib.util
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -273,9 +274,33 @@ def cmd_help(found, problems):
 
 # ── forwarding ────────────────────────────────────────────────────────────────
 
+def _bash():
+    """A bare "bash" on Windows can resolve to the WSL launcher stub under
+    WindowsApps — a reparse-point shim that always re-execs into a WSL
+    distro regardless of PATH order — and that stub fails with
+    `execvpe(/bin/bash) failed` outside any installed distro. Prefer a real
+    Git for Windows bash when one is findable; unchanged everywhere else."""
+    if os.name != "nt":
+        return "bash"
+    override = os.environ.get("PEARDE_BASH")
+    if override and os.path.isfile(override):
+        return override
+    clean_path = os.pathsep.join(
+        p for p in os.environ.get("PATH", "").split(os.pathsep)
+        if "WindowsApps" not in p)
+    found = shutil.which("bash", path=clean_path)
+    if found:
+        return found
+    for candidate in (r"C:\Program Files\Git\bin\bash.exe",
+                       r"C:\Program Files\Git\usr\bin\bash.exe"):
+        if os.path.isfile(candidate):
+            return candidate
+    return "bash"
+
+
 def run(script, args):
     path = os.path.join(RES, script)
-    cmd = (["bash", path] if script.endswith(".sh")
+    cmd = ([_bash(), path] if script.endswith(".sh")
            else [sys.executable, path]) + list(args)
     try:
         return subprocess.call(cmd)

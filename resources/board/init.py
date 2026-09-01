@@ -326,11 +326,35 @@ def ensure(board):
     return planlib.serve_url(board)
 
 
+def _bash():
+    """A bare "bash" on Windows can resolve to the WSL launcher stub under
+    WindowsApps — a reparse-point shim that always re-execs into a WSL
+    distro regardless of PATH order — and that stub fails with
+    `execvpe(/bin/bash) failed` outside any installed distro. Prefer a real
+    Git for Windows bash when one is findable; unchanged everywhere else."""
+    if os.name != "nt":
+        return "bash"
+    override = os.environ.get("PEARDE_BASH")
+    if override and os.path.isfile(override):
+        return override
+    clean_path = os.pathsep.join(
+        p for p in os.environ.get("PATH", "").split(os.pathsep)
+        if "WindowsApps" not in p)
+    found = shutil.which("bash", path=clean_path)
+    if found:
+        return found
+    for candidate in (r"C:\Program Files\Git\bin\bash.exe",
+                       r"C:\Program Files\Git\usr\bin\bash.exe"):
+        if os.path.isfile(candidate):
+            return candidate
+    return "bash"
+
+
 def doctor(d):
     """Step 6: one report, every line printed. Its exit code is its own —
     a broken row is a line the reader now has, not a reason to stop."""
     sys.stdout.flush()
-    subprocess.call(["bash", DOCTOR, d])
+    subprocess.call([_bash(), DOCTOR, d])
 
 
 def cmd_init(argv):
