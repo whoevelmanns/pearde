@@ -76,9 +76,10 @@ def append_section(path, heading, text):
     body = open(path, encoding="utf-8").read().rstrip("\n")
     mark = f"## {heading}"
     block = text.strip()
-    if mark in body:
+    m = re.search(r"(?m)^" + re.escape(mark) + r"\s*$", body)
+    if m:
         # into the existing section, at its end: answers accumulate in order
-        i = body.index(mark)
+        i = m.start()
         j = body.find("\n## ", i + 1)
         head, mid, tail = ((body[:i], body[i:j], body[j:]) if j > 0
                            else (body[:i], body[i:], ""))

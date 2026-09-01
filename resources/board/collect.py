@@ -789,7 +789,8 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
         root = planlib.repo_root(ap)
         if not root:
             raise Stop(f"--also {a}: not inside a git repo")
-        groups.setdefault(root, set()).add(os.path.relpath(ap, root))
+        groups.setdefault(root, set()).add(
+            os.path.relpath(ap, root).replace(os.sep, "/"))
     widen = set()
     for w in opts["widen"]:
         wp = os.path.abspath(w) if os.path.isabs(w) else \
@@ -868,7 +869,7 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
         p = {"union": union, "add": [], "partial": {}, "inherited": [],
              "stop": [], "riders": [], "widened": []}
         for path, kind in sorted(dirty_paths(root).items()):
-            full = os.path.join(root, path)
+            full = os.path.normpath(os.path.join(root, path))
             if root == board_root and scratch(path, board_rel):
                 continue           # the board's own dotfiles — never anyone's
             if full in widen:
