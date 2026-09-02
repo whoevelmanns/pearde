@@ -769,6 +769,19 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
             p = f
         else:
             continue
+        # A footprint written as an absolute path (rather than relative to
+        # `repo`) is silently unmatchable further down: `dirty_paths` and
+        # `git ls-files` both speak repo-relative, forward-slash paths, and
+        # `inside()` is a plain string compare — an absolute entry then
+        # equals nothing `git status` reports and the file reads as
+        # untouched dirt from before this claim ("inherited"), not this
+        # PRD's own work, with no error anywhere. Normalized here, once,
+        # before any of that runs.
+        if os.path.isabs(p):
+            try:
+                p = os.path.relpath(p, repo).replace(os.sep, "/")
+            except ValueError:
+                pass  # different drive than `repo` — left absolute, caught below
         # a footprint path `repo_of` filed under a repo that does not hold
         # it at all is the exact silent drop this replaces: `collect` must
         # not write `done` over code it never found — refused loudly here,

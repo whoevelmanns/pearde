@@ -701,16 +701,31 @@ def specced(board, args, persona):
             lib.get(workflow, {}).get("kind") != "workflow":
         raise Refused(f"--workflow `{workflow}` names no workflow in the "
                       "library")
+    # A route on stdin is drafted first: a spec naming the very slug this
+    # call is about to create would otherwise refuse in `read_specs` below,
+    # against a library that does not hold it yet — draft, then re-scan the
+    # library before validating the specs against it.
+    written = []
+    if route is not None:
+        report = sys.stdin.read() if route == "-" else \
+            open(route, encoding="utf-8").read()
+        written = draft_route(board, workflow, report, prd["title"],
+                              datetime.date.today().isoformat())
+        lib = library(board, prd)
     total, count, bad, warn, feet, spec_wfs = read_specs(prd, lib)
     for w in warn:
         print(f"warn: {w}", file=sys.stderr)
     if bad:
+        for p in written:
+            os.remove(p)
         raise Refused("\n".join(bad))
     lim = limits(prd["board_path"])
     over = [f"over {k}: {n} > {lim[k]} — REFINE it"
             for k, n in (("split-above", total), ("specs-above", count))
             if n > lim[k]]
     if over:
+        for p in written:
+            os.remove(p)
         raise Refused("\n".join(over))
     # A route the analyst already wrote down survives the transition: with no
     # `--workflow` named and none on the PRD, a spec's own `workflow:` is
@@ -726,12 +741,6 @@ def specced(board, args, persona):
             print(f"note: {len(seen)} specs name different workflows — "
                   f"{', '.join(seen)} — none written to the PRD; pass "
                   "--workflow <slug> to set one", file=sys.stderr)
-    written = []
-    if route is not None:
-        report = sys.stdin.read() if route == "-" else \
-            open(route, encoding="utf-8").read()
-        written = draft_route(board, workflow, report, prd["title"],
-                              datetime.date.today().isoformat())
     if check:
         for p in written:
             os.remove(p)
