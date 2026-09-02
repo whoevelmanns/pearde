@@ -22,6 +22,17 @@ import os
 import re
 import sys
 
+try:
+    # Windows' console codepage (cp1252 on a German system) is not UTF-8 —
+    # left alone, printing a workflow's arrow "→" (atomic step tables, `brief`)
+    # crashes with UnicodeEncodeError instead of printing. Same fix as
+    # pearde.py and jira_sync.py.
+    sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import memos  # noqa: E402
