@@ -22,7 +22,23 @@ from pathlib import Path
 # --- paths -----------------------------------------------------------------
 
 def default_root():
-    return Path(__file__).resolve().parent.parent / ".pearde" / "wiki"
+    """The current board's wiki/ — cwd walked up for `.pearde/`, same
+    convention as plan.py's find_board(). `__file__`-relative pointed at the
+    skill's own install directory instead of whatever board a command
+    actually runs against, since this file is installed once and shared
+    across every board rather than copied per repo — the silent cause of a
+    `remember`/`enqueue` landing in the wrong board's `.pearde/` root instead
+    of under its `wiki/`. `--root` still overrides for any other board."""
+    d = Path.cwd()
+    while True:
+        candidate = d / ".pearde"
+        if candidate.is_dir():
+            return candidate / "wiki"
+        if d.parent == d:
+            print("knowledge.py: no .pearde/ board found walking up from "
+                  "the cwd — pass --root <path>/wiki", file=sys.stderr)
+            sys.exit(2)
+        d = d.parent
 
 
 class Store:
