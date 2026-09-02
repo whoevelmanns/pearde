@@ -70,6 +70,22 @@ beside `.plan.json`.
 | `done` | advance toward "Done"'s display name (`Fertig` here) |
 | `failed` | advance toward "Reopened"'s display name (`Erneut geöffnet` here); always comments the failure reason |
 
+`analyzing`, `specced`, `claimed` and `done` each read a per-board override
+first — `jira-analyzing-status` / `jira-specced-status` / `jira-claimed-status`
+/ `jira-done-status` in `settings.md` — falling back to the display names
+above when unset. `done`'s `jira-done-status` predates the other three (a
+board with a manual QA phase before its real done, e.g. Chordino's `Test`);
+the other three generalize the same mechanism for a board whose Jira project
+runs a workflow with none of the dev-pipeline status names at all — an ITSM
+board (first seen 2026-09-02) has only `Offen`/`In Arbeit`/`Erledigt`/
+`Geschlossen`/`Erneut geöffnet`, so `analyzing`/`specced`/`claimed` all point
+at `In Arbeit` (that workflow draws no finer line between them) and `done` at
+`Erledigt` (resolved, not `Geschlossen` — closed after reporter confirmation,
+a step past what pearde's own `done` means). `open`, `refine`, `question` and
+`blocked` are not overridable this way — the first is a fixed no-force rule,
+the other three pause into whichever `… on hold` status the current phase
+offers, not a single fixed name.
+
 "Advance the graph toward X" is a breadth-first search from the issue's
 **current** status to the target's display name, executed one live
 transition per hop — never a single hardcoded transition id, because the
@@ -184,15 +200,29 @@ optionalen, additiven Settings-Key `jira-projects` (Liste oder
 Komma-Scalar). Letzterer deckt das Henne-Ei-Problem ab: ein komplett neues
 Projekt importieren, bevor überhaupt eine PRD mit dessen Präfix existiert.
 
-**"Bereit, nicht begonnen"** (`selected_status_name(board)`): exakter
-Namensabgleich gegen `fields.status.name`, Default `"Selected"`,
-konfigurierbar über `jira-selected-status`. **Nicht** `statusCategory` — bei
-diesem Jira-Setup (live gegen `/rest/api/3/project/{AB,HAMA}/statuses`
-geprüft) trägt `statusCategory: new` neben `Selected` auch `Offen`
-(Backlog), jedes `… on hold` und jedes `… done`-Zwischenstand
-(`Preparing Done`, `Testing done`, …) sowie `Erneut geöffnet` —
-`statusCategory` unterscheidet in diesem Workflow nicht zuverlässig
-"bereit, nicht begonnen" von anderen new-artigen Zuständen.
+**Scope des Scans** (`backlog_status_name(board)`, bis 2026-09-02
+`selected_status_name`): ein Ticket zählt, wenn es weder
+`backlog_status_name(board)` ist (exakter Namensabgleich gegen
+`fields.status.name`, Default `"Offen"`, konfigurierbar über
+`jira-backlog-status`) noch in der Jira-**Status-Kategorie** `done` steht
+(`fields.status.statusCategory.key`, direkt vom API-Response gelesen, nie
+per JQL-Klausel — die *Anzeigenamen* der Kategorien sind auf dieser Jira-
+Instanz lokalisiert/Deutsch, der strukturelle `key` aber nicht, daher
+zuverlässig unabhängig von Locale). Bewusst **nicht** ein exakter
+Namensabgleich gegen einen einzelnen "bereit"-Status mehr (das war der
+Stand bis 2026-09-02, Default `"Selected"` über `jira-selected-status`) —
+ein Ticket, das jemand von Hand in Jira weiter geschoben hat (z. B. nach
+`Vorbereitung`), ohne dass je eine PRD dafür entstand, ist keine geringere
+Lücke als eines, das noch bei `Offen`/`Selected` steht; der alte exakte
+Abgleich fing genau diesen Fall nicht (gefunden 2026-09-02 an HAMA-1395,
+seit Monaten unverfolgt, weil `Vorbereitung` ≠ `Selected`). `statusCategory`
+selbst bleibt für die **Backlog**-Grenze weiterhin ungeeignet — bei diesem
+Jira-Setup (live gegen `/rest/api/3/project/{AB,HAMA}/statuses` geprüft)
+trägt `statusCategory: new` neben `Offen`/`Selected` auch jedes `… on hold`
+und jedes `… done`-Zwischenstand (`Preparing Done`, `Testing done`, …)
+sowie `Erneut geöffnet` — deshalb bleibt `Offen` ein expliziter
+Namensabgleich, nur die **Done**-Grenze (verlässlich als eigene Kategorie,
+siehe oben) nutzt jetzt `statusCategory`.
 
 **Zuordnung Ticket → bestehende PRD** (`has_existing_prd`/`_prd_for_key`):
 primär derselbe `<PROJECT>-<number>`-Präfix-Abgleich wie `issue_key()`, nur

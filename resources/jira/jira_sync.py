@@ -72,17 +72,32 @@ STATE_TARGET = {
 ALWAYS_COMMENT = {"refine", "question", "blocked", "failed"}
 
 
+# One override key per overridable state, `jira-<state>-status` in
+# settings.md — `done`'s `jira-done-status` predates the rest and keeps its
+# original name rather than gaining a `jira-done-status` alias.
+STATE_TARGET_OVERRIDE_KEY = {
+    "analyzing": "jira-analyzing-status",
+    "specced": "jira-specced-status",
+    "claimed": "jira-claimed-status",
+    "done": "jira-done-status",
+}
+
+
 def state_target(board, state):
-    """STATE_TARGET.get(state), with a per-board override for `done` via
-    `jira-done-status` in prds/settings.md — STATE_TARGET is a global
-    constant shared by every board this skill runs on, so changing it
-    outright would retarget `done` for every other board too (e.g. a board
-    whose workflow still expects "Fertig"). A board that inserts a manual
-    QA phase before its real "done" status (here: Chordino's `Test`, done
-    2026-08-28) sets this instead of editing the constant. Same pattern as
-    `selected_status_name()` above."""
-    if state == "done":
-        v = planlib.board_settings(board).get("jira-done-status")
+    """STATE_TARGET.get(state), with a per-board override via
+    `jira-<state>-status` in settings.md — STATE_TARGET is a global constant
+    shared by every board this skill runs on, so changing it outright would
+    retarget that state for every other board too (e.g. a board whose
+    workflow still expects "Fertig"). A board whose Jira project runs a
+    workflow with none of the dev-pipeline status names at all (an ITSM
+    board with only Offen/In Arbeit/Erledigt/Geschlossen, first seen
+    2026-09-02: `analyzing`/`specced`/`claimed` all map to "In Arbeit" there
+    since that workflow draws no finer line between them) sets these instead
+    of editing the constant — same pattern as `selected_status_name()`
+    above, generalized from `done`'s original `jira-done-status`."""
+    key = STATE_TARGET_OVERRIDE_KEY.get(state)
+    if key:
+        v = planlib.board_settings(board).get(key)
         if isinstance(v, list):
             v = v[0] if v else None
         v = str(v).strip() if v else ""
@@ -434,7 +449,16 @@ def drift(board):
     """Print one line per tracked PRD whose live Jira status no longer
     matches what its pearde `state` expects. Silent when clean, like
     memos.py check. Never changes a PRD's state — a report only, see
-    README.md."""
+    README.md.
+
+    A live status the graph reaches by walking *forward* from the target
+    (not the target itself, but reachable from it) is not reported either:
+    the ticket progressed past what pearde's own state machine tracks —
+    e.g. `done` targets "Test" via `jira-done-status`, and a human later
+    moves the ticket on to "Fertig" once real-world testing/deploy is done.
+    That is exactly what `jira-done-status` is for, not a mismatch worth a
+    human's look. Only a status neither equal to nor reachable from the
+    target — off to the side, or behind — is real drift."""
     e = env(board)
     if e is None:
         print("jira_sync: JIRA_BASE_URL/JIRA_EMAIL/JIRA_API_TOKEN not set — skipped",
@@ -443,6 +467,7 @@ def drift(board):
     base_url, email, token = e
     auth = (email, token)
     prds = planlib.scan(board)
+    graphs = {}
     for rel in sorted(prds):
         p = prds[rel]
         state = p["state"]
@@ -456,6 +481,12 @@ def drift(board):
             continue
         live = current_status(base_url, auth, key)
         if live is None or live == target:
+            continue
+        project = key.split("-")[0]
+        if project not in graphs:
+            graphs[project] = load_graph(board, base_url, auth, project)
+        graph = graphs[project]
+        if graph and shortest_path(graph, target, live) is not None:
             continue
         print(f'jira_sync: drift {rel} ({key}): state {state} expects '
               f'"{target}", Jira has "{live}"')
@@ -489,17 +520,17 @@ def configured_projects(board):
     return sorted(projects)
 
 
-def selected_status_name(board):
-    """The Jira status name that means "ready, not started" for this board's
-    import scan — exact name match, not statusCategory (see PRD-body: this
-    Jira setup's statusCategory=new also covers Offen, every "... on hold"
-    and every "... done" intermediate, so it cannot tell them apart).
-    Configurable via `jira-selected-status`, default "Selected"."""
-    v = planlib.board_settings(board).get("jira-selected-status")
+def backlog_status_name(board):
+    """The Jira status name that means "not yet ready to start" for this
+    board's import scan — the one status excluded from it, exact name
+    match. Configurable via `jira-backlog-status`, default "Offen" (the
+    same name STATE_TARGET["open"] targets everywhere in this file — one
+    site-wide assumption, not a new one)."""
+    v = planlib.board_settings(board).get("jira-backlog-status")
     if isinstance(v, list):
         v = v[0] if v else None
     v = str(v).strip() if v else ""
-    return v or "Selected"
+    return v or "Offen"
 
 
 def _prd_for_key(prds, key):
@@ -579,10 +610,22 @@ def _search_jql(base_url, auth, jql, fields):
 
 
 def import_new(board):
-    """Print one block per Jira ticket that is `selected_status_name()` and
-    assigned to JIRA_EMAIL's user, but has no PRD on this board yet. Never
-    writes under prds/ — see module note above. Silent when nothing is
-    found, like drift()."""
+    """Print one block per Jira ticket assigned to JIRA_EMAIL's user that
+    has no PRD on this board yet and is neither `backlog_status_name()`
+    (not ready to start) nor in the Jira-native "Done" status category —
+    everything in between, ready or further along, is a gap worth a human's
+    look: a ticket a person pushed past "ready" directly in Jira, with no
+    PRD ever tracking it, is not less of a gap than one still sitting at
+    "ready" (found 2026-09-02: HAMA-1395 sat at "Vorbereitung" — one step
+    past the old exact-match filter's "Selected" — for months, invisible to
+    this scan, until asked about directly). The `statusCategory.key` field
+    on each returned issue is used for the Done check, not a JQL
+    `statusCategory` clause — this Jira site's category *display* names are
+    localized (German), and the JQL clause's matching against a localized
+    instance is untested; the structural `key` returned per-issue
+    ("new"/"indeterminate"/"done") is not localized and always reliable.
+    Never writes under prds/ — see module note above. Silent when nothing
+    is found, like drift()."""
     e = env(board)
     if e is None:
         print("jira_sync: JIRA_BASE_URL/JIRA_EMAIL/JIRA_API_TOKEN not set — skipped",
@@ -592,17 +635,21 @@ def import_new(board):
     auth = (email, token)
     prds = planlib.scan(board)
     projects = configured_projects(board)
-    selected = selected_status_name(board)
+    backlog = backlog_status_name(board)
     found = []
     for project in projects:
-        jql = (f'project = "{project}" AND status = "{selected}" '
-               f'AND assignee = currentUser() ORDER BY key')
+        jql = f'project = "{project}" AND assignee = currentUser() ORDER BY key'
         for issue in _search_jql(base_url, auth, jql,
-                                  "summary,description,parent"):
+                                  "summary,description,parent,status"):
             key = issue.get("key")
             if not key or _prd_for_key(prds, key) is not None:
                 continue
             fields = issue.get("fields", {}) or {}
+            status = fields.get("status") or {}
+            if status.get("name") == backlog:
+                continue
+            if (status.get("statusCategory") or {}).get("key") == "done":
+                continue
             summary = fields.get("summary", "") or ""
             desc = adf_to_text(fields.get("description") or {})[:300] or "(none)"
             parent = fields.get("parent") or {}
