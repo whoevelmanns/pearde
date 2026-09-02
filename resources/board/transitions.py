@@ -628,9 +628,17 @@ def from_template(title, priority, body):
                  "priority": str(priority)}[m.group(1)]
             line = f"{m.group(1)}: {v}{m.group(3) or ''}\n"
         out.append(line)
-    tail = re.sub(r"(?m)^# <Title[^\n]*$", "# " + title, tail, count=1)
+    # A lambda replacement, not a raw string: title/body often carry a
+    # Windows path (e.g. a child PRD's contract naming C:\Intellij\...) and
+    # re.sub's string-replacement form treats backslashes in it as escape
+    # sequences (\I is not a valid one -> re.PatternError: bad escape \I),
+    # crashing `refine` outright. A callable's return value is inserted
+    # verbatim, no escape processing.
+    tail = re.sub(r"(?m)^# <Title[^\n]*$", lambda _m: "# " + title, tail,
+                   count=1)
     if body.strip():
-        tail = PLACEHOLDER_RE.sub(body.strip() + "\n", tail, count=1)
+        tail = PLACEHOLDER_RE.sub(lambda _m: body.strip() + "\n", tail,
+                                   count=1)
     return head + "".join(out) + tail
 
 
