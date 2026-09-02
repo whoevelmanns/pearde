@@ -36,6 +36,11 @@ import subprocess
 import sys
 
 try:
+    # Windows' console codepage (cp1252 on a German system) is not UTF-8 —
+    # left alone, a piped `--route -`/`--body -` reads a UTF-8 heredoc's
+    # bytes as cp1252 and mis-decodes every non-ASCII character (e.g. the
+    # workflow arrow "→" becomes "â†’"), which `workflow check` then refuses.
+    sys.stdin.reconfigure(encoding="utf-8", errors="replace")
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
