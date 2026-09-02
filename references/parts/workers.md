@@ -25,6 +25,16 @@ Rules for every worker:
 
 - Never edit frontmatter, never touch other PRDs, never write outside the PRD
   folder. Implementers also write the target repo.
+- **Never `git commit`, in the board repo or the target repo.** Commits.md's
+  whole scope rule (footprint by hunk, inherited paths left alone, one
+  commit per repo) is the orchestrator's to apply on the transition that
+  lands the work — a worker committing mid-run pre-empts that on a footprint
+  the orchestrator hasn't verified yet, and (seen twice, 2026-09-02, on
+  otherwise-clean CHAT-37 and portal-nicht-erreichbar-0955 runs) leaves the
+  next `collect` treating the worker's own edits as "inherited, not added"
+  — a later orchestrator fix to the same file then needs its own commit or
+  is silently never landed. Leave the tree dirty; the report is the handoff,
+  not a commit.
 - Open the brief with one line naming the worker's persona — `Work as
   @references/personas/<id>.md.` — read off this table, never asked, and it
   moves nothing about the session's own. This table is the whole of it: a
@@ -57,7 +67,11 @@ Rules for every worker:
 <!-- brief:every -->
 > Write in `<language>`, per @references/language.md. Never edit frontmatter,
 > never touch another PRD, never write outside `.pearde/prds/<prd>/` and the
-> footprint. A defect outside your scope goes in the report, not into a fix.
+> footprint. **Never run `git commit`** — in this board repo or the target
+> repo — however finished the work feels; the orchestrator commits, on the
+> transition that lands it, once it has read your report. Leave every
+> changed file exactly as your edits left it, uncommitted. A defect outside
+> your scope goes in the report, not into a fix.
 > A fact learned outside this repo — the web, a library this tree does not
 > hold — is written back with `python3 resources/knowledge.py remember`
 > (`conclude` once two sources agree), never left standing only in this
