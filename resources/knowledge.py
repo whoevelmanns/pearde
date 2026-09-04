@@ -17,6 +17,15 @@ import hashlib
 import json
 import re
 import sys
+
+# win: a cp1252 console cannot encode the glyphs the board files carry
+# (the "->" arrow of a workflow table, every umlaut of a German PRD), and
+# the output dies on UnicodeEncodeError. Force UTF-8 out.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 from pathlib import Path
 
 # --- paths -----------------------------------------------------------------

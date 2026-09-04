@@ -30,6 +30,15 @@ import os
 import re
 import sys
 
+# win: a cp1252 console cannot encode the glyphs the board files carry
+# (the "->" arrow of a workflow table, every umlaut of a German PRD), and
+# the output dies on UnicodeEncodeError. Force UTF-8 out.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 # `## Questions`, `## Questions — from the analyst pass`, `## Questions for
 # the human`. The suffix is the round's own label and is never the contract.
 Q_RE = re.compile(r"^##\s+Questions\b", re.M)
