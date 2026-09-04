@@ -6,10 +6,10 @@ resources/board/state/
 .gstack/
 .obsidian/
 
-# this repo tracks its own prds/ board directly (unlike a board split out
-# into its own local-only repo) -- override the machine-wide `prds/`
-# ignore in ~/.gitignore_global, which exists for that other case
-!prds/
+# this repo tracks its own board directly (unlike a board split out into
+# its own local-only repo) -- override the machine-wide `prds/` ignore in
+# ~/.gitignore_global, which exists for that other case
+!.pearde/prds/
 
 
 # third-party bundles, fetched by `pearde install --apply` and pinned there.
@@ -18,8 +18,10 @@ resources/board/obsidian/plugins/*/main.js
 resources/board/obsidian/plugins/*/manifest.json
 resources/board/obsidian/plugins/*/styles.css
 
-# machine-local per board — regenerable
-.pearde/
+# machine-local per board — regenerable. The board itself is tracked here:
+# .pearde/prds/, .pearde/memos/, settings.md and vision.md are the record.
+.pearde/.state/
+.pearde/wiki/
 
 # one-off session measurements, kept beside the work they explain
 /report.md

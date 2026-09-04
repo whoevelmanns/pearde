@@ -82,11 +82,17 @@ def keywords():
     return out
 
 
+# The board directory, board-relative — the same constant @resources/guard.py
+# carries, duplicated for the same reason it gives: the index imports nothing
+# from the board.
+BOARD_DIR = ".pearde"
+
+
 def board(path):
-    """A board file, not a skill file. `prds/` addresses a board — the index
+    """A board file, not a skill file. `.pearde/` addresses a board — the index
     maps this skill, so a board that happens to sit at the skill root gets no
     rows and is not missing any."""
-    return path == "prds" or path.startswith("prds/")
+    return path == BOARD_DIR or path.startswith(BOARD_DIR + "/")
 
 
 def tracked():
