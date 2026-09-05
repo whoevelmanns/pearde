@@ -674,21 +674,7 @@ def import_new(board):
 
 
 def find_board(arg):
-    if arg:
-        p = os.path.abspath(arg)
-        if os.path.basename(p) == "prds" and os.path.isdir(p):
-            return p
-        if os.path.isdir(os.path.join(p, "prds")):
-            return os.path.join(p, "prds")
-        sys.exit(f"jira_sync: no prds/ board at {arg}")
-    d = os.getcwd()
-    while True:
-        if os.path.isdir(os.path.join(d, "prds")):
-            return os.path.join(d, "prds")
-        nxt = os.path.dirname(d)
-        if nxt == d:
-            sys.exit("jira_sync: no prds/ board found walking up from the cwd")
-        d = nxt
+    return planlib.find_board(arg)
 
 
 def main(argv):
