@@ -3,12 +3,15 @@
 
 This repo has a PRD board at `.pearde/`.
 
-The skill itself lives at `<PEARDE>` — an absolute path, written in when this
-block was installed. Every `@<path>` below is relative to *that* folder and
-never to this repo.
+The skill itself lives at `<PEARDE>` — an absolute path if this file is
+machine-local, or a portable form (`%USERPROFILE%\.claude\skills\pearde` on
+Windows, `$HOME/.claude/skills/pearde` on POSIX) resolved against the machine
+this session is running on if this file is tracked in git and read on more
+than one machine, per @references/install.md. Every `@<path>` below is
+relative to *that* folder and never to this repo.
 
 On "pearde", "work the board", "run the prds", or "pearde status": read
-`<PEARDE>/README.md` and follow it exactly.
+`<PEARDE>/README.md` (resolved as above) and follow it exactly.
 
 `@<path>` is one file in the skill. `@@<keyword>` is a scope, listed in
 `@index.md`. Read the one file that answers the question in front of you —

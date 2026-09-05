@@ -123,6 +123,18 @@ stop at the first that is true.
      relative `@references/...` resolves against *that* tree — silently, into
      a file that is not ours or into nothing at all. The placeholder is there
      to stop exactly that.
+   - **A literal path is a bug when the target file is tracked in git and
+     read on more than one machine.** A user account name can differ per
+     machine (`C:\Users\Werner` on one box, `C:\Users\werne` on another for
+     the same person) even when both point at the same skills checkout by a
+     different route. Baking in one machine's resolved path breaks the block
+     on every other machine that reads the same committed file. Write the
+     portable form instead — `%USERPROFILE%\.claude\skills\pearde` on
+     Windows, `$HOME/.claude/skills/pearde` on POSIX — and say in the
+     sentence around it that the variable is resolved against *the machine
+     the session is running on*, never a name baked in at install time. Use
+     the fully-resolved literal only when the target file itself is
+     machine-local (gitignored, or outside a repo).
 4. **Neither.** Nothing is broken. Every skill reads where it lies — point
    yourself at `skills/<name>.md` and its `references/` and you have the whole
    system. That is a complete install, it is just one you do by hand each

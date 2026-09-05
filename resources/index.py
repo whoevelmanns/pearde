@@ -124,7 +124,10 @@ def tracked():
         for n in names:
             if n in SKIP_NAMES:
                 continue
-            rel = os.path.relpath(os.path.join(base, n), ROOT)
+            # git ls-files always answers in "/" — this fallback must match
+            # it, or every row on Windows (os.path.relpath there answers in
+            # "\") looks unlisted and every listed row looks missing.
+            rel = os.path.relpath(os.path.join(base, n), ROOT).replace(os.sep, "/")
             if not board(rel):
                 found.append(rel)
     return found
