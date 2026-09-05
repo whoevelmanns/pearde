@@ -264,7 +264,12 @@ else
   # A throwaway state dir: without one this probe writes a session file into
   # resources/board/state/guard/ on every doctor run, so the check that asks
   # whether the guard is wired litters the repo it is checking.
-  probe=$(echo '{"tool_name":"Bash","tool_input":{"command":"find prds -name prd.md"},"cwd":"'"$(dirname "$GSET")"'"}' \
+  # The cwd is interpolated into JSON, and on Windows $GSET carries
+  # backslashes — `\U` is no JSON escape, so an unescaped path makes the probe
+  # unparseable, the guard answers nothing, and this row reads `broken` on a
+  # guard that works. Doubling them is the whole fix.
+  gcwd=$(dirname "$GSET"); gcwd=${gcwd//\/\\}
+  probe=$(echo '{"tool_name":"Bash","tool_input":{"command":"find prds -name prd.md"},"cwd":"'"$gcwd"'"}' \
           | PEARDE_GUARD_STATE="$(mktemp -d)" python3 "$DIR/guard.py" pre 2>/dev/null)
   if ! printf '%s' "$probe" | grep -q '"deny"'; then
     row guard broken "$DIR/guard.py does not refuse a hand-walked board"

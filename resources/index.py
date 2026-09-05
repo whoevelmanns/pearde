@@ -33,6 +33,15 @@ import re
 import subprocess
 import sys
 
+# win: a cp1252 console cannot encode the glyphs the board files carry
+# (the "->" arrow of a workflow table, every umlaut of a German PRD), and
+# the output dies on UnicodeEncodeError. Force UTF-8 out.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INDEX = os.path.join(ROOT, "index.md")            # the scopes
 FILES = os.path.join(ROOT, "references", "files.md")  # the manifest
@@ -82,11 +91,17 @@ def keywords():
     return out
 
 
+# The board directory, board-relative — the same constant @resources/guard.py
+# carries, duplicated for the same reason it gives: the index imports nothing
+# from the board.
+BOARD_DIR = ".pearde"
+
+
 def board(path):
-    """A board file, not a skill file. `prds/` addresses a board — the index
+    """A board file, not a skill file. `.pearde/` addresses a board — the index
     maps this skill, so a board that happens to sit at the skill root gets no
     rows and is not missing any."""
-    return path == "prds" or path.startswith("prds/")
+    return path == BOARD_DIR or path.startswith(BOARD_DIR + "/")
 
 
 def tracked():
