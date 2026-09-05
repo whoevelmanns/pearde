@@ -267,10 +267,10 @@ def run(cmd, cwd, script=None):
         cmd = [_bash(), *cmd[1:]]
     try:
         r = subprocess.run(cmd, cwd=cwd, input=script, capture_output=True,
-                           text=True)
+                           text=True, encoding="utf-8", errors="replace")
     except OSError as e:
         return 127, str(e)
-    return r.returncode, r.stdout + r.stderr
+    return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
 # ── the private index ─────────────────────────────────────────────────────────
