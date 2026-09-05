@@ -117,7 +117,15 @@ before either is kept, refusing the whole call with nothing written on red.
 **6 · Collect.** Results are pushed, never polled: a finished analyst refills
 the pipeline, a finished implementer frees a slot. What a worker returns is
 one line naming its verdict and its report file — @references/parts/workers.md.
-Act on the line. Open `.pearde/prds/<prd>/report.md` only for what the line does not
+Act on the line. **A "completed" push is not proof the process exited** —
+seen 2026-09-05 (Chordino): three dispatched workers had already returned
+their final verdict, in one case over an hour earlier, yet `ListAgents`
+still showed them running and `TaskStop` on each returned a real kill, not
+a no-op — they had kept burning tokens after their report was already acted
+on, entangled with the `report.md`-filename Write-tool block some of them
+hit. After acting on a worker's returned line, check `ListAgents` for that
+agent once; if it still shows `running`, `TaskStop` it. Cheap, and the
+alternative is a silent token leak with no notification to catch it. Open `.pearde/prds/<prd>/report.md` only for what the line does not
 carry and the transition needs, and never for what a command already parses:
 a report read whole is in the window for the rest of the session. The
 report's verdict maps to a command in @references/parts/workers.md — SPECCED → `pearde specced`,
