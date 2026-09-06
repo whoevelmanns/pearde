@@ -602,7 +602,20 @@ def cmd_add(board, args, persona):
         priority = int(args.opt.get("priority") or 0)
     except ValueError:
         raise Refused("add: --priority takes an integer")
-    body = sys.stdin.read() if args.opt.get("body") == "-" else ""
+    body_opt = args.opt.get("body")
+    # Only `-` (stdin) is accepted, never an inline string: stdin is the one
+    # path already hardened for Windows' non-UTF-8 console codepage (see the
+    # reconfigure in __main__ below) and for shell-quoting a multi-line body.
+    # A caller who does not know this convention and passes literal text --
+    # `--body "$(cat file)"` is the natural first guess -- used to have it
+    # silently discarded (body written as "", no warning, exit 0): every
+    # `add --body <text>` this session wrote produced a PRD with the title
+    # set and the template placeholder left as the body. Refuse instead.
+    if body_opt is not None and body_opt != "-":
+        raise Refused("add: --body only accepts `-` (read from stdin) — "
+                       "pipe the text in, e.g. `cat file | pearde add "
+                       '"<title>" --body -`')
+    body = sys.stdin.read() if body_opt == "-" else ""
     add(board, " ".join(args.pos), persona, priority, body,
         args.opt.get("parent"), dry=args.dry)
     return 0
