@@ -175,6 +175,12 @@ def current_status(base_url, auth, key):
     return d["fields"]["status"]["name"] if d else None
 
 
+def current_issue_type_id(base_url, auth, key):
+    d = _request("GET", base_url, auth,
+                 f"/rest/api/3/issue/{key}?fields=issuetype")
+    return d["fields"]["issuetype"]["id"] if d else None
+
+
 def live_transitions(base_url, auth, key):
     """[(id, to_name, action_name), ...] from the issue's CURRENT status."""
     d = _request("GET", base_url, auth, f"/rest/api/3/issue/{key}/transitions")
@@ -197,11 +203,12 @@ def add_comment(base_url, auth, key, text):
 
 # ── workflow graph discovery ────────────────────────────────────────────────
 
-def _graph_path(board, project):
-    return os.path.join(board, f".jira-graph-{project}.json")
+def _graph_path(board, project, issue_type_id=None):
+    suffix = f"-type{issue_type_id}" if issue_type_id else ""
+    return os.path.join(board, f".jira-graph-{project}{suffix}.json")
 
 
-def discover_graph(base_url, auth, project):
+def discover_graph(base_url, auth, project, issue_type_id=None):
     """Read the project's real workflow off the API and return
     {status_display_name: [reachable_status_display_name, ...]}.
 
@@ -212,7 +219,21 @@ def discover_graph(base_url, auth, project):
     renamed form is what an issue's `fields.status.name` and a transition's
     `to.name` report at sync time. `/project/{key}/statuses` is keyed by the
     same status ids and carries that display name, so it — not the workflow
-    definition — is the id -> name table the graph is built with."""
+    definition — is the id -> name table the graph is built with.
+
+    `issue_type_id`, when given, is checked against the project's workflow
+    scheme `issueTypeMappings` instead of blindly taking the scheme's
+    `defaultWorkflow` — a scheme can map one issue type to a workflow other
+    than the default (found 2026-09-07: three ITSM tickets moved in via the
+    Jira Move wizard from another project kept that project's workflow —
+    "Ausstehend"/"Fortschritt starten"/"Als Fertig markieren" toward
+    Pending/Work in progress/Fertig — while the cached default-workflow
+    graph only knew Offen/In Arbeit/Erledigt. `sync` found no path for
+    *every* transition on those three tickets, not once — each call posted
+    a "no forward path" comment, because there never was a real mismatch to
+    fix, only the wrong graph being asked). No override for this type:
+    `defaultWorkflow`, same as before — the common case costs nothing
+    extra."""
     disp = _request("GET", base_url, auth, f"/rest/api/3/project/{project}/statuses")
     if not disp:
         return None
@@ -227,7 +248,10 @@ def discover_graph(base_url, auth, project):
     scheme = _request("GET", base_url, auth,
                        f"/rest/api/3/workflowscheme/project?projectId={proj['id']}")
     if scheme and scheme.get("values"):
-        wf_name = scheme["values"][0]["workflowScheme"]["defaultWorkflow"]
+        ws = scheme["values"][0]["workflowScheme"]
+        mappings = ws.get("issueTypeMappings") or {}
+        wf_name = (mappings.get(str(issue_type_id)) if issue_type_id else None) \
+            or ws["defaultWorkflow"]
         from urllib.parse import quote
         wf = _request("GET", base_url, auth,
                       f"/rest/api/3/workflow/search?workflowName={quote(wf_name)}"
@@ -297,14 +321,14 @@ def _discover_graph_nextgen(base_url, auth, project_id, id_to_name):
     return graph if found else None
 
 
-def load_graph(board, base_url, auth, project, refresh=False):
-    path = _graph_path(board, project)
+def load_graph(board, base_url, auth, project, issue_type_id=None, refresh=False):
+    path = _graph_path(board, project, issue_type_id)
     if not refresh and os.path.isfile(path):
         try:
             return json.load(open(path, encoding="utf-8"))
         except (OSError, ValueError):
             pass
-    graph = discover_graph(base_url, auth, project)
+    graph = discover_graph(base_url, auth, project, issue_type_id)
     if graph is None:
         return None
     try:
@@ -383,7 +407,8 @@ def sync(board, prd_dir_name, state, note=None):
               file=sys.stderr)
         return
     project = key.split("-")[0]
-    graph = load_graph(board, base_url, auth, project)
+    issue_type_id = current_issue_type_id(base_url, auth, key)
+    graph = load_graph(board, base_url, auth, project, issue_type_id)
 
     target = state_target(board, state)
     moved, reached, mismatch = [], True, False
