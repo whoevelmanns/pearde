@@ -438,15 +438,25 @@ def sync(board, prd_dir_name, state, note=None):
                 moved = [resume[1]]
     elif target:
         moved, reached = advance(base_url, auth, key, graph, target)
-        mismatch = not reached  # a real target we could not reach — flag it
+        mismatch = not reached  # a real target we could not reach
 
     # A plain transition (open/analyzing/specced/claimed/done) is already
     # self-documenting in Jira's own activity log — a comment repeating
     # "status changed" adds noise, not information. Comment only where the
-    # status change alone would not tell the story: a note was passed in, a
-    # question/blocker/refine/failure needs its reason on the ticket, or the
-    # graph could not get there and a human should know why not.
-    if note or state in ALWAYS_COMMENT or mismatch:
+    # status change alone would not tell the story: a note was passed in, or
+    # a question/blocker/refine/failure needs its reason on the ticket.
+    #
+    # A `mismatch` (no forward path to `target`) is deliberately NOT a
+    # comment trigger on its own — found 2026-09-07: across several ITSM
+    # tickets the project's workflow scheme maps different issue types to
+    # workflows with no status matching the board's configured target name
+    # at all ("In Arbeit" doesn't exist in every workflow this project
+    # uses), so the same accurate-but-unhelpful comment kept landing on
+    # ticket after ticket. The user asked not to see it in Jira at all —
+    # the mismatch is still visible locally (the line below, and `drift`),
+    # just never pushed to the ticket. If a `note` happens to be passed
+    # alongside a mismatch, it still carries the explanation (below).
+    if note or state in ALWAYS_COMMENT:
         label = f"pearde: state -> {state}"
         if note:
             label += f"\n\n{note}"
@@ -455,6 +465,10 @@ def sync(board, prd_dir_name, state, note=None):
         if mismatch:
             label += f"\n\n(no forward path to \"{target}\" from the current status — left unchanged)"
         add_comment(base_url, auth, key, label)
+    elif mismatch:
+        print(f"jira_sync: {key} {state}: no forward path to \"{target}\" "
+              "from the current status — left unchanged, not commented",
+              file=sys.stderr)
 
     where = " -> ".join(moved) if moved else "(unchanged)"
     print(f"jira_sync: {key} {state}: {where}")
