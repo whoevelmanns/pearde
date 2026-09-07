@@ -94,7 +94,18 @@ cached one. Already at the target: no-op. **No path found: nothing is
 forced.** Most workflows do not lead backward, and an issue found further
 along than pearde expected (worked directly in Jira, or simply ahead of
 where pearde's own state machine has caught up) is not this script's call to
-walk back — it comments what pearde tried and leaves the status alone.
+walk back — it prints what pearde tried to stderr and leaves the status
+alone, silently as far as Jira is concerned (see **Comments** below —
+2026-09-07: this stopped being a comment trigger).
+
+The graph itself is resolved **per issue type**, not just per project: a
+project's workflow scheme can map different issue types to different
+workflows (`issueTypeMappings`), and an issue on a mapped-override
+workflow graphed against the scheme's bare `defaultWorkflow` would find
+no path for a real, reachable target. `discover_graph`/`load_graph` check
+the issue's own type first; the common case (no override) still uses the
+plain per-project cache (`.jira-graph-<PROJECT>.json`), an override gets
+its own (`.jira-graph-<PROJECT>-type<ID>.json`).
 
 **Why `open` never targets a fixed status**, unlike every other row: a
 Kanban-style workflow's "ready to start" status (`Selected` here) is
@@ -116,10 +127,18 @@ is posted only when the status change alone would not tell the story:
 - `refine` / `question` / `blocked` / `failed` — always, carrying the
   reason/question/split text pearde already wrote into the PRD.
 - a `note` was passed to `sync` explicitly.
-- the graph search found no forward path — flags a real mismatch between
-  what pearde expected and where the issue actually is, worth a human's
-  look. (The `open` "already past backlog" case is excluded from this: see
-  above — that is the expected, common resting state, not a mismatch.)
+
+**Not** a comment trigger on its own: the graph search finding no forward
+path. It did flag a real mismatch worth a human's look, once — but on a
+project whose workflow scheme maps different issue types to genuinely
+different status sets, the same accurate-but-unhelpful comment landed on
+ticket after ticket, one flat board setting can't match every issue
+type's workflow, and a comment can't fix that (only `settings.md`, or
+accepting the ticket stays unmatched, can). Removed 2026-09-07 at the
+user's request: a mismatch is still visible locally (`sync`'s own stderr
+line, and `drift`), just never posted to the ticket. (The `open` "already
+past backlog" case was excluded from this even before — see above — that
+is the expected, common resting state, not a mismatch.)
 
 ## Calling it
 
