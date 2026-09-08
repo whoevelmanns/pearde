@@ -762,7 +762,7 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
     """{root: plan} — for each repo, what to add whole, what to add by hunk,
     what is inherited, what is inherited inside the footprint (the stop),
     what rides, what was widened."""
-    prd_rel = os.path.relpath(prd["dir"], board_root)
+    prd_rel = os.path.relpath(prd["dir"], board_root).replace(os.sep, "/")
     groups = {board_root: {prd_rel}}
     # `spec_data` qualifies a member PRD's footprint with its own member
     # sigil so two members' `src/lib.rs` never compare equal. Here the
@@ -820,7 +820,7 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
         widen.add(wp)
     base = baseline(board, rel)
     riders = owed(board)
-    board_rel = os.path.relpath(board, board_root)
+    board_rel = os.path.relpath(board, board_root).replace(os.sep, "/")
     # What another held PRD's footprint already claims, relative to the repo
     # the footprints are written against — only siblings whose code lives in
     # this run's `repo` can share a dirty path with it. A dirty path the
@@ -843,8 +843,8 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
                 claimed.append(f)
         if claimed:
             others[r] = claimed
-    held = [os.path.relpath(p["dir"], board_root) for r, p in prds.items()
-            if r != rel and p["state"] in HELD]
+    held = [os.path.relpath(p["dir"], board_root).replace(os.sep, "/")
+            for r, p in prds.items() if r != rel and p["state"] in HELD]
 
     def predates(root, p, kind):
         """The whole of this path's dirt is older than the claim."""
