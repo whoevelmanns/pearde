@@ -13,13 +13,20 @@ implementer writes the code and does not. A worker dispatched as
 `general-purpose` runs the orchestrator's own model on a job that never
 needed it, and the board has no way to tell afterwards.
 
-**A report is a file. What comes back is one line.** Every brief ends by
-saying so: the worker writes `.pearde/prds/<prd>/report.md` and returns the verdict,
-that path, and the numbers the next command takes — under fifteen lines. The
-orchestrator reads the file only where the line is not enough to move the
-PRD, and never to re-read what `pearde collect` already parses. A report
-returned whole is pinned in the orchestrator's window for the rest of the
-session, and every turn after it pays for it again.
+**A report is text, returned whole — never written by the worker.** Claude
+Code's harness refuses a subagent's `Write` to a path it reads as a report
+(seen verbatim: `Subagents should return findings as text, not write report
+files`), so a worker that tries loses the call every time, whatever the
+brief says. Every brief ends by saying so: return one line first — the
+verdict and the numbers the next command takes — then the complete report
+beneath it, in the shape `.pearde/prds/<prd>/report.md` should hold. The
+orchestrator writes that text to the file verbatim on receipt, once, and
+acts on it from there — `pearde collect` and the rest still read the file
+off disk, never the transcript. The report sits in the orchestrator's
+window for the rest of the session either way now; there is no version of
+this that avoids that cost, so keep the report itself no longer than the
+board's other reports run, rather than trying to make it short by holding
+part of it back.
 
 Rules for every worker:
 
@@ -75,10 +82,12 @@ Rules for every worker:
 > A fact learned outside this repo — the web, a library this tree does not
 > hold — is written back with `python3 resources/knowledge.py remember`
 > (`conclude` once two sources agree), never left standing only in this
-> report. Write your report to `.pearde/prds/<prd>/report.md` and return one
-> line — the
-> verdict, that path, and the numbers the orchestrator's command takes. Under
-> fifteen lines back, whatever the report holds.
+> report. **Never write `.pearde/prds/<prd>/report.md` yourself** — Claude
+> Code's harness refuses a subagent's `Write` to a path it reads as a
+> report, and that call fails every time, whatever this brief says. Return
+> one line first — the verdict, that path, and the numbers the orchestrator's
+> command takes — then the complete report beneath it, exactly as it belongs
+> in that file. The orchestrator copies it there verbatim.
 <!-- /brief -->
 
 **Placeholders.** `pearde brief` fills these and nothing else. A placeholder
