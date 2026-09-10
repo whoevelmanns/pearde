@@ -1021,6 +1021,28 @@ def save_map(mp, path):
     json.dump(mp, open(path, "w", encoding="utf-8"), indent=1, sort_keys=True)
 
 
+def jira_base_url(board):
+    """The Jira site this board's issue keys resolve on, or None — never the
+    email/token beside it in `.jira-credentials.json`, since this value (and
+    only this value) reaches the client-side view to build `.../browse/<key>`
+    links. Same precedence as jira_sync.py's own `env()`: the board-local
+    credentials file first (one machine can run pearde against more than one
+    Jira site), the global env var second. Mirrored here rather than imported
+    from resources/jira/jira_sync.py to avoid a circular import — that module
+    already imports this one as `planlib`."""
+    path = os.path.join(board, ".jira-credentials.json")
+    if os.path.isfile(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                b = json.load(f).get("base_url")
+        except (OSError, ValueError):
+            b = None
+        if b:
+            return b.rstrip("/")
+    b = os.environ.get("JIRA_BASE_URL")
+    return b.rstrip("/") if b else None
+
+
 def gantt_payload(board, prds, mp, settings):
     """What the local timeline renders: one bar per scheduled leaf, day offsets
     from the plan's hour offsets at `gantt-day` hours per day. Parents weigh
@@ -1155,6 +1177,9 @@ def gantt_payload(board, prds, mp, settings):
         "calib": read_calibration(),
         "tune": TUNE,
         "workers": str(settings.get("workers", "3")),
+        # base_url only, no email/token — resolves per-board issue keys to
+        # their real Jira site client-side; None when no Jira is configured
+        "jiraSite": jira_base_url(board),
         # the one sentence `prds/vision.md` says the board is for — the page
         # prints it under the numbers. Empty when the board declares none
         "vision": {"purpose": (read_vision(board) or {}).get("vision", "")},
