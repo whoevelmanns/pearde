@@ -307,7 +307,11 @@ one the library did not already hold. The command reads the spec files,
 refuses what is not a spec naming file and line, sums the weight, and, with a
 route, writes the workflow and its new atomics and runs `workflow check`
 first, refusing the whole call with nothing written on red — and hand it to
-its implementer in the same round, never to a shelf.
+its implementer in the same round, never to a shelf, unless every spec's
+boxes already read `[x]` with quoted verify output straight out of the
+analyst's own build pass: then `claim` (still needed for `collect`'s gate)
+and go straight to collect, per @references/parts/loop.md step 4 · 5 — no
+brief, no second worker, `collect` reproduces the proof itself regardless.
 REFINE → `pearde refine <prd> < report` — the children exist from the
 `## Split` table and the parent is `open`. QUESTION → set the state, keep
 the report. The probe code stays in

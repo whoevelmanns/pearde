@@ -114,6 +114,21 @@ and its new atomics at `runs: 0` and runs `workflow check` over the library
 before either is kept, refusing the whole call with nothing written on red.
 `--workflow none` is refused outright, naming `## Route`.
 
+**No implementer where the analyst already finished the build.** An
+analyst's SPECCED report where every spec's acceptance boxes are already
+`[x]` with quoted verify output did the implementer's work during its own
+probe pass — dispatching a second worker to redo it burns a full round on
+no new information. `pearde claim` still runs (`collect`'s gate needs
+`claimed` or `blocked`, never `specced` directly), but skip `brief` and the
+dispatch: go straight to step 6. `collect` never takes the analyst's word
+for it either way — it re-runs every spec's `## Verify and Proof` block
+itself, off the repo, before it writes `done` — so nothing about the gate
+gets weaker, only the redundant subagent round disappears. Dispatch the
+implementer as before when any spec still carries an open box, when the
+analyst's own ticks look thin or contested, or when the blast-radius argues
+for a second, independent pass regardless — the orchestrator's call, made
+once, not automatic either way.
+
 **6 · Collect.** Results are pushed, never polled: a finished analyst refills
 the pipeline, a finished implementer frees a slot. What a worker returns is
 one line naming its verdict, then the complete report text —
