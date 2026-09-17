@@ -206,17 +206,25 @@ def contract_line(prd):
 
 
 def repo_of(prd, board, board_root):
-    """Where the PRD's code lives. `repo:` that is a directory — absolute, or
-    relative to the board's repo — is it. With no `repo:`: when the board is
-    its own git repo (`board_root == board` — a nested `.pearde` with a
-    `.git` of its own), the repo enclosing it, `repo_root` of the board's
+    """Where the PRD's code lives. `repo:` that is a directory — absolute,
+    relative to the board's repo, or (when the board is its own git repo —
+    `board_root == board`, a nested `.pearde` with a `.git` of its own) a
+    sibling of that repo — is it. The sibling case is the common layout for
+    a board whose code repos are each their own independent git repo, living
+    next to `.pearde` under a plain, non-git project folder: `repo:
+    abbino-portal` then names `<board_root's parent>/abbino-portal`, not a
+    directory inside `.pearde` itself. With no `repo:`: when the board is
+    its own git repo, the repo enclosing it, `repo_root` of the board's
     own parent — a nested board defaults to the code repo it sits in, never
     to itself. When the board is not its own repo — `board_root` was found
     walking up *past* the board, so it already is the code repo — unchanged,
     the board's own repo, exactly as before this default existed."""
     raw = str(prd["fm"].get("repo", "") or "").strip()
     if raw:
-        for cand in (raw, os.path.join(board_root, raw)):
+        cands = [raw, os.path.join(board_root, raw)]
+        if board_root == board:
+            cands.append(os.path.join(os.path.dirname(board_root), raw))
+        for cand in cands:
             if os.path.isdir(cand):
                 root = planlib.repo_root(cand)
                 if root:

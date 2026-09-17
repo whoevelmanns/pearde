@@ -321,7 +321,8 @@ def brief_prd(args, out=print):
               "<language>": language_of(prd),
               "<probe>": f"prds/{local}/probe/",
               "<split_above>": str(lim["split-above"]),
-              "<specs_above>": str(lim["specs-above"])}
+              "<specs_above>": str(lim["specs-above"]),
+              "<board-of-this-prd>": prd["board_path"]}
     slugs = slugs_of(prd, role)
     wf_lines, marks = [], []
     for s in slugs:
