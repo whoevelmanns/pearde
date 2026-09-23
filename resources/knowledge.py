@@ -20,8 +20,11 @@ import sys
 
 # win: a cp1252 console cannot encode the glyphs the board files carry
 # (the "->" arrow of a workflow table, every umlaut of a German PRD), and
-# the output dies on UnicodeEncodeError. Force UTF-8 out.
+# the output dies on UnicodeEncodeError. Force UTF-8 out — and in, since a
+# `remember`/`conclude` body piped over stdin hits the same cp1252 default
+# and silently mangles every umlaut and dash before it ever reaches the file.
 try:
+    sys.stdin.reconfigure(encoding="utf-8", errors="replace")
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 except Exception:
