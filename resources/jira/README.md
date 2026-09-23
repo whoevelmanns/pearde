@@ -212,12 +212,28 @@ formulieren ist Content-Arbeit, kein deterministischer API-Call; das Anlegen
 bleibt Sache des Orchestrators, exakt wie beim bestehenden "Refine"-Schritt —
 hält den One-Writer-Grundsatz für `prds/`-Dateien intakt.
 
-**Projekt-Scope** (`configured_projects(board)`): die Vereinigung aus jedem
-`<PROJECT>`-Präfix, der unter einem existierenden PRD-Ordnernamen auftaucht
-— rekursiv über das ganze Board, nicht nur `prds/*` flach — plus dem
-optionalen, additiven Settings-Key `jira-projects` (Liste oder
-Komma-Scalar). Letzterer deckt das Henne-Ei-Problem ab: ein komplett neues
-Projekt importieren, bevor überhaupt eine PRD mit dessen Präfix existiert.
+**Projekt-Scope** (`configured_projects(board)`): standardmäßig die
+Vereinigung aus jedem `<PROJECT>`-Präfix, der unter einem existierenden
+PRD-Ordnernamen auftaucht — rekursiv über das ganze Board, nicht nur
+`prds/*` flach — plus dem optionalen, additiven Settings-Key `jira-projects`
+(Liste oder Komma-Scalar). Letzterer deckt das Henne-Ei-Problem ab: ein
+komplett neues Projekt importieren, bevor überhaupt eine PRD mit dessen
+Präfix existiert.
+
+**`jira-projects-strict: on`** macht `jira-projects` zum harten Filter statt
+additiv — `configured_projects()` gibt dann *nur* die dort gelisteten
+Projekte zurück, unabhängig davon, welche Präfixe PRD-Ordner auf dem Board
+sonst noch tragen. Für ein Board gedacht, das ein fremdes Projekt zwar über
+eine einzelne, bewusst dort sitzende PRD berührt (z. B. ein in Jira
+verschobenes Ticket), aber dieses ganze Fremdprojekt nicht laufend nach
+neuen, noch PRD-losen Tickets durchsuchen soll — betrifft nur
+`import-new`s Scan-Scope, nicht `drift`/`sync` (die lesen den Ticket-Key
+direkt aus dem jeweiligen PRD-Ordnernamen, unabhängig vom Projekt-Scope).
+Bewusst **kein** Default-Verhalten: Boards, die additiv auf ein fremdes
+Projekt angewiesen sind (z. B. ein Board mit `jira-projects: ITSM`, das
+zusätzlich eine eigene `ORD-*`-PRD hat, oder eines mit `jira-projects: SWEC`,
+das `HAMA-*`-Kind-PRDs verschachtelt), würden bei einem globalen Strict-Default
+stillschweigend Scan-Abdeckung verlieren — daher pro Board opt-in.
 
 **Scope des Scans** (`backlog_status_name(board)`, bis 2026-09-02
 `selected_status_name`): ein Ticket zählt, wenn es weder

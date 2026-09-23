@@ -506,6 +506,7 @@ def drift(board):
     base_url, email, token = e
     auth = (email, token)
     prds = planlib.scan(board)
+    ignored = drift_ignored_keys(board)
     graphs = {}
     for rel in sorted(prds):
         p = prds[rel]
@@ -516,15 +517,18 @@ def drift(board):
         if not target:
             continue
         key = issue_key(p["name"])
-        if key is None:
+        if key is None or key.upper() in ignored:
             continue
         live = current_status(base_url, auth, key)
         if live is None or live == target:
             continue
         project = key.split("-")[0]
-        if project not in graphs:
-            graphs[project] = load_graph(board, base_url, auth, project)
-        graph = graphs[project]
+        issue_type_id = current_issue_type_id(base_url, auth, key)
+        graph_key = (project, issue_type_id)
+        if graph_key not in graphs:
+            graphs[graph_key] = load_graph(board, base_url, auth, project,
+                                            issue_type_id)
+        graph = graphs[graph_key]
         if graph and shortest_path(graph, target, live) is not None:
             continue
         print(f'jira_sync: drift {rel} ({key}): state {state} expects '
@@ -539,24 +543,82 @@ def drift(board):
 def configured_projects(board):
     """Sorted, deduplicated project keys to scan for new tickets: every
     <PROJECT> prefix already used by a PRD directory name anywhere on the
-    board (recursive — an epic's children nest under it), plus the optional,
-    additive `jira-projects` setting (YAML list or comma-separated scalar) —
-    the latter covers importing a brand-new project before any PRD with its
-    prefix exists yet."""
-    prds = planlib.scan(board)
-    projects = set()
-    for p in prds.values():
-        key = issue_key(p["name"])
-        if key:
-            projects.add(key.split("-")[0])
+    board (recursive — an epic's children nest under it), plus the optional
+    `jira-projects` setting (YAML list or comma-separated scalar) — additive
+    by default, so it covers importing a brand-new project before any PRD
+    with its prefix exists yet, without dropping a project a board already
+    tracks PRDs against (e.g. ServerMonitoring's `ITSM` setting still lets
+    its own `ORD-66` PRD's project through; AbbinoWSSwecon's `SWEC` setting
+    still lets HAMA through for its nested `hama-428-*` children).
+
+    `jira-projects-strict: on` makes `jira-projects` the *whole* scanned set
+    instead — for a board that wants a hard filter because a foreign-prefix
+    PRD legitimately sitting on it (moved there in Jira, or a rare
+    cross-project child) should not reopen scanning of that whole project
+    for *every other* ticket in it. Opt-in only: flipping the default would
+    silently narrow scans for boards already relying on the additive
+    behavior above."""
     raw = planlib.board_settings(board).get("jira-projects", [])
     items = raw if isinstance(raw, list) else [raw]
+    explicit = set()
     for item in items:
         for piece in str(item).split(","):
             piece = piece.strip().upper()
             if piece:
-                projects.add(piece)
+                explicit.add(piece)
+    strict = str(planlib.board_settings(board).get("jira-projects-strict", "")
+                 ).strip().lower() in ("on", "true", "yes", "1")
+    if strict and explicit:
+        return sorted(explicit)
+    projects = set(explicit)
+    prds = planlib.scan(board)
+    for p in prds.values():
+        key = issue_key(p["name"])
+        if key:
+            projects.add(key.split("-")[0])
     return sorted(projects)
+
+
+def _key_set_setting(board, setting_name):
+    """Uppercased ticket keys from a board setting (YAML list or
+    comma-separated scalar) — shared parsing for every `jira-*-keys`
+    exception list."""
+    raw = planlib.board_settings(board).get(setting_name, [])
+    items = raw if isinstance(raw, list) else [raw]
+    keys = set()
+    for item in items:
+        for piece in str(item).split(","):
+            piece = piece.strip().upper()
+            if piece:
+                keys.add(piece)
+    return keys
+
+
+def ignored_keys(board):
+    """Ticket keys `import-new` must never report for this board, even
+    though they match a scanned project and carry no local PRD — for a
+    ticket whose PRD legitimately lives on a *different* member board of
+    the same master (see jira_import_new_cross_board_overlap in project
+    memory: a project prefix like HAMA can be scanned by several member
+    boards at once, and _prd_for_key() only ever looks at the current
+    board's own PRDs). Configured via `jira-ignore-keys` (YAML list or
+    comma-separated scalar), uppercased."""
+    return _key_set_setting(board, "jira-ignore-keys")
+
+
+def drift_ignored_keys(board):
+    """Ticket keys `drift` must never report for this board — for a ticket
+    whose own issue-type workflow simply has no status matching
+    `state_target()` at all (not reachable in either direction, a real gap
+    documented at the settings.md level: an ITSM ticket routed through the
+    Jira Move wizard onto a workflow with none of the pipeline's status
+    names, e.g. ITSM-992's Offen/Under investigation/Under Review/Pending/
+    Abgeschlossen/Abgebrochen has no "Fertig" node for `jira-done-status`'s
+    single flat target to ever reach). One flat target per state can't fit
+    every workflow a project's issue types use — this is that per-ticket
+    escape hatch. Configured via `jira-drift-ignore-keys` (YAML list or
+    comma-separated scalar), uppercased."""
+    return _key_set_setting(board, "jira-drift-ignore-keys")
 
 
 def backlog_status_name(board):
@@ -675,13 +737,14 @@ def import_new(board):
     prds = planlib.scan(board)
     projects = configured_projects(board)
     backlog = backlog_status_name(board)
+    ignored = ignored_keys(board)
     found = []
     for project in projects:
         jql = f'project = "{project}" AND assignee = currentUser() ORDER BY key'
         for issue in _search_jql(base_url, auth, jql,
                                   "summary,description,parent,status"):
             key = issue.get("key")
-            if not key or _prd_for_key(prds, key) is not None:
+            if not key or key.upper() in ignored or _prd_for_key(prds, key) is not None:
                 continue
             fields = issue.get("fields", {}) or {}
             status = fields.get("status") or {}
