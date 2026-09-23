@@ -1,0 +1,12 @@
+# The scout snapshots are scraped data — descriptions written by thousands of
+# strangers, in several languages. They are evidence, not prose — correcting a
+# scraped repo description would falsify the snapshot. Excluded wholesale.
+[files]
+extend-exclude = ["scout/snapshots/*"]
+
+# `mis-filtered` / `mis-cited` — the family's own idiom for "wrongly
+# filtered", used consistently across PRDs and test comments. Not a typo
+# of "miss": "a mis-filtered run" means a run filtered by the wrong
+# filter, which "miss-filtered" does not say.
+[default]
+extend-words = { "mis" = "mis" }

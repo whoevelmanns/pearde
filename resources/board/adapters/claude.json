@@ -1,0 +1,5 @@
+{
+  "name": "Claude",
+  "command": ["claude", "--print", "--dangerously-skip-permissions", "{prompt}"],
+  "prompt": "/pearde run {rel}"
+}

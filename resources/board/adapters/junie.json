@@ -1,0 +1,5 @@
+{
+  "name": "Junie",
+  "command": ["junie", "{prompt}"],
+  "prompt": "pearde run {rel}"
+}

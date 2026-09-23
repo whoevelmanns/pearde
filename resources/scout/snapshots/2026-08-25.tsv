@@ -1,0 +1,531 @@
+knowledge	sindresorhus/awesome	499711	2026-08-21T12:39:13Z	false	CC0-1.0	-	😎 Awesome lists about all kinds of interesting topics [NOTE: Pull requests are temporarily disabled until I have a chance to catch up with the existing ones]
+knowledge	vinta/awesome-python	315927	2026-08-25T04:08:40Z	false	NOASSERTION	Python	The definitive list that answers "I want to do X in Python, which tool should I use?"
+knowledge	awesome-selfhosted/awesome-selfhosted	314875	2026-08-22T18:55:56Z	false	NOASSERTION	-	A list of Free Software network services and web applications which can be hosted on your own servers
+knowledge	trimstray/the-book-of-secret-knowledge	240223	2024-11-19T14:00:38Z	false	MIT	-	A collection of inspiring lists, manuals, cheatsheets, blogs, hacks, one-liners, cli/web tools and more.
+knowledge	avelino/awesome-go	182172	2026-08-25T00:32:48Z	false	MIT	Go	A curated list of awesome Go frameworks, libraries and software
+knowledge	521xueweihan/HelloGitHub	172798	2026-08-02T07:58:25Z	false	NONE	Python	:octocat: 分享 GitHub 上有趣、入门级的开源项目。Share interesting, entry-level open source projects on GitHub.
+knowledge	Hack-with-Github/Awesome-Hacking	118989	2026-07-26T03:29:02Z	false	CC0-1.0	-	A collection of various awesome lists for hackers, pentesters and security researchers
+knowledge	jaywcjlove/awesome-mac	111745	2026-08-25T06:14:36Z	false	CC0-1.0	Swift	 This project is dedicated to collecting high-quality macOS software and organizing them systematically by different categories for easy search and use.
+knowledge	papers-we-love/papers-we-love	108978	2026-08-24T09:14:23Z	false	NONE	Shell	Papers from the computer science community to read and discuss.
+knowledge	ruvnet/RuView	91538	2026-08-25T06:15:04Z	false	MIT	Rust	π RuView turns commodity WiFi signals into real-time spatial intelligence, vital sign monitoring, and presence detection — all without a single pixel of video.
+knowledge	MunGell/awesome-for-beginners	88693	2026-07-25T07:00:20Z	false	NONE	-	A list of awesome beginners-friendly projects.
+knowledge	DopplerHQ/awesome-interview-questions	84201	2024-07-29T14:21:23Z	true	NONE	-	:octocat: A curated awesome list of lists of interview questions. Feel free to contribute! :mortar_board: 
+knowledge	enaqx/awesome-react	74391	2026-08-20T07:58:12Z	false	NONE	-	A collection of awesome things regarding React ecosystem
+knowledge	binhnguyennus/awesome-scalability	73516	2026-01-04T03:51:47Z	false	MIT	-	The Patterns of Scalable, Reliable, and Performant Large-Scale Systems
+knowledge	fffaraz/awesome-cpp	72922	2026-08-22T08:36:07Z	false	MIT	-	A curated list of awesome C++ (or C) frameworks, libraries, resources, and shiny things. Inspired by awesome-... stuff.
+knowledge	prakhar1989/awesome-courses	70651	2023-05-04T12:49:34Z	false	NONE	-	:books: List of awesome university courses for learning Computer Science!
+knowledge	sindresorhus/awesome-nodejs	66621	2026-05-03T08:24:10Z	false	CC0-1.0	-	:zap: Delightful Node.js packages and resources [BECAUSE OF TOO MUCH SPAM AND LOW-QUALITY SUBMISSIONS, SUBMISSIONS ARE PAUSED UNTIL JULY]
+knowledge	Solido/awesome-flutter	60998	2026-04-21T19:06:09Z	false	NONE	Dart	An awesome list that curates the best Flutter libraries, tools, tutorials, articles and more.
+knowledge	rust-unofficial/awesome-rust	58962	2026-08-24T07:28:27Z	false	CC0-1.0	Rust	A curated list of Rust code and resources.
+knowledge	tiimgreen/github-cheat-sheet	58704	2024-04-15T20:15:56Z	false	MIT	-	A list of cool features of Git and GitHub.
+knowledge	wasabeef/awesome-android-ui	57334	2026-06-05T05:39:52Z	false	MIT	-	A curated list of awesome Android UI/UX libraries
+knowledge	vsouza/awesome-ios	53157	2026-06-24T14:58:10Z	false	MIT	Swift	A curated list of awesome iOS ecosystem, including Objective-C and Swift Projects 
+knowledge	hesreallyhim/awesome-claude-code	52943	2026-08-25T06:10:02Z	false	NOASSERTION	Python	A hand-picked collection of the finest of resources for the most awesome of agents, Claude Code, the undisputed champion of coding companions, from the unstoppable team at Anthropic PBC. A delectable showcase of top tier skills, ambidextrous agents, scintillating status lines, top notch developer tooling, and also we have plugins
+knowledge	VoltAgent/awesome-openclaw-skills	52163	2026-08-23T08:45:20Z	false	MIT	-	The awesome collection of OpenClaw skills. 5,400+ skills filtered and categorized from the official OpenClaw Skills Registry.🦞
+knowledge	dkhamsing/open-source-ios-apps	51843	2026-08-24T21:05:47Z	false	CC0-1.0	-	:iphone: Collaborative List of Open-Source iOS Apps
+knowledge	serhii-londar/open-source-mac-os-apps	50159	2026-08-22T12:13:37Z	false	CC0-1.0	-	🚀 Awesome list of open source applications for macOS. https://t.me/s/opensourcemacosapps
+knowledge	akullpp/awesome-java	48839	2026-08-24T00:59:50Z	false	CC-BY-SA-4.0	-	A curated list of awesome frameworks, libraries and software for the Java programming language.
+knowledge	DovAmir/awesome-design-patterns	48680	2024-10-25T19:57:00Z	false	NONE	-	A curated list of software and architecture related design patterns.
+knowledge	brillout/awesome-react-components	48265	2026-01-26T16:36:45Z	false	CC0-1.0	-	Curated List of React Components & Libraries.
+knowledge	lukasz-madon/awesome-remote-job	48016	2026-08-16T19:35:44Z	false	NONE	-	A curated list of awesome remote jobs and resources. Inspired by https://github.com/vinta/awesome-python
+roadmaps	nilbuild/developer-roadmap	365349	2026-08-21T14:35:38Z	false	NOASSERTION	TypeScript	Interactive roadmaps, guides and other educational content to help developers grow in their careers.
+roadmaps	mlabonne/llm-course	81969	2026-02-05T13:09:26Z	false	Apache-2.0	-	Course to get into Large Language Models (LLMs) with roadmaps and Colab notebooks.
+roadmaps	kuchin/awesome-cto	35369	2026-03-02T12:50:21Z	false	CC0-1.0	-	A curated and opinionated list of resources for Chief Technology Officers, with the emphasis on startups
+roadmaps	AMAI-GmbH/AI-Expert-Roadmap	31219	2025-09-12T14:59:30Z	false	MIT	JavaScript	Roadmap to becoming an Artificial Intelligence Expert in 2022
+roadmaps	milanm/DevOps-Roadmap	20328	2026-07-14T15:33:20Z	false	Apache-2.0	-	DevOps Roadmap for 2026. with learning resources
+roadmaps	dariubs/GoBooks	19633	2026-07-13T16:08:02Z	false	NONE	Go	List of Golang books
+roadmaps	MoienTajik/AspNetCore-Developer-Roadmap	19629	2026-01-29T14:44:09Z	false	NONE	-	Roadmap to becoming an ASP.NET Core developer in 2026
+roadmaps	darius-khll/golang-developer-roadmap	18424	2023-02-13T08:08:20Z	false	NONE	-	Roadmap to becoming a Go developer in 2020
+roadmaps	opf/openproject	15924	2026-08-25T07:04:20Z	false	GPL-3.0	Ruby	OpenProject is the leading open source project management software for product, project and portfolio management. A powerful Jira alternative with agile planning, issue tracking, roadmaps, Gantt charts, time tracking, collaboration features, and more. Available on premises or in the cloud. ⭐ Star us on GitHub
+roadmaps	sundowndev/hacker-roadmap	15564	2023-10-16T11:21:45Z	true	MIT	-	A collection of hacking tools, resources and references to practice ethical hacking.
+roadmaps	m3y54m/Embedded-Engineering-Roadmap	12937	2026-07-23T09:25:55Z	false	CC-BY-SA-4.0	-	Comprehensive roadmap for aspiring Embedded Systems Engineers, featuring a curated list of learning resources
+roadmaps	datastacktv/data-engineer-roadmap	12750	2022-01-25T21:09:00Z	false	NONE	-	Roadmap to becoming a data engineer in 2021
+roadmaps	OffcierCia/DeFi-Developer-Road-Map	10819	2026-08-16T23:17:39Z	false	NOASSERTION	JavaScript	DeFi Developer roadmap is a curated Developer handbook which includes a list of the best tools for DApps development, resources and references! 
+roadmaps	github/roadmap	8849	2024-10-15T17:31:37Z	false	CC-BY-4.0	-	GitHub public roadmap
+roadmaps	mouredev/roadmap-retos-programacion	8704	2026-08-25T00:12:21Z	false	Apache-2.0	Python	Ruta de estudio basada en ejercicios de código de la comunidad MoureDev para aprender y practicar lógica usando cualquier lenguaje de programación.
+roadmaps	skydoves/android-developer-roadmap	7779	2026-05-08T06:31:34Z	false	Apache-2.0	Kotlin	 🗺 The Android Developer Roadmap offers comprehensive learning paths to help you understand Android ecosystems.
+roadmaps	liuchong/awesome-roadmaps	7235	2026-08-03T13:48:51Z	false	NOASSERTION	-	A curated list of roadmaps.
+roadmaps	Elfocrash/.NET-Backend-Developer-Roadmap	6851	2023-06-22T07:36:46Z	false	NONE	-	Roadmap for a .NET Backend Developer working with Microservices
+roadmaps	gonglei007/GameDevMind	6483	2026-08-11T08:52:49Z	false	MIT	Python	最全面的游戏开发技术图谱(Game Development Map)。帮助游戏开发者们在已知问题上节省时间，省出更多的精力投入到更有创造性的工作中去。
+roadmaps	BohdanOrlov/iOS-Developer-Roadmap	6419	2024-01-25T09:57:30Z	false	NONE	Swift	Roadmap to becoming an iOS developer in 2018.
+roadmaps	aws/containers-roadmap	5356	2025-03-25T18:13:16Z	false	NOASSERTION	Shell	This is the public roadmap for AWS container services (ECS, ECR, Fargate, and EKS). 
+roadmaps	tlbootcamp/tlroadmap	5133	2025-12-01T20:51:40Z	false	CC-BY-SA-4.0	Vue	Тимлид – это ❄️, потому что в каждой компании он уникален и неповторим.
+roadmaps	cheatsnake/backend-cheats	5061	2025-02-02T14:26:58Z	false	MIT	-	📃 White paper for Backend developers
+roadmaps	armankhondker/awesome-ai-ml-resources	4569	2026-05-09T02:19:13Z	false	MIT	-	Learn AI/ML for beginners with a roadmap and free resources. 
+roadmaps	s4kibs4mi/java-developer-roadmap	4528	2026-03-15T18:46:28Z	false	MIT	Java	Roadmap to becoming a Java developer in 2026
+roadmaps	aadi1011/AI-ML-Roadmap-from-scratch	4161	2026-08-12T18:43:48Z	false	MIT	-	Become skilled in Artificial Intelligence, Machine Learning, Generative AI, Deep Learning, Data Science, Natural Language Processing, Reinforcement Learning and more with this complete 0 to 100 repository.
+roadmaps	milanm/DotNet-Developer-Roadmap	3713	2026-05-18T11:24:46Z	false	Apache-2.0	-	The comprehensive .NET Developer Roadmap for 2026 by seniority level.
+roadmaps	salmer/CppDeveloperRoadmap	3539	2026-08-24T10:12:19Z	false	NOASSERTION	HTML	The roadmap for learning the C++ programming language for beginners and experienced devs.
+roadmaps	zhashkevych/awesome-backend	3442	2026-04-17T12:56:50Z	false	NONE	-	🚀 A curated and opinionated list of resources (English & Russian) for Backend developers | Структурированный список ресурсов для изучения Backend разработки
+roadmaps	stemmlerjs/software-design-and-architecture-roadmap	3405	2023-02-10T16:48:46Z	false	NONE	-	🧱 The software design and architecture roadmap for any developer
+cheatsheets	swisskyrepo/PayloadsAllTheThings	80344	2026-08-09T13:38:47Z	false	MIT	Python	A list of useful payloads and bypass for Web Application Security and Pentest/CTF
+cheatsheets	tldr-pages/tldr	63475	2026-08-25T02:53:49Z	false	NOASSERTION	Markdown	Collaborative cheatsheets for console commands 📚.
+cheatsheets	typescript-cheatsheets/react	47101	2026-05-29T19:52:44Z	false	MIT	TypeScript	Cheatsheets for experienced React developers getting started with TypeScript
+cheatsheets	LeCoupa/awesome-cheatsheets	46390	2026-04-12T17:26:10Z	false	MIT	JavaScript	👩‍💻👨‍💻 Awesome cheatsheets for popular programming languages, frameworks and development tools. They include everything you should know in one single file.
+cheatsheets	chubin/cheat.sh	41682	2025-12-23T18:48:24Z	false	MIT	Python	the only cheat sheet you need
+cheatsheets	gto76/python-cheatsheet	38635	2026-07-29T14:56:37Z	false	NONE	Python	Comprehensive Python Cheatsheet
+cheatsheets	afshinea/stanford-cs-229-machine-learning	20155	2020-05-20T04:57:25Z	false	MIT	-	VIP cheatsheets for Stanford's CS 229 Machine Learning
+cheatsheets	FavioVazquez/ds-cheatsheets	16330	2024-07-18T03:39:29Z	false	MIT	-	List of Data Science Cheatsheets to rule the world
+cheatsheets	521xueweihan/git-tips	15854	2022-12-08T03:13:00Z	false	NONE	-	:trollface:Git的奇技淫巧
+cheatsheets	jhuangtw/xg2xg	15694	2026-01-12T05:49:38Z	false	NONE	-	by ex-googlers, for ex-googlers - a lookup table of similar tech & services
+cheatsheets	jaywcjlove/reference	15197	2026-08-11T17:55:52Z	false	MIT	Dockerfile	面向开发者的技术速查清单（Cheat Sheets）集合，整理常见技术、工具与开发流程，帮助快速查阅关键信息，提高开发效率。
+cheatsheets	trimstray/nginx-admins-handbook	14308	2024-11-19T13:58:35Z	false	MIT	Shell	How to improve NGINX performance, security, and other important things.
+cheatsheets	kettanaito/naming-cheatsheet	14185	2024-03-13T22:39:17Z	false	MIT	-	Comprehensive language-agnostic guidelines on variables naming. Home of the A/HC/LC pattern.
+cheatsheets	cheat/cheat	13435	2026-05-19T16:11:23Z	false	MIT	Go	cheat allows you to create and view interactive cheatsheets on the command-line. It was designed to help remind *nix system administrators of options for commands that they use frequently, but not frequently enough to remember.
+cheatsheets	DrkSephy/es6-cheatsheet	13324	2022-10-08T07:44:38Z	false	NONE	JavaScript	ES2015 [ES6] cheatsheet containing tips, tricks, best practices and code snippets
+cheatsheets	skywind3000/awesome-cheatsheets	12561	2025-11-12T07:21:52Z	false	MIT	Shell	超级速查表 - 编程语言、框架和开发工具的速查表，单个文件包含一切你需要知道的东西 :zap:
+cheatsheets	amitshekhariitbhu/android-interview-questions	12368	2026-03-21T09:31:59Z	false	Apache-2.0	Java	Your Cheat Sheet For Android Interview - Android Interview Questions and Answers
+cheatsheets	Fechin/reference	10798	2026-06-26T04:54:06Z	false	GPL-3.0	EJS	⭕ Share quick reference cheat sheet for developers.
+cheatsheets	alexanderepstein/Bash-Snippets	9942	2024-05-04T18:12:41Z	false	MIT	Shell	A collection of small bash scripts for heavy terminal users
+cheatsheets	A-poc/RedTeam-Tools	9657	2026-04-18T09:27:42Z	false	NONE	-	Tools and Techniques for Red Team / Penetration Testing
+cheatsheets	Tikam02/DevOps-Guide	9312	2026-05-22T21:30:07Z	false	MIT	HTML	 DevOps Guide - Development to Production all configurations with basic notes to debug efficiently.
+cheatsheets	a8m/golang-cheat-sheet	8820	2023-11-08T10:46:16Z	false	NONE	-	An overview of Go syntax and features.
+cheatsheets	detailyang/awesome-cheatsheet	8538	2026-03-26T09:44:15Z	false	MIT	Python	:beers: awesome cheatsheet
+cheatsheets	crazyguitar/pysheeet	8150	2026-08-22T05:40:34Z	false	MIT	Python	Python Cheat Sheet
+cheatsheets	matplotlib/cheatsheets	7724	2026-08-04T21:36:05Z	false	BSD-2-Clause	Python	Official Matplotlib cheat sheets
+cheatsheets	arslanbilal/git-cheat-sheet	7435	2026-03-04T07:50:34Z	false	NONE	-	:octocat: git and git flow cheat sheet
+cheatsheets	afshinea/stanford-cs-230-deep-learning	7061	2020-05-20T04:23:57Z	false	MIT	-	VIP cheatsheets for Stanford's CS 230 Deep Learning
+cheatsheets	LasCC/HackTools	6997	2025-01-05T23:10:49Z	false	NONE	TypeScript	The all-in-one browser extension for offensive security professionals 🛠
+cheatsheets	ihebski/DefaultCreds-cheat-sheet	6724	2026-07-09T10:09:24Z	false	MIT	Python	One place for all the default credentials to assist the Blue/Red teamers identifying devices with default password 🛡️
+cheatsheets	S1ckB0y1337/Active-Directory-Exploitation-Cheat-Sheet	6714	2026-05-27T07:39:44Z	false	MIT	-	A cheat sheet that contains common enumeration and attack methods for Windows Active Directory.
+learning	ssloy/tinyrenderer	24140	2026-07-29T12:13:12Z	false	NOASSERTION	C++	A brief computer graphics / rendering course
+learning	winterbe/java8-tutorial	16724	2023-08-11T18:44:34Z	false	MIT	Java	Modern Java - A Guide to Java 8
+learning	leandromoreira/digital_video_introduction	16298	2026-07-25T00:29:55Z	false	BSD-3-Clause	Jupyter Notebook	A hands-on introduction to video technology: image, video, codec (av1, vp9, h265) and more (ffmpeg encoding). Translations: 🇺🇸 🇨🇳 🇯🇵 🇮🇹 🇰🇷 🇷🇺 🇧🇷 🇪🇸
+learning	iggredible/Learn-Vim	15197	2026-04-23T14:36:12Z	false	NOASSERTION	Dockerfile	Learning Vim and Vimscript doesn't have to be hard. This is the guide that you're looking for 📖
+learning	shekhargulati/52-technologies-in-2016	7321	2022-10-18T03:18:26Z	false	MIT	JavaScript	Let's learn a new technology every week. A new technology blog every Sunday in 2016.
+learning	ssloy/tinyraytracer	5357	2023-07-07T05:37:37Z	false	NONE	C++	A brief computer graphics / rendering course
+learning	louisfb01/start-machine-learning	5295	2026-01-23T19:51:33Z	false	MIT	-	A complete guide to start and improve in machine learning (ML), artificial intelligence (AI) in 2026 without ANY background in the field and stay up-to-date with the latest news and state-of-the-art techniques!
+learning	miguelmota/golang-for-nodejs-developers	4768	2023-02-02T11:21:08Z	true	MIT	Go	Examples of Golang compared to Node.js for learning 🤓 By @miguelmota
+learning	kay-is/react-from-zero	4588	2019-01-23T17:51:43Z	false	GPL-2.0	HTML	A simple (99% ES2015 less) tutorial for React
+learning	aadi1011/AI-ML-Roadmap-from-scratch	4161	2026-08-12T18:43:48Z	false	MIT	-	Become skilled in Artificial Intelligence, Machine Learning, Generative AI, Deep Learning, Data Science, Natural Language Processing, Reinforcement Learning and more with this complete 0 to 100 repository.
+learning	thomaspark/gridgarden	3390	2026-01-04T19:15:04Z	false	MIT	JavaScript	A game for learning CSS grid layout 🥕
+learning	eleev/ios-learning-materials	3065	2026-08-18T18:26:29Z	true	MIT	Swift	📚 Curated list of articles, tutorials and repos that may help you dig a little bit deeper into iOS [and Apple Platforms].
+learning	novalagung/dasarpemrogramangolang	2627	2026-06-12T10:55:27Z	false	CC-BY-SA-4.0	Go	📖 Source Code Website/Ebook Dasar Pemrograman Golang
+learning	ssloy/tinykaboom	2423	2023-02-22T02:44:54Z	false	NONE	C++	A brief computer graphics / rendering course
+learning	ssloy/tinyraycaster	2046	2019-02-20T13:55:42Z	false	WTFPL	C++	486 lines of C++: old-school FPS in a weekend
+books	getify/You-Dont-Know-JS	184723	2026-02-15T04:36:44Z	false	NOASSERTION	-	A book series (2 published editions) on the JS language.
+books	krahets/hello-algo	129595	2026-08-17T20:58:58Z	false	NOASSERTION	Java	《Hello 算法》：动画图解、一键运行的数据结构与算法教程。支持简中、繁中、English、日本語，提供 Python, Java, C++, C, C#, JS, Go, Swift, Rust, Ruby, Kotlin, TS, Dart 等代码实现
+books	d2l-ai/d2l-zh	79926	2024-07-30T09:32:19Z	false	Apache-2.0	Python	《动手学深度学习》：面向中文读者、能运行、可讨论。中英文版被70多个国家的500多所大学用于教学。
+books	bojieli/ai-agent-book	41949	2026-08-25T06:58:18Z	false	Apache-2.0	Python	《深入理解 AI Agent：设计原理与工程实践》（李博杰 著）开源主仓库：全书正文、编译版 PDF 与按章配套代码
+books	dylanaraps/pure-bash-bible	41718	2023-11-28T03:26:23Z	true	MIT	Shell	📖 A collection of pure bash alternatives to external processes.
+books	denysdovhan/wtfjs	37677	2026-07-03T09:48:44Z	false	WTFPL	JavaScript	🤪 A list of funny and tricky JavaScript examples
+books	unknwon/the-way-to-go_ZH_CN	35033	2024-08-14T07:04:25Z	false	NONE	Go	《The Way to Go》中文译本，中文正式名《Go 入门指南》
+books	sunface/rust-course	30822	2026-08-24T07:34:23Z	false	NONE	Rust	什么？你敢放心的把后背交给 AI? 我赌你不敢，那就来学学 AI 时代最酷、最安全、最快的语言吧。本书拥有全面且深入的讲解、生动贴切的示例、德芙般丝滑的内容，这可能是目前最用心的 Rust 中文学习教程 / Book 
+books	realpython/python-guide	29778	2026-07-27T05:52:34Z	false	NOASSERTION	Batchfile	Python best practices guidebook, written for humans. 
+books	d2l-ai/d2l-en	29439	2024-08-18T08:02:36Z	false	NOASSERTION	Python	Interactive deep learning book with multi-framework code, math, and discussions. Adopted at 500 universities from 70 countries including Stanford, MIT, Harvard, and Cambridge.
+books	HandsOnLLM/Hands-On-Large-Language-Models	28582	2026-04-24T10:20:08Z	false	Apache-2.0	Jupyter Notebook	Official code repo for the O'Reilly Book - "Hands-On Large Language Models"
+books	koodo-reader/koodo-reader	27963	2026-08-24T08:25:56Z	false	AGPL-3.0	JavaScript	A modern ebook manager and reader with sync and backup capacities for Windows, macOS, Linux, Android, iOS and Web
+books	yeasy/docker_practice	26217	2026-08-24T23:08:40Z	false	NONE	Go	最新Docker容器技术，从真实案例中学习最佳实践！| Learn and understand Docker&Container technologies, with real DevOps practice!
+books	datawhalechina/pumpkin-book	26000	2026-04-22T20:35:48Z	false	NOASSERTION	-	南瓜书：《机器学习》（西瓜书）公式详解
+books	fastai/fastbook	25239	2024-08-16T14:38:24Z	false	NOASSERTION	Jupyter Notebook	The fastai book, published as Jupyter Notebooks
+books	AccumulateMore/CV	23405	2026-06-30T14:36:23Z	false	NONE	Jupyter Notebook	✅（已完结）超级全面的 深度学习 笔记【土堆 Pytorch】【李沐 动手学深度学习】【吴恩达 深度学习】【大飞 大模型Agent】
+books	Vonng/ddia	23378	2026-08-20T16:44:09Z	false	CC-BY-4.0	Python	《Designing Data-Intensive Application》DDIA 第一版 / 第二版 中文翻译
+books	ethereumbook/ethereumbook	21519	2026-05-13T14:04:25Z	false	NONE	-	Mastering Ethereum: 2nd Edition, by Andreas M. Antonopoulos, Gavin Wood, Carlo Parisi, Alessandro Mazza, Niccolò Pozzolini
+books	chai2010/advanced-go-programming-book	20088	2025-10-07T01:08:59Z	false	BSD-2-Clause	Go	:books: 《Go语言高级编程》开源图书，涵盖CGO、Go汇编语言、RPC实现、Protobuf插件实现、Web框架实现、分布式系统等高阶主题(完稿)
+books	dariubs/GoBooks	19633	2026-07-13T16:08:02Z	false	NONE	Go	List of Golang books
+books	rust-lang/book	18230	2026-07-14T01:25:26Z	false	NOASSERTION	Rust	The Rust Programming Language
+books	MathFoundationRL/Book-Mathematical-Foundation-of-Reinforcement-Learning	17556	2026-08-10T06:39:05Z	false	NONE	MATLAB	This is the homepage of a new book entitled "Mathematical Foundations of Reinforcement Learning."
+books	getify/Functional-Light-JS	16739	2023-12-26T15:46:02Z	false	NOASSERTION	JavaScript	Pragmatic, balanced FP in JavaScript. @FLJSBook on twitter.
+books	iggredible/Learn-Vim	15197	2026-04-23T14:36:12Z	false	NOASSERTION	Dockerfile	Learning Vim and Vimscript doesn't have to be hard. This is the guide that you're looking for 📖
+books	janishar/mit-deep-learning-book-pdf	14213	2026-02-03T19:27:04Z	false	NONE	Java	MIT Deep Learning Book in PDF format (complete and parts) by Ian Goodfellow, Yoshua Bengio and Aaron Courville
+books	paperswithbacktest/awesome-systematic-trading	13944	2025-01-22T07:49:32Z	false	NONE	Python	A curated list of awesome libraries, packages, strategies, books, blogs, tutorials for systematic trading.
+books	tuhdo/os01	13684	2024-03-26T16:21:49Z	false	NONE	TeX	Bootstrap yourself to write an OS from scratch. A book for self-learner.
+books	dragen1860/Deep-Learning-with-TensorFlow-book	13214	2021-08-30T10:54:30Z	false	NONE	Jupyter Notebook	深度学习入门开源书，基于TensorFlow 2.0案例实战。Open source Deep Learning book, based on TensorFlow 2.0 framework.
+books	ctjhoa/rust-learning	12233	2026-05-29T08:20:56Z	false	NONE	-	A bunch of links to blog posts, articles, videos, etc for learning Rust
+books	rougier/scientific-visualization-book	11440	2026-01-04T13:29:20Z	false	NOASSERTION	Python	An open access book on scientific visualization using python and matplotlib
+interview	donnemartin/system-design-primer	365869	2026-03-20T01:52:19Z	false	NOASSERTION	Python	Learn how to design large-scale systems. Prep for the system design interview.  Includes Anki flashcards.
+interview	yangshun/tech-interview-handbook	142140	2026-08-07T12:06:42Z	false	MIT	TypeScript	Curated coding interview preparation materials for busy software engineers
+interview	labuladong/fucking-algorithm	135449	2026-02-28T10:07:31Z	false	NONE	Markdown	Crack LeetCode, not only how, but also why. 
+interview	ByteByteGoHq/system-design-101	87515	2025-04-04T17:30:30Z	false	NOASSERTION	-	Explain complex systems using visuals and simple terms. Help you prepare for system design interviews.
+interview	bregman-arie/devops-exercises	84264	2025-12-27T14:22:30Z	false	NOASSERTION	Python	Linux, Jenkins, AWS, SRE, Prometheus, Docker, Python, Ansible, Git, Kubernetes, Terraform, OpenStack, SQL, NoSQL, Azure, GCP, DNS, Elastic, Network, Virtualization. DevOps Interview Questions
+interview	DopplerHQ/awesome-interview-questions	84201	2024-07-29T14:21:23Z	true	NONE	-	:octocat: A curated awesome list of lists of interview questions. Feel free to contribute! :mortar_board: 
+interview	binhnguyennus/awesome-scalability	73516	2026-01-04T03:51:47Z	false	MIT	-	The Patterns of Scalable, Reliable, and Performant Large-Scale Systems
+interview	kdn251/interviews	65225	2025-05-12T12:56:04Z	false	MIT	Java	Everything you need to know to get the job.
+interview	h5bp/Front-end-Developer-Interview-Questions	60871	2026-06-16T23:06:47Z	false	MIT	Nunjucks	A list of helpful front-end related questions you can use to interview potential candidates, test yourself or completely ignore.
+interview	sudheerj/reactjs-interview-questions	44751	2026-08-20T05:50:04Z	false	MIT	JavaScript	List of top 500 ReactJS Interview Questions & Answers....Coding exercise questions are coming soon!!
+interview	yangshun/front-end-interview-handbook	43995	2026-08-13T08:25:31Z	false	MIT	JavaScript	Front End interview preparation materials for busy engineers (updated for 2026)
+interview	ashishps1/awesome-system-design-resources	40900	2026-02-16T18:32:29Z	false	GPL-3.0	Java	Learn System Design concepts and prepare for interviews using free resources.
+interview	huihut/interview	38150	2025-08-24T07:01:54Z	false	NOASSERTION	C++	📚 C/C++ 技术面试基础知识总结，包括语言、程序库、数据结构、算法、系统、网络、链接装载库等知识及面试经验、招聘、内推等信息。This repository is a summary of the basic knowledge of recruiting job seekers and beginners in the direction of C/C++ technology, including language, program library, data structure, algorithm, system, network, link loading library, interview experience, recruitment, recommendation, etc.
+interview	satwikkansal/wtfpython	37060	2026-01-13T19:49:12Z	false	WTFPL	Python	What the f*ck Python? 😱
+interview	geekxh/hello-algorithm	36091	2023-06-13T04:13:17Z	false	NONE	Java	🌍 针对小白的算法训练 | 包括四部分：①.大厂面经 ②.力扣图解  ③.千本开源电子书 ④.百张技术思维导图（项目花了上百小时，希望可以点 star 支持，🌹感谢~）推荐免费ChatGPT使用网站
+interview	TheAlgorithms/C-Plus-Plus	34601	2025-10-11T14:51:22Z	false	MIT	C++	Collection of various algorithms in mathematics, machine learning, computer science and physics implemented in C++ for educational purposes.
+interview	halfrost/LeetCode-Go	33794	2026-08-20T22:13:14Z	false	MIT	Go	✅ Solutions to LeetCode by Go, 100% test coverage, runtime beats 100% | LeetCode 题解
+interview	donnemartin/interactive-coding-challenges	31750	2024-05-08T23:07:36Z	false	NOASSERTION	Python	120+ interactive Python coding interview challenges (algorithms and data structures).  Includes Anki flashcards.
+interview	aishwaryanr/awesome-generative-ai-guide	28885	2026-08-19T22:05:37Z	false	MIT	HTML	A one stop repository for generative AI research updates, interview resources, notebooks and much more!
+interview	systemdesign42/system-design-academy	27861	2026-08-24T16:24:37Z	false	NOASSERTION	-	If you want to become good at AI engineering & system design, join this newsletter 👇
+interview	ashishps1/awesome-low-level-design	26354	2026-08-19T08:47:42Z	false	GPL-3.0	Java	Learn Low Level Design (LLD) and prepare for interviews using free resources.
+interview	haizlin/fe-interview	26263	2025-10-26T20:49:10Z	false	MIT	JavaScript	前端面试每日 3+1，以面试题来驱动学习，提倡每日学习与思考，每天进步一点！每天早上5点纯手工发布面试题（死磕自己，愉悦大家），6000+道前端面试题全面覆盖，HTML/CSS/JavaScript/Vue/React/Nodejs/TypeScript/ECMAScritpt/Webpack/Jquery/小程序/软技能……
+interview	checkcheckzz/system-design-interview	23647	2023-04-03T04:22:45Z	false	NONE	-	System design interview for IT companies
+interview	TheAlgorithms/C	22341	2024-08-07T21:56:16Z	false	GPL-3.0	C	Collection of various algorithms in mathematics, machine learning, computer science, physics, etc implemented in C for educational purposes.
+interview	perkfly/reverse-interview-zh	18514	2024-03-04T15:39:50Z	false	NOASSERTION	-	技术面试最后反问面试官的话
+interview	Olshansk/interview	18358	2024-12-25T19:55:23Z	false	WTFPL	-	Everything you need to prepare for your technical interview
+interview	OpenGenus/cosmos	13742	2024-10-05T22:20:46Z	false	GPL-3.0	C++	World's largest Contributor driven code dataset | Used in Quark Search Engine, @OpenGenus IQ, OpenGenus Visual Project
+interview	seanprashad/leetcode-patterns	13675	2026-08-23T19:59:37Z	false	NOASSERTION	TypeScript	A pattern-based approach to learn technical interview questions
+interview	khangich/machine-learning-interview	12793	2023-08-31T17:49:30Z	false	NONE	-	Machine Learning Interviews from FAANG, Snapchat, LinkedIn. I have offers from Snapchat, Coupang, Stitchfix etc. Blog: mlengineer.io.
+interview	amitshekhariitbhu/android-interview-questions	12368	2026-03-21T09:31:59Z	false	Apache-2.0	Java	Your Cheat Sheet For Android Interview - Android Interview Questions and Answers
+templates	sveltejs/svelte	87985	2026-08-24T23:06:10Z	false	MIT	JavaScript	web development for the rest of us
+templates	JCodesMore/ai-website-cloner-template	33051	2026-08-14T22:02:06Z	false	MIT	JavaScript	Clone any website with one command using AI coding agents
+templates	kriasoft/react-starter-kit	23669	2026-08-23T20:58:14Z	false	MIT	TypeScript	Modern React starter kit with Bun, TypeScript, Tailwind CSS, tRPC, Stripe, and Cloudflare Workers. Production-ready monorepo for building fast web apps.
+templates	jasontaylordev/CleanArchitecture	20485	2026-08-23T20:29:59Z	false	MIT	C#	Clean Architecture Solution Template for ASP.NET Core
+templates	federico-busato/Modern-CPP-Programming	16050	2026-04-19T05:38:55Z	false	CC-BY-SA-4.0	HTML	Modern C++ Programming Course (C++03/11/14/17/20/23/26)
+templates	cobiwave/simplefolio	14217	2026-01-21T18:54:35Z	false	MIT	SCSS	⚡️ A minimal portfolio template for Developers
+templates	coreui/coreui-free-bootstrap-admin-template	12241	2026-08-14T15:30:10Z	false	MIT	HTML	Free Bootstrap Admin & Dashboard Template Built for AI-Assisted Development
+templates	top-think/think	7891	2025-07-16T03:12:02Z	false	NOASSERTION	PHP	ThinkPHP Framework ——二十年匠心的高性能PHP框架
+templates	evrone/go-clean-template	7656	2026-08-25T02:04:30Z	false	MIT	Go	Clean Architecture template for Golang services
+templates	ixartz/SaaS-Boilerplate	7380	2026-08-21T00:07:04Z	false	MIT	TypeScript	🚀🎉📚 SaaS Boilerplate built with Next.js + Tailwind CSS + Shadcn UI + TypeScript. ⚡️ Full-stack React application with Auth, Multi-tenancy, Roles & Permissions, i18n, Landing Page, DB, Logging, Testing
+templates	un-pany/v3-admin-vite	7039	2026-07-11T15:57:10Z	false	MIT	Vue	☀️ AI-friendly Vue3 admin template | Vue Admin | Vue Template | Vue3 Admin | Vue3 Template | Vue 后台 | Vue 模板 | Vue3 后台 | Vue3 模板
+templates	fullstackhero/dotnet-starter-kit	6734	2026-08-08T03:24:38Z	false	MIT	C#	Production Grade Cloud-Ready .NET 10 Starter Kit (Web API + React Client) with Multitenancy Support, and Clean/Modular Architecture that saves roughly 200+ Development Hours! All Batteries Included.
+templates	saadpasta/developerFolio	6620	2024-12-16T12:02:02Z	false	GPL-3.0	JavaScript	🚀 Software Developer Portfolio Template that helps you showcase your work and skills as a software developer. (This is currently not being actively maintained)
+templates	ant-design/ant-design-landing	6523	2024-08-05T19:35:16Z	false	MIT	JavaScript	:mountain_bicyclist: Landing Pages of Ant Design System
+templates	yadm-dev/yadm	6398	2026-04-13T23:43:24Z	false	GPL-3.0	Python	Yet Another Dotfiles Manager
+templates	zerostaticthemes/square-ui	6099	2026-06-14T11:49:48Z	false	NOASSERTION	TypeScript	Collection of beautifully crafted open-source layouts UI built with shadcn/ui.
+templates	arthelokyo/astrowind	5909	2026-08-08T03:22:21Z	false	MIT	Astro	⭕️ AstroWind: A free template using Astro v7 and Tailwind CSS v4. Astro starter theme.
+templates	Armour/vue-typescript-admin-template	5667	2023-11-04T02:48:46Z	false	MIT	Vue	🖖 A vue-cli 3.0 + typescript minimal admin template
+templates	TheLartians/ModernCppStarter	5390	2026-05-30T18:52:20Z	false	Unlicense	CMake	🚀 Kick-start your C++! A template for modern C++ projects using CMake, CI, code coverage, clang-format, reproducible dependency management and much more.
+templates	ashleve/lightning-hydra-template	5335	2026-06-11T21:52:45Z	false	NONE	Python	PyTorch Lightning + Hydra. A very user-friendly template for ML experimentation.  ⚡🔥⚡
+templates	iuricode/readme-template	5234	2025-06-21T12:59:04Z	false	NOASSERTION	-	Modelos readmes
+templates	unlayer/react-email-editor	5207	2026-08-19T21:52:49Z	false	MIT	TypeScript	Drag-n-Drop Email Editor Component for React.js
+templates	Sayi/poi-tl	5139	2026-08-08T05:24:51Z	false	Apache-2.0	Java	Generate awesome word(docx) with template
+templates	satnaing/astro-paper	4988	2026-08-05T10:31:19Z	false	MIT	Astro	A minimal, accessible and SEO-friendly Astro blog theme.
+templates	RyanFitzgerald/devportfolio	4957	2026-05-14T23:17:23Z	false	MIT	Astro	A modern, minimalist portfolio template built with Astro and Tailwind CSS. Perfect for developers looking to showcase their skills, experience, and projects in a clean, professional way.
+templates	Masterminds/sprig	4737	2025-07-18T13:29:21Z	false	MIT	Go	Useful template functions for Go templates.
+templates	cruip/open-react-template	4691	2025-12-12T08:53:42Z	false	NONE	TypeScript	A free React / Next.js landing page template designed to showcase open source projects, SaaS products, online services, and more. Made by
+templates	breferrari/obsidian-mind	4554	2026-08-24T10:57:37Z	false	MIT	TypeScript	A self-organizing Obsidian vault that gives AI coding agents persistent memory. Claude Code, Codex CLI, Gemini CLI.
+templates	stevemao/github-issue-templates	4460	2024-03-20T07:11:57Z	false	NOASSERTION	-	🔣 A collection of GitHub issue, pull request and security templates
+templates	obytes/react-native-template-obytes	4323	2026-06-02T13:59:47Z	false	MIT	TypeScript	📱 A template for your next React Native project: Expo, PNPM, TypeScript, TailwindCSS, Husky, EAS, GitHub Actions, Env Vars, expo-router, react-query, react-hook-form.
+boilerplate	ant-design/ant-design-pro	38700	2026-08-19T17:24:35Z	false	MIT	TypeScript	👨🏻‍💻👩🏻‍💻 Use Ant Design like a Pro!
+boilerplate	sahat/hackathon-starter	35247	2026-08-24T13:32:26Z	false	MIT	JavaScript	A boilerplate for Node.js web applications
+boilerplate	JCodesMore/ai-website-cloner-template	33051	2026-08-14T22:02:06Z	false	MIT	JavaScript	Clone any website with one command using AI coding agents
+boilerplate	electron-react-boilerplate/electron-react-boilerplate	24252	2026-04-29T22:35:26Z	false	MIT	TypeScript	A Foundation for Scalable Cross-Platform Apps
+boilerplate	kriasoft/react-starter-kit	23669	2026-08-23T20:58:14Z	false	MIT	TypeScript	Modern React starter kit with Bun, TypeScript, Tailwind CSS, tRPC, Stripe, and Cloudflare Workers. Production-ready monorepo for building fast web apps.
+boilerplate	infinitered/ignite	19935	2026-06-07T01:18:58Z	false	NOASSERTION	TypeScript	Infinite Red's battle-tested React Native project boilerplate, along with a CLI, component/model generators, and more! 9 years of continuous development and counting.
+boilerplate	wasp-lang/open-saas	15619	2026-08-06T11:28:44Z	false	MIT	MDX	A 100% free modern JS SaaS boilerplate (React, NodeJS, Prisma). Full-featured: Auth (email, google, github, slack, MS), Email sending, Background jobs, Landing page, Payments (Stripe, Polar.sh), Shadcn UI, S3 file upload. AI-ready with tailored AGENTS.md, skills, and Claude Code plugin. One cmd deploy. Powered by Wasp full-stack framework.
+boilerplate	SimulatedGREG/electron-vue	15383	2022-01-14T15:11:42Z	true	MIT	JavaScript	An Electron & Vue.js quick start boilerplate with vue-cli scaffolding, common Vue plugins, electron-packager/electron-builder, unit/e2e testing, vue-devtools, and webpack.
+boilerplate	cookiecutter/cookiecutter-django	13602	2026-08-25T02:39:14Z	false	BSD-3-Clause	Python	Cookiecutter Django is a framework for jumpstarting production-ready Django projects quickly.
+boilerplate	ixartz/Next-js-Boilerplate	13056	2026-08-20T19:51:14Z	false	MIT	TypeScript	🚀🎉📚 Nextjs Boilerplate and Starter with App Router and Page Router support, Tailwind CSS 4 and TypeScript ⚡️ Made with developer experience first: Next.js 16 + TypeScript + ESLint + Prettier + Drizzle ORM + Husky + Lint-Staged + Vitest + Testing Library + Playwright + Storybook + Commitlint + VSCode + Sentry + PostCSS + Tailwind CSS ✨
+boilerplate	Mantle/Mantle	11255	2022-10-18T09:40:02Z	false	NOASSERTION	Objective-C	Model framework for Cocoa and Cocoa Touch
+boilerplate	coryhouse/react-slingshot	9640	2023-09-26T00:25:23Z	false	MIT	JavaScript	React + Redux starter kit / boilerplate with Babel, hot reloading, testing, linting and a working example app built in
+boilerplate	bencodezen/vue-enterprise-boilerplate	7778	2026-01-26T23:39:47Z	false	NONE	SCSS	An ever-evolving, very opinionated architecture and dev environment for new Vue SPA projects using Vue CLI.
+boilerplate	hagopj13/node-express-boilerplate	7668	2024-07-08T10:46:16Z	false	MIT	JavaScript	A boilerplate for building production-ready RESTful APIs using Node.js, Express, and Mongoose
+boilerplate	vercel/next-forge	7663	2026-05-28T14:33:12Z	false	MIT	TypeScript	Production-grade Turborepo template for Next.js apps.
+boilerplate	Blazity/next-enterprise	7447	2026-08-14T16:46:52Z	false	MIT	TypeScript	💼 An enterprise-grade Next.js boilerplate for high-performance, maintainable apps. Packed with features like Tailwind CSS, TypeScript, ESLint, Prettier, testing tools, and more to accelerate your development.
+boilerplate	ixartz/SaaS-Boilerplate	7380	2026-08-21T00:07:04Z	false	MIT	TypeScript	🚀🎉📚 SaaS Boilerplate built with Next.js + Tailwind CSS + Shadcn UI + TypeScript. ⚡️ Full-stack React application with Auth, Multi-tenancy, Roles & Permissions, i18n, Landing Page, DB, Logging, Testing
+boilerplate	fullstackhero/dotnet-starter-kit	6734	2026-08-08T03:24:38Z	false	MIT	C#	Production Grade Cloud-Ready .NET 10 Starter Kit (Web API + React Client) with Multitenancy Support, and Clean/Modular Architecture that saves roughly 200+ Development Hours! All Batteries Included.
+boilerplate	prisma/prisma-examples	6643	2026-08-23T18:19:05Z	false	Apache-2.0	TypeScript	 🚀 Ready-to-run Prisma example projects
+boilerplate	python-attrs/attrs	5831	2026-08-25T05:35:45Z	false	MIT	Python	Python Classes Without Boilerplate
+boilerplate	santiq/bulletproof-nodejs	5778	2024-06-19T00:14:25Z	false	MIT	TypeScript	Implementation of a bulletproof node.js API 🛡️
+boilerplate	rappasoft/laravel-boilerplate	5632	2025-09-28T05:06:22Z	true	NONE	PHP	The Laravel Boilerplate Project - https://laravel-boilerplate.com
+boilerplate	niieani/bash-oo-framework	5617	2023-12-15T14:25:19Z	false	MIT	Shell	Bash Infinity is a modern standard library / framework / boilerplate for Bash
+boilerplate	thecodingmachine/react-native-boilerplate	5564	2026-06-30T10:48:00Z	false	MIT	TypeScript	A React Native template for building solid applications 🐙, using JavaScript 💛 or Typescript 💙 (you choose).
+boilerplate	web-infra-dev/modern.js	5038	2026-08-25T05:05:29Z	false	MIT	TypeScript	A progressive web framework based on React and Rsbuild.
+boilerplate	boxyhq/saas-starter-kit	4913	2026-07-20T08:15:05Z	false	Apache-2.0	TypeScript	🔥 Enterprise SaaS Starter Kit - Kickstart your enterprise app development with the Next.js SaaS boilerplate 🚀
+boilerplate	kriasoft/react-firebase-starter	4513	2024-01-04T13:51:54Z	false	MIT	JavaScript	Boilerplate (seed) project for creating web apps with React.js, GraphQL.js and Relay
+boilerplate	async-labs/saas	4503	2025-03-21T18:07:06Z	false	MIT	TypeScript	Build your own SaaS business with SaaS boilerplate. Productive stack: React, Material-UI, Next, MobX, WebSockets, Express, Node, Mongoose, MongoDB. Written with TypeScript.
+boilerplate	brocoders/nestjs-boilerplate	4381	2026-08-21T23:16:42Z	false	MIT	TypeScript	NestJS boilerplate. Auth, TypeORM, Mongoose, Postgres, MongoDB, Mailing, I18N, Docker.
+boilerplate	obytes/react-native-template-obytes	4323	2026-06-02T13:59:47Z	false	MIT	TypeScript	📱 A template for your next React Native project: Expo, PNPM, TypeScript, TailwindCSS, Husky, EAS, GitHub Actions, Env Vars, expo-router, react-query, react-hook-form.
+starters	sahat/hackathon-starter	35247	2026-08-24T13:32:26Z	false	MIT	JavaScript	A boilerplate for Node.js web applications
+starters	kriasoft/react-starter-kit	23669	2026-08-23T20:58:14Z	false	MIT	TypeScript	Modern React starter kit with Bun, TypeScript, Tailwind CSS, tRPC, Stripe, and Cloudflare Workers. Production-ready monorepo for building fast web apps.
+starters	n8n-io/self-hosted-ai-starter-kit	15206	2026-07-23T11:28:09Z	false	Apache-2.0	-	The Self-hosted AI Starter Kit is an open-source template that quickly sets up a local AI environment. Curated by n8n, it provides essential tools for creating secure, self-hosted AI workflows.
+starters	ixartz/Next-js-Boilerplate	13056	2026-08-20T19:51:14Z	false	MIT	TypeScript	🚀🎉📚 Nextjs Boilerplate and Starter with App Router and Page Router support, Tailwind CSS 4 and TypeScript ⚡️ Made with developer experience first: Next.js 16 + TypeScript + ESLint + Prettier + Drizzle ORM + Husky + Lint-Staged + Vitest + Testing Library + Playwright + Storybook + Commitlint + VSCode + Sentry + PostCSS + Tailwind CSS ✨
+starters	coryhouse/react-slingshot	9640	2023-09-26T00:25:23Z	false	MIT	JavaScript	React + Redux starter kit / boilerplate with Babel, hot reloading, testing, linting and a working example app built in
+starters	Blazity/next-enterprise	7447	2026-08-14T16:46:52Z	false	MIT	TypeScript	💼 An enterprise-grade Next.js boilerplate for high-performance, maintainable apps. Packed with features like Tailwind CSS, TypeScript, ESLint, Prettier, testing tools, and more to accelerate your development.
+starters	ixartz/SaaS-Boilerplate	7380	2026-08-21T00:07:04Z	false	MIT	TypeScript	🚀🎉📚 SaaS Boilerplate built with Next.js + Tailwind CSS + Shadcn UI + TypeScript. ⚡️ Full-stack React application with Auth, Multi-tenancy, Roles & Permissions, i18n, Landing Page, DB, Logging, Testing
+starters	akveo/kittenTricks	7263	2024-02-26T18:51:21Z	false	MIT	TypeScript	React Native starter kit with over 40 screens and modern Light and Dark theme for creating stunning cross-platform mobile applications.
+starters	fullstackhero/dotnet-starter-kit	6734	2026-08-08T03:24:38Z	false	MIT	C#	Production Grade Cloud-Ready .NET 10 Starter Kit (Web API + React Client) with Multitenancy Support, and Clean/Modular Architecture that saves roughly 200+ Development Hours! All Batteries Included.
+starters	thecodingmachine/react-native-boilerplate	5564	2026-06-30T10:48:00Z	false	MIT	TypeScript	A React Native template for building solid applications 🐙, using JavaScript 💛 or Typescript 💙 (you choose).
+starters	boxyhq/saas-starter-kit	4913	2026-07-20T08:15:05Z	false	Apache-2.0	TypeScript	🔥 Enterprise SaaS Starter Kit - Kickstart your enterprise app development with the Next.js SaaS boilerplate 🚀
+starters	preactjs/preact-cli	4668	2024-03-27T18:12:14Z	false	MIT	JavaScript	😺 Your next Preact PWA starts in 30 seconds.
+starters	futurice/pepperoni-app-kit	4601	2023-07-11T06:27:17Z	false	MIT	JavaScript	Pepperoni - React Native App Starter Kit for Android and iOS
+starters	postlight/headless-wp-starter	4548	2023-03-14T18:16:51Z	false	GPL-2.0	JavaScript	🔪 WordPress + React Starter Kit: Spin up a WordPress-powered React app in one step
+starters	kriasoft/graphql-starter-kit	3972	2024-11-10T20:45:45Z	false	MIT	TypeScript	💥  Monorepo template (seed project) pre-configured with GraphQL API, PostgreSQL, React, and Joy UI.
+starters	w3tecch/express-typescript-boilerplate	3416	2023-05-07T10:26:52Z	false	MIT	TypeScript	A delightful way to building a RESTful API with NodeJs & TypeScript by @w3tecch
+starters	ElementUI/element-starter	3138	2022-08-19T05:48:34Z	false	NONE	JavaScript	A starter kit for Element UI generated by vue-cli
+starters	apiato/apiato	3109	2026-05-29T05:24:08Z	false	MIT	PHP	PHP Framework for building scalable API's on top of Laravel.
+starters	michaelshimeles/nextjs-starter-kit	3051	2025-12-14T07:05:48Z	false	NONE	TypeScript	The Ulimate Nextjs Starter Kit. Build your next SAAS product of your dreams. Batteries included.
+starters	mikestefanello/pagoda	2951	2026-08-14T00:36:35Z	false	MIT	Go	Rapid, easy full-stack web development starter kit and admin panel in Go
+starters	diegohaz/arc	2926	2022-02-12T09:10:40Z	false	NONE	JavaScript	React starter kit based on Atomic Design
+starters	flatlogic/react-native-starter	2516	2025-01-27T12:01:56Z	false	MPL-2.0	JavaScript	🚀A powerful react native starter template that bootstraps development of your mobile application 
+starters	zce/caz	2487	2026-08-02T10:27:11Z	false	MIT	TypeScript	A simple yet powerful template-based Scaffolding tools.
+starters	ecronix/react-most-wanted	2412	2025-10-14T08:10:05Z	false	MIT	TypeScript	React starter kit with "Most Wanted" application features
+starters	scaffold-eth/scaffold-eth-2	2042	2026-07-29T08:08:09Z	false	MIT	TypeScript	Open source forkable Ethereum dev stack
+starters	themeselection/materio-mui-nextjs-admin-template-free	1964	2026-03-20T05:51:19Z	false	MIT	TypeScript	An enterprise-grade Next.js admin dashboard template. Made with developer experience first: Next.js v14 (App Router), Material UI (MUI), Tailwind CSS, TypeScript, ESLint, Prettier, VSCode Configs !! 🚀
+starters	flexn-io/renative	1953	2026-08-03T18:37:39Z	false	MIT	TypeScript	🚀🚀🚀 Unified Development Platform for iOS, tvOS, Android, Android TV, Android Wear, Web, Tizen TV, Tizen Watch, Tizen Mobile, LG webOS, macOS/OSX, Windows, KaiOS, FirefoxOS Firefox TV platforms
+starters	EinGuterWaran/awesome-opensource-boilerplates	1950	2026-08-22T12:01:54Z	false	CC0-1.0	-	A curated list of production-ready and free SaaS boilerplates and starter templates. Build your next software-as-a-service project with battle-tested open source foundations.
+starters	BCG-X-Official/agentkit	1949	2026-03-18T09:40:05Z	true	MIT	TypeScript	Starter-kit to build constrained agents with Nextjs, FastAPI and Langchain
+starters	enkodellc/blazorboilerplate	1913	2025-08-14T09:05:20Z	false	MIT	C#	Blazor Boilerplate / Starter Template with MudBlazor 
+practice	goldbergyoni/nodebestpractices	105601	2026-06-15T11:41:04Z	false	CC-BY-SA-4.0	Dockerfile	✅ The Node.js best practices list (July 2026)
+practice	ryanmcdermott/clean-code-javascript	94763	2024-07-29T07:24:37Z	false	MIT	JavaScript	Clean Code concepts adapted for JavaScript
+practice	shanraisshan/claude-code-best-practice	64983	2026-08-25T06:38:45Z	false	MIT	HTML	from vibe coding to agentic engineering - practice makes claude perfect
+practice	h5bp/html5-boilerplate	57601	2026-08-20T23:26:16Z	false	MIT	JavaScript	A professional front-end template for building fast, robust, and adaptable web apps or sites.
+practice	OWASP/CheatSheetSeries	32974	2026-08-25T01:30:55Z	false	CC-BY-SA-4.0	Python	The OWASP Cheat Sheet Series was created to provide a concise collection of high value information on specific application security topics.
+practice	GoogleChrome/lighthouse	30695	2026-08-24T18:27:48Z	false	Apache-2.0	JavaScript	Automated auditing, performance metrics, and best practices for the web.
+practice	elsewhencode/project-guidelines	29450	2024-12-09T07:59:04Z	false	MIT	JavaScript	A set of best practices for JavaScript projects
+practice	futurice/android-best-practices	20438	2021-10-01T07:31:17Z	false	NOASSERTION	-	Do's and Don'ts for Android development, by Futurice developers
+practice	inancgumus/learngo	20117	2025-06-24T23:03:52Z	false	NOASSERTION	Go	❤️ 1000+ Hand-Crafted Go Examples, Exercises, and Quizzes. 🚀 Learn Go by fixing 1000+ tiny programs.
+practice	zhanymkanov/fastapi-best-practices	17953	2026-05-03T18:11:59Z	false	NONE	-	FastAPI Best Practices and Conventions we used at our startup
+practice	aidenybai/million	17668	2026-05-20T16:10:55Z	false	MIT	TypeScript	Optimizing compiler for React
+practice	uber-go/guide	17659	2026-04-15T15:10:48Z	false	Apache-2.0	Makefile	The Uber Go Style Guide.
+practice	vasanthk/react-bits	17423	2025-12-05T19:33:18Z	false	CC-BY-4.0	-	✨ React patterns, techniques, tips and tricks ✨
+practice	github/opensource.guide	15644	2026-08-13T18:13:49Z	false	CC-BY-4.0	HTML	📚 Community guides for open source creators
+practice	andkret/Cookbook	15366	2026-07-23T10:28:49Z	false	Apache-2.0	Python	The Data Engineering Cookbook
+practice	Sairyss/domain-driven-hexagon	14881	2024-06-11T05:47:51Z	false	MIT	TypeScript	Learn Domain-Driven Design, software architecture, design patterns, best practices. Code examples included
+practice	trimstray/nginx-admins-handbook	14308	2024-11-19T13:58:35Z	false	MIT	Shell	How to improve NGINX performance, security, and other important things.
+practice	google/WebFundamentals	13871	2022-08-10T14:38:07Z	true	Apache-2.0	JavaScript	Former git repo for WebFundamentals on developers.google.com
+practice	alexeymezenin/laravel-best-practices	12326	2025-05-10T02:27:31Z	false	NONE	-	Laravel best practices
+practice	aspnetboilerplate/aspnetboilerplate	12003	2026-08-20T13:25:08Z	false	MIT	C#	ASP.NET Boilerplate - Web Application Framework
+practice	h5bp/server-configs-nginx	11560	2026-06-20T15:26:17Z	false	MIT	-	Nginx HTTP server boilerplate configs
+practice	futurice/ios-good-practices	10975	2024-04-30T09:39:34Z	false	NOASSERTION	-	Good ideas for iOS development, by Futurice developers.
+practice	labs42io/clean-code-typescript	9801	2025-07-01T14:56:36Z	false	MIT	TypeScript	Clean Code concepts adapted for TypeScript
+practice	OWASP/wstg	9743	2026-08-19T12:19:15Z	false	CC-BY-SA-4.0	Python	The Web Security Testing Guide is a comprehensive Open Source guide to testing the security of web applications and web services.
+practice	cpp-best-practices/cppbestpractices	8809	2024-08-06T07:33:26Z	false	NOASSERTION	-	Collaborative Collection of C++ Best Practices. This online resource is part of Jason Turner's collection of C++ Best Practices resources. See README.md for more information.
+practice	jstherightway/js-the-right-way	8675	2026-07-29T22:18:41Z	false	NOASSERTION	HTML	An easy-to-read, quick reference for JS best practices, accepted coding standards, and links around the Web
+practice	xojs/xo	7994	2026-07-29T23:27:31Z	false	MIT	TypeScript	❤️ JavaScript/TypeScript linter (ESLint wrapper) with great defaults
+practice	thangchung/clean-code-dotnet	7727	2026-02-27T03:58:00Z	false	MIT	C#	:bathtub:  Clean Code concepts and tools adapted for .NET 
+practice	igorwojda/android-showcase	6784	2026-08-24T07:32:26Z	false	MIT	Kotlin	💎 Android application following best practices:  Kotlin, Coroutines, JetPack, Clean Architecture, Feature Modules, Tests, MVVM, DI, Static Analysis...
+practice	decalage2/awesome-security-hardening	6524	2026-05-05T21:38:04Z	false	NONE	-	A collection of awesome security hardening guides, tools and other resources
+patterns	donnemartin/system-design-primer	365869	2026-03-20T01:52:19Z	false	NOASSERTION	Python	Learn how to design large-scale systems. Prep for the system design interview.  Includes Anki flashcards.
+patterns	iluwatar/java-design-patterns	94614	2026-08-25T04:52:07Z	false	NOASSERTION	Java	Design patterns implemented in Java
+patterns	binhnguyennus/awesome-scalability	73516	2026-01-04T03:51:47Z	false	MIT	-	The Patterns of Scalable, Reliable, and Performant Large-Scale Systems
+patterns	DovAmir/awesome-design-patterns	48680	2024-10-25T19:57:00Z	false	NONE	-	A curated list of software and architecture related design patterns.
+patterns	nilbuild/design-patterns-for-humans	48467	2024-12-02T04:54:48Z	false	NONE	-	An ultra-simplified explanation to design patterns
+patterns	faif/python-patterns	42942	2026-08-20T09:10:58Z	false	NONE	Python	A collection of design patterns/idioms in Python
+patterns	tmrts/go-patterns	28196	2024-05-14T01:07:28Z	false	Apache-2.0	Go	Curated list of Go design patterns, recipes and idioms
+patterns	ashishps1/awesome-low-level-design	26354	2026-08-19T08:47:42Z	false	GPL-3.0	Java	Learn Low Level Design (LLD) and prepare for interviews using free resources.
+patterns	hollischuang/toBeTopJavaer	25343	2024-01-03T13:58:24Z	false	NONE	Java	To Be Top Javaer - Java工程师成神之路
+patterns	DesignPatternsPHP/DesignPatternsPHP	22187	2025-02-03T08:45:02Z	false	MIT	PHP	Sample code for several design patterns in PHP 8.x
+patterns	inancgumus/learngo	20117	2025-06-24T23:03:52Z	false	NOASSERTION	Go	❤️ 1000+ Hand-Crafted Go Examples, Exercises, and Quizzes. 🚀 Learn Go by fixing 1000+ tiny programs.
+patterns	vasanthk/react-bits	17423	2025-12-05T19:33:18Z	false	CC-BY-4.0	-	✨ React patterns, techniques, tips and tricks ✨
+patterns	ochococo/Design-Patterns-In-Swift	15256	2024-08-03T07:30:28Z	false	GPL-3.0	Swift	📖 Design Patterns implemented in Swift 5.0
+patterns	Sairyss/domain-driven-hexagon	14881	2024-06-11T05:47:51Z	false	MIT	TypeScript	Learn Domain-Driven Design, software architecture, design patterns, best practices. Code examples included
+patterns	kgrzybek/modular-monolith-with-ddd	13959	2024-06-04T17:51:26Z	false	MIT	C#	Full Modular Monolith application with Domain-Driven Design approach.
+patterns	tachyons-css/tachyons	11713	2026-07-20T15:11:15Z	false	MIT	CSS	Functional css for humans
+patterns	mehdihadeli/awesome-software-architecture	11588	2026-07-16T11:04:37Z	false	CC0-1.0	-	📚 A curated list of awesome articles, videos, and other resources to learn and practice software architecture, patterns, and principles.
+patterns	dotnet-architecture/eShopOnWeb	10691	2025-01-13T20:55:37Z	true	MIT	C#	Sample ASP.NET Core 8.0 reference application, now community supported: https://github.com/NimblePros/eShopOnWeb
+patterns	prasadgujar/low-level-design-primer	7898	2024-01-01T20:34:02Z	false	NONE	-	Dedicated Resources for the Low-Level System Design. Learn how to design and implement large-scale systems. Prep for the system design interview.
+patterns	sschmid/Entitas	7670	2023-12-30T16:18:56Z	false	MIT	C#	Entitas is a super fast Entity Component System (ECS) Framework specifically made for C# and Unity
+patterns	dbacinski/Design-Patterns-In-Kotlin	5996	2024-06-11T06:11:21Z	false	GPL-3.0	Kotlin	Design Patterns implemented in Kotlin
+patterns	torokmark/design_patterns_in_typescript	5431	2023-09-05T02:44:07Z	false	MIT	TypeScript	:triangular_ruler: Design pattern implementations in TypeScript
+patterns	ets-labs/python-dependency-injector	4908	2026-08-11T12:25:27Z	false	BSD-3-Clause	Python	Dependency injection framework for Python
+patterns	QianMo/Unity-Design-Pattern	4680	2020-02-06T05:00:57Z	false	NONE	C#	:tea:  All Gang of Four Design Patterns written in Unity C# with many examples. And some Game Programming Patterns  written in Unity C#. | 各种设计模式的Unity3D C#版本实现
+patterns	munificent/game-programming-patterns	4533	2024-07-21T23:27:15Z	false	NOASSERTION	HTML	Source repo for the book
+patterns	sohamkamani/javascript-design-patterns-for-humans	4481	2024-01-08T05:07:39Z	false	NOASSERTION	-	An ultra-simplified explanation of design patterns implemented in javascript
+patterns	ivanpaulovich/clean-architecture-manga	4353	2026-06-22T09:52:34Z	false	Apache-2.0	C#	 :cyclone: Clean Architecture with .NET6, C#10 and React+Redux. Use cases as central organizing structure, completely testable, decoupled from frameworks
+patterns	taiga-family/taiga-ui	4042	2026-08-24T19:58:29Z	false	Apache-2.0	TypeScript	Angular components library for awesome people
+patterns	fbeline/design-patterns-JS	3628	2023-02-10T16:43:18Z	true	MIT	JavaScript	All the 23 (GoF) design patterns implemented in Javascript
+patterns	puncsky/system-design-and-architecture	3555	2024-12-17T23:10:26Z	false	NONE	Makefile	Learn how to design large-scale systems. Prep for the system design interview.
+architecture	CyC2018/CS-Notes	185631	2024-08-21T09:40:10Z	false	NONE	-	:books: 技术面试必备基础知识、Leetcode、计算机操作系统、计算机网络、系统设计
+architecture	Snailclimb/JavaGuide	158009	2026-08-24T09:08:16Z	false	Apache-2.0	JavaScript	Java 面试 & 后端通用面试指南，覆盖计算机基础、数据库、分布式、高并发、系统设计与 AI 应用开发
+architecture	yangshun/tech-interview-handbook	142140	2026-08-07T12:06:42Z	false	MIT	TypeScript	Curated coding interview preparation materials for busy software engineers
+architecture	ByteByteGoHq/system-design-101	87516	2025-04-04T17:30:30Z	false	NOASSERTION	-	Explain complex systems using visuals and simple terms. Help you prepare for system design interviews.
+architecture	binhnguyennus/awesome-scalability	73516	2026-01-04T03:51:47Z	false	MIT	-	The Patterns of Scalable, Reliable, and Performant Large-Scale Systems
+architecture	karanpratapsingh/system-design	45763	2026-07-08T00:36:51Z	false	NOASSERTION	-	Learn how to design systems at scale and prepare for system design interviews
+architecture	ashishps1/awesome-system-design-resources	40900	2026-02-16T18:32:29Z	false	GPL-3.0	Java	Learn System Design concepts and prepare for interviews using free resources.
+architecture	systemdesign42/system-design-academy	27861	2026-08-24T16:24:37Z	false	NOASSERTION	-	If you want to become good at AI engineering & system design, join this newsletter 👇
+architecture	checkcheckzz/system-design-interview	23647	2023-04-03T04:22:45Z	false	NONE	-	System design interview for IT companies
+architecture	InterviewReady/system-design-resources	18452	2025-07-16T22:41:39Z	false	GPL-3.0	-	These are the best resources for System Design on the Internet
+architecture	ahmedkhaleel2004/gitdiagram	15909	2026-08-17T13:09:39Z	false	MIT	TypeScript	Free, simple, fast interactive diagrams for any GitHub repository
+architecture	tt-a1i/archify	15595	2026-08-22T17:43:10Z	false	MIT	HTML	Agent skill for beautiful, verifiable architecture, workflow, sequence, data-flow, and lifecycle diagrams—self-contained HTML with motion and crisp export.
+architecture	Sairyss/domain-driven-hexagon	14881	2024-06-11T05:47:51Z	false	MIT	TypeScript	Learn Domain-Driven Design, software architecture, design patterns, best practices. Code examples included
+architecture	halfrost/Halfrost-Field	13219	2026-08-06T08:47:55Z	false	CC-BY-SA-4.0	Go	✍🏻 Source Code Deep Dives, System Design & Engineering Blogs | Halfrost-Field 冰霜之地：源码解析、系统设计与工程实践笔记 
+architecture	khangich/machine-learning-interview	12793	2023-08-31T17:49:30Z	false	NONE	-	Machine Learning Interviews from FAANG, Snapchat, LinkedIn. I have offers from Snapchat, Coupang, Stitchfix etc. Blog: mlengineer.io.
+architecture	mehdihadeli/awesome-software-architecture	11588	2026-07-16T11:04:37Z	false	CC0-1.0	-	📚 A curated list of awesome articles, videos, and other resources to learn and practice software architecture, patterns, and principles.
+architecture	alirezadir/AIMLInterviews	9461	2026-08-19T19:26:17Z	false	MIT	Jupyter Notebook	This repo is meant to serve as a guide for Machine Learning/AI technical interviews. 
+architecture	shashank88/system_design	9248	2024-05-10T19:49:11Z	false	NONE	-	Preparation links and resources for system design questions
+architecture	greatfrontend/awesome-front-end-system-design	8447	2026-03-03T13:55:49Z	false	MIT	-	Curated front end system design resources for interviews and learning
+architecture	linkedin/school-of-sre	8136	2025-12-25T12:44:23Z	false	NOASSERTION	HTML	At LinkedIn, we are using this curriculum for onboarding our entry-level talents into the SRE role.
+architecture	prasadgujar/low-level-design-primer	7898	2024-01-01T20:34:02Z	false	NONE	-	Dedicated Resources for the Low-Level System Design. Learn how to design and implement large-scale systems. Prep for the system design interview.
+architecture	BohdanOrlov/iOS-Developer-Roadmap	6419	2024-01-25T09:57:30Z	false	NONE	Swift	Roadmap to becoming an iOS developer in 2018.
+architecture	alirezadir/Production-Level-Deep-Learning	4658	2025-06-13T01:52:26Z	false	NONE	-	A guideline for building practical production-level deep learning systems to be deployed in real world applications. 
+architecture	NotFound9/interviewGuide	4005	2023-08-07T06:26:02Z	false	NONE	Java	《大厂面试指北》——包括Java基础、JVM、数据库、mysql、redis、计算机网络、算法、数据结构、操作系统、设计模式、系统设计、框架原理。
+architecture	kunal-kushwaha/Competitive-Programming-Resources	3903	2024-06-28T09:27:23Z	false	MIT	-	Competitive Programming & System Design Resources.
+architecture	rohan-paul/Awesome-JavaScript-Interviews	3742	2024-02-29T08:26:56Z	false	NONE	JavaScript	Popular JavaScript / React / Node / Mongo stack Interview questions and their answers. Many of them, I faced in actual interviews and ultimately got my first full-stack Dev job :) 
+architecture	subhashchy/The-Accidental-CTO	3626	2026-04-09T12:35:25Z	false	NONE	TypeScript	How I Scaled from Zero to a Million Store on Dukaan,  Without a CS Degree.  .. A System Design Handbook by  Subhash Choudhary 
+architecture	puncsky/system-design-and-architecture	3555	2024-12-17T23:10:26Z	false	NONE	Makefile	Learn how to design large-scale systems. Prep for the system design interview.
+architecture	rafaelfgx/Architecture	3278	2026-08-18T11:57:31Z	false	MIT	C#	.NET 10, Angular 22, Clean Architecture, Clean Code, SOLID, KISS, DRY, Mediator Pattern, Folder-by-Feature Structure
+architecture	arpitbbhayani/system-design-questions	3119	2026-07-14T15:46:37Z	false	NONE	Python	A no-fluff and highly practical masterclass that reignites engineering curiosity and helps SDE-2, SDE-3, and above become great at designing, implementing, and shipping scalable, fault-tolerant, and highly available systems at the workplace.
+prompts	f/prompts.chat	167869	2026-08-25T03:21:48Z	false	NOASSERTION	HTML	f.k.a. Awesome ChatGPT Prompts. Share, discover, and collect prompts from the community. Free and open source — self-host for your organization with complete privacy.
+prompts	microsoft/generative-ai-for-beginners	118509	2026-08-20T03:43:12Z	false	MIT	Jupyter Notebook	21 Lessons, Get Started Building with Generative AI 
+prompts	DietrichGebert/ponytail	110020	2026-08-07T21:44:01Z	false	MIT	JavaScript	Makes your AI agent think like the laziest senior dev in the room. The best code is the code you never wrote.
+prompts	JuliusBrussee/caveman	100748	2026-08-24T23:31:25Z	false	NOASSERTION	Go	🪨 why use many token when few token do trick — Claude Code skill that cuts 65% of tokens by talking like caveman
+prompts	dair-ai/Prompt-Engineering-Guide	77768	2026-03-11T20:09:13Z	false	MIT	MDX	🐙 Guides, papers, lessons, notebooks and resources for prompt engineering, context engineering, RAG, and AI Agents.
+prompts	headroomlabs-ai/headroom	67476	2026-08-25T06:11:48Z	false	Apache-2.0	Python	Compress tool outputs, logs, files, and RAG chunks before they reach the LLM. 20% fewer tokens for coding agents, 60-95% fewer tokens for JSON, same answers. Library, proxy, MCP server.
+prompts	asgeirtj/system_prompts_leaks	63508	2026-08-25T07:01:45Z	false	CC0-1.0	JavaScript	Extracted system prompts from Anthropic - Claude Fable 5, Opus 5, Claude Design, Claude Code. OpenAI - ChatGPT GPT-5.6-Sol, Codex. Google - Gemini 3.5 Flash, 3.1 Pro, Antigravity. xAI - Grok, Cursor, Copilot, VS Code, Perplexity, and more. Updated regularly.
+prompts	elder-plinius/CL4R1T4S	47136	2026-08-15T02:33:56Z	false	AGPL-3.0	-	LEAKED SYSTEM PROMPTS FOR CHATGPT, CLAUDE, GEMINI, GROK, PERPLEXITY, CURSOR, LOVABLE, REPLIT, AND MORE! - AI SYSTEMS TRANSPARENCY FOR ALL! 👐
+prompts	Imbad0202/academic-research-skills	43603	2026-08-24T10:04:28Z	false	NOASSERTION	Python	Academic Research Skills for Claude Code: research → write → review → revise → finalize
+prompts	wshobson/agents	39101	2026-08-24T01:08:10Z	false	MIT	Python	Multi-harness agentic plugin marketplace for Claude Code, Codex, Cursor, OpenCode, GitHub Copilot, and Google Antigravity
+prompts	github/awesome-copilot	38211	2026-08-25T04:36:42Z	false	MIT	Python	Community-contributed instructions, agents, skills, and configurations to help you make the most of GitHub Copilot.
+prompts	blader/humanizer	37710	2026-08-19T05:58:53Z	false	MIT	Python	Agent skill that removes signs of AI-generated writing from text
+prompts	langfuse/langfuse	33660	2026-08-24T21:34:52Z	false	NOASSERTION	TypeScript	🪢 Open source AI engineering platform: LLM evals, observability, metrics, prompt management, playground, datasets. Integrates with OpenTelemetry, LangChain, OpenAI SDK, LiteLLM, and more. 🍊YC W23 
+prompts	linshenkx/prompt-optimizer	33322	2026-08-13T14:23:12Z	false	NOASSERTION	TypeScript	An AI prompt optimizer for writing better prompts and getting better AI results.
+prompts	mlflow/mlflow	27664	2026-08-25T06:31:05Z	false	Apache-2.0	Python	The open source AI engineering platform for agents, LLMs, and ML models. MLflow enables teams of all sizes to debug, evaluate, monitor, and optimize production-quality AI applications while controlling costs and managing access to models and data.
+prompts	humanlayer/12-factor-agents	25472	2025-09-21T14:37:40Z	false	NOASSERTION	TypeScript	What are the principles we can use to build LLM-powered software that is actually good enough to put in the hands of production customers?
+prompts	alirezarezvani/claude-skills	24926	2026-08-25T06:49:30Z	false	MIT	Python	380 Claude Code skills & agent skills & plugins (30+ Agents, 70+ custom commands, 380+ skills, customizable references, scripts)for Claude Code, Codex, Gemini CLI, Cursor, and 8 more coding agents — engineering, marketing, product, compliance, C-level advisory, research, business operations, commercial & finance, and your daily productivity skills.
+prompts	promptfoo/promptfoo	24551	2026-08-25T06:10:24Z	false	MIT	TypeScript	Test your prompts, agents, and RAGs. Red teaming/pentesting/vulnerability scanning for AI. Compare performance of GPT, Claude, Gemini, DeepSeek, and more. Simple declarative configs with command line and CI/CD integration.  Used by OpenAI and Anthropic.
+prompts	comet-ml/opik	21588	2026-08-25T06:14:25Z	false	Apache-2.0	Python	Debug, evaluate, and monitor your LLM applications, RAG systems, and agentic workflows with comprehensive tracing, automated evaluations, and production-ready dashboards.
+prompts	AI4Finance-Foundation/FinGPT	21148	2026-08-02T03:23:48Z	false	MIT	Jupyter Notebook	FinGPT: Open-Source Financial Large Language Models!  Revolutionize 🔥    We release the trained model on HuggingFace.
+prompts	jnMetaCode/agency-agents-zh	19888	2026-08-24T14:09:20Z	false	MIT	Shell	🎭 267 个即插即用的 AI 专家角色 — 支持 Hermes Agent/Claude Code/Cursor/Copilot 等 18 种工具，覆盖工程/设计/营销/金融等 20 个部门。含 52 个中国市场原创智能体（小红书/抖音/微信/飞书/钉钉等）。搭配编排器 agency-orchestrator，一句话即可让多位专家按 DAG 自动协作。
+prompts	EvoLinkAI/awesome-gpt-image-2-API-and-Prompts	16927	2026-07-18T06:23:28Z	false	CC0-1.0	Python	GPT-Image-2 API and Prompts
+prompts	freestylefly/awesome-gpt-image-2	16081	2026-08-24T10:55:30Z	false	MIT	JavaScript	Prompt as Code | GPT-Image2 工业级提示词引擎与模板库，530+ 个案例逆向工程，20+ 套工业级模板，并提炼出Skills，持续更新中
+prompts	dottxt-ai/outlines	15688	2026-08-25T06:25:40Z	false	Apache-2.0	Python	Structured Outputs
+prompts	YouMind-OpenLab/awesome-nano-banana-pro-prompts	13275	2026-08-25T04:13:14Z	false	NOASSERTION	TypeScript	🍌 World's largest Nano Banana Pro prompt library — 10,000+ curated prompts with preview images, 16 languages. Google Gemini AI image generation. Free & open source.
+prompts	langgptai/LangGPT	12454	2026-07-16T14:03:09Z	false	Apache-2.0	Jupyter Notebook	LangGPT: Empowering everyone to become a prompt expert! 🚀  📌 结构化提示词（Structured Prompt）提出者 📌 元提示词（Meta-Prompt）发起者   📌 最流行的提示词落地范式 | Language of GPT  The pioneering framework for structured & meta-prompt design 10,000+ ⭐ | Battle-tested by thousands of users worldwide  Created by 云中江树
+prompts	nidhinjs/prompt-master	11735	2026-08-24T07:30:40Z	false	MIT	-	A Claude skill that writes the accurate prompts for any AI tool. Zero tokens or credits wasted. Full context and memory retention
+prompts	EmbraceAGI/awesome-chatgpt-zh	11654	2026-07-03T22:06:36Z	false	MIT	Python	ChatGPT 中文指南🔥，ChatGPT 中文调教指南，指令指南，应用开发指南，精选资源清单，更好的使用 chatGPT 让你的生产力 up up up! 🚀
+prompts	microsoft/promptflow	11229	2026-08-05T07:12:59Z	false	MIT	Python	Build high-quality LLM apps - from prototyping, testing to production deployment and monitoring.
+prompts	Arize-ai/phoenix	11175	2026-08-25T06:36:41Z	false	NOASSERTION	Python	AI Observability & Evaluation
+agents	affaan-m/ECC	242984	2026-08-25T02:12:59Z	false	MIT	JavaScript	The agent harness performance optimization system. Skills, instincts, memory, security, and research-first development for Claude Code, Codex, Opencode, Cursor and beyond.
+agents	NousResearch/hermes-agent	236018	2026-08-25T06:57:22Z	false	MIT	Python	The agent that grows with you
+agents	deepseek-ai/deepseek-harness	193249	2026-08-21T12:35:08Z	false	MIT	TypeScript	DeepSeek Harness: Everything is a Plugin.
+agents	firecrawl/firecrawl	171991	2026-08-25T06:13:44Z	false	AGPL-3.0	TypeScript	The context API to search, scrape, and interact with the web at scale. 🔥
+agents	langchain-ai/langchain	144934	2026-08-25T03:51:56Z	false	MIT	Python	The agent engineering platform.
+agents	browser-use/browser-use	110424	2026-08-25T02:37:35Z	false	MIT	Python	🌐 Make websites accessible for AI agents. Automate tasks online with ease.
+agents	Graphify-Labs/graphify	110207	2026-08-24T13:19:04Z	false	Apache-2.0	Python	Turn any codebase, with its docs, SQL schemas, configs, and PDFs, into a queryable knowledge graph. A /graphify skill for Claude Code, Cursor, Codex, and Gemini CLI: local deterministic AST parsing, every edge explained, no vector store.
+agents	DietrichGebert/ponytail	110020	2026-08-07T21:44:01Z	false	MIT	JavaScript	Makes your AI agent think like the laziest senior dev in the room. The best code is the code you never wrote.
+agents	google-gemini/gemini-cli	106674	2026-08-25T02:02:13Z	false	Apache-2.0	TypeScript	An open-source AI agent that brings the power of Gemini directly into your terminal.
+agents	thedotmack/claude-mem	91757	2026-08-23T22:58:45Z	false	Apache-2.0	JavaScript	Persistent Context Across Sessions for Every Agent –  Captures everything your agent does during sessions, compresses it with AI, and injects relevant context back into future sessions. Works with Claude Code, OpenClaw, Codex, Gemini, Hermes, Copilot, OpenCode + More
+agents	infiniflow/ragflow	89194	2026-08-25T07:03:10Z	false	Apache-2.0	Go	RAGFlow is a leading open-source Retrieval-Augmented Generation (RAG) engine that fuses cutting-edge RAG with Agent capabilities to create a superior context layer for LLMs
+agents	bytedance/deer-flow	80823	2026-08-25T02:00:32Z	false	MIT	Python	An open-source long-horizon SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skill, subagents and message gateway, it handles different levels of tasks that could take minutes to hours.
+agents	dair-ai/Prompt-Engineering-Guide	77768	2026-03-11T20:09:13Z	false	MIT	MDX	🐙 Guides, papers, lessons, notebooks and resources for prompt engineering, context engineering, RAG, and AI Agents.
+agents	thedaviddias/Front-End-Checklist	73786	2026-08-14T05:59:25Z	false	NONE	MDX	🗂 The essential checklist for modern web development, for humans and AI agents
+agents	ComposioHQ/awesome-claude-skills	73194	2026-08-10T21:45:44Z	false	NONE	Python	A curated list of awesome Claude Skills, resources, and tools for customizing Claude AI workflows
+agents	microsoft/ai-agents-for-beginners	73169	2026-08-18T11:47:04Z	false	MIT	Jupyter Notebook	18 Lessons to Get Started Building AI Agents
+agents	daytonaio/daytona	71887	2026-07-24T07:12:07Z	false	NONE	-	Daytona is a Secure and Elastic Infrastructure for Running AI-Generated Code
+agents	ruvnet/ruflo	69322	2026-08-25T06:37:23Z	false	MIT	TypeScript	🌊 The original agent meta-harness. Deploy intelligent multi-player swarms, coordinate autonomous workflows, and build conversational AI systems. Features adaptive memory, self-learning intelligence, RAG integration, and native Claude Code / Codex / Hermes and many more Integrated
+agents	code-yeongyu/oh-my-openagent	68335	2026-08-25T07:05:10Z	false	NOASSERTION	TypeScript	omo/lazycodex: The coding agent for tokenmaxxers;the one and only agent harness for complex codebases. For your Codex, for your OpenCode
+agents	Mintplex-Labs/anything-llm	65165	2026-08-25T01:25:22Z	false	MIT	JavaScript	Stop renting your intelligence. Own it with AnythingLLM. Everything you need for a powerful local-first agent experience 
+agents	shanraisshan/claude-code-best-practice	64983	2026-08-25T06:38:45Z	false	MIT	HTML	from vibe coding to agentic engineering - practice makes claude perfect
+agents	mem0ai/mem0	63985	2026-08-24T20:06:40Z	false	Apache-2.0	Python	Universal memory layer for AI Agents
+agents	asgeirtj/system_prompts_leaks	63508	2026-08-25T07:01:45Z	false	CC0-1.0	JavaScript	Extracted system prompts from Anthropic - Claude Fable 5, Opus 5, Claude Design, Claude Code. OpenAI - ChatGPT GPT-5.6-Sol, Codex. Google - Gemini 3.5 Flash, 3.1 Pro, Antigravity. xAI - Grok, Cursor, Copilot, VS Code, Perplexity, and more. Updated regularly.
+agents	crewAIInc/crewAI	57576	2026-08-25T05:45:38Z	false	MIT	Python	Framework for orchestrating role-playing, autonomous AI agents. By fostering collaborative intelligence, CrewAI empowers agents to work together seamlessly, tackling complex tasks.
+agents	diegosouzapw/OmniRoute	54613	2026-08-25T06:49:44Z	false	MIT	TypeScript	Never stop coding. Free MIT AI gateway: one endpoint, 350 providers (90+ free), 1200+ models Kimi, Claude, GPT, Gemini, GLM, DeepSeek, MiniMax. Works with Claude Code, Codex, Cursor, OpenCode, Cline & Copilot. Quota-aware auto-fallback, RTK+Caveman compression saves 15-95% tokens, MCP/A2A, Desktop/PWA. Built by 450+ contributors
+agents	aaif-goose/goose	53410	2026-08-25T05:22:09Z	false	Apache-2.0	Rust	an open source, extensible AI agent that goes beyond code suggestions - install, execute, edit, and test with any LLM
+agents	stablyai/orca	53044	2026-08-25T07:01:55Z	false	MIT	TypeScript	Orca is the ADE for working with a fleet of parallel agents. Run any coding agent with your own subscription. Available on desktop, mobile and VPS.
+agents	rohitg00/ai-engineering-from-scratch	48453	2026-08-23T20:29:51Z	false	MIT	Python	Learn it. Build it. Ship it for others.
+agents	HKUDS/nanobot	47362	2026-08-25T07:04:44Z	false	MIT	Python	Ultra-lightweight, open-source, self-hosted personal AI agent framework in Python with WebUI, tools, memory, MCP, multi-agent workflows, automation, and chat apps
+agents	zhayujie/CowAgent	46661	2026-08-25T04:22:45Z	false	MIT	Python	Open-source super AI assistant & Agent Harness. Plans tasks, runs tools and skills, self-evolves with memory and knowledge. Multi-model, multi-channel. Lightweight, extensible, one-line install. (formerly chatgpt-on-wechat)
+selfhosted	awesome-selfhosted/awesome-selfhosted	314875	2026-08-22T18:55:56Z	false	NOASSERTION	-	A list of Free Software network services and web applications which can be hosted on your own servers
+selfhosted	n8n-io/n8n	202336	2026-08-25T07:06:04Z	false	NOASSERTION	TypeScript	Fair-code workflow automation platform with native AI capabilities. Combine visual building with custom code, self-host or cloud, 400+ integrations.
+selfhosted	open-webui/open-webui	149826	2026-08-25T01:15:56Z	false	NOASSERTION	Python	User-friendly AI Interface (Supports Ollama, OpenAI API, ...)
+selfhosted	immich-app/immich	112594	2026-08-25T06:51:36Z	false	AGPL-3.0	TypeScript	High performance self-hosted photo and video management solution.
+selfhosted	louislam/uptime-kuma	90586	2026-08-25T07:02:15Z	false	MIT	JavaScript	A fancy self-hosted monitoring tool
+selfhosted	Stirling-Tools/Stirling-PDF	90357	2026-08-25T06:59:13Z	false	NOASSERTION	Java	#1 PDF Application on GitHub that lets you edit PDFs on any device anywhere
+selfhosted	unslothai/unsloth	74653	2026-08-25T07:06:23Z	false	Apache-2.0	Python	Local UI to run and train LLMs and diffusion models, including Qwen3.8, Kimi K3, MiniMax-H3, Gemma 4, DeepSeek-V4, FLUX and more.
+selfhosted	usememos/memos	62515	2026-08-24T15:36:26Z	false	MIT	Go	Open-source, self-hosted note-taking tool built for quick capture. Markdown-native, lightweight, and fully yours.
+selfhosted	coollabsio/coolify	61007	2026-08-24T21:32:50Z	false	Apache-2.0	PHP	An open-source, self-hostable PaaS alternative to Vercel, Heroku & Netlify that lets you easily deploy static sites, databases, full-stack applications and 280+ one-click services on your own servers.
+selfhosted	go-gitea/gitea	57584	2026-08-25T00:23:04Z	false	MIT	Go	Git with a cup of tea! Painless self-hosted all-in-one software development service, including Git hosting, code review, team collaboration, package registry and CI/CD
+selfhosted	appwrite/appwrite	57114	2026-08-25T06:50:48Z	false	BSD-3-Clause	TypeScript	Appwrite® - complete cloud infrastructure for your web, mobile and AI apps. Including Auth, Databases, Storage, Functions, Messaging, Hosting, Realtime and more
+selfhosted	ClickHouse/ClickHouse	49434	2026-08-25T06:53:18Z	false	Apache-2.0	C++	ClickHouse® is a real-time analytics database management system
+selfhosted	gogs/gogs	47763	2026-08-22T21:32:23Z	false	MIT	Go	The painless way to host your own Git service
+selfhosted	HKUDS/nanobot	47362	2026-08-25T07:04:44Z	false	MIT	Python	Ultra-lightweight, open-source, self-hosted personal AI agent framework in Python with WebUI, tools, memory, MCP, multi-agent workflows, automation, and chat apps
+selfhosted	siyuan-note/siyuan	45971	2026-08-25T00:52:31Z	false	AGPL-3.0	TypeScript	An open-source, privacy-first, self-hosted knowledge workspace where humans and AI agents work together 开源、隐私优先、自托管的知识工作空间，让人与智能体在此协作
+selfhosted	janhq/jan	44148	2026-08-25T06:38:34Z	false	NOASSERTION	TypeScript	Jan is an open source alternative to ChatGPT that runs 100% offline on your computer.
+selfhosted	amruthpillai/reactive-resume	41686	2026-08-24T19:50:35Z	false	MIT	TypeScript	A one-of-a-kind resume builder that keeps your privacy in mind. Completely secure, customizable, portable, open-source and free forever. Try it out today!
+selfhosted	ToolJet/ToolJet	40758	2026-08-25T07:04:33Z	false	AGPL-3.0	JavaScript	ToolJet is the open-source foundation of ToolJet AI - the enterprise app generation platform for building internal tools, dashboard, business applications, workflows and AI agents 🚀
+selfhosted	appsmithorg/appsmith	40742	2026-08-24T23:35:22Z	false	Apache-2.0	TypeScript	Platform to build admin panels, internal tools, and dashboards. Integrates with 25+ databases and any API.
+selfhosted	photoprism/photoprism	40106	2026-08-24T18:05:47Z	false	NOASSERTION	Go	AI-Powered Photos App 🌈💎✨
+selfhosted	TriliumNext/Trilium	37578	2026-08-25T06:37:55Z	false	AGPL-3.0	TypeScript	Build your personal knowledge base with Trilium Notes
+selfhosted	IceWhaleTech/CasaOS	37128	2025-08-06T08:54:04Z	false	Apache-2.0	Go	CasaOS - A simple, easy-to-use, elegant open-source Personal Cloud system.
+selfhosted	Dokploy/dokploy	36846	2026-08-25T07:03:39Z	false	NOASSERTION	TypeScript	Open Source Alternative to Vercel, Netlify and Heroku.
+selfhosted	khoj-ai/khoj	36708	2026-08-02T01:55:40Z	false	AGPL-3.0	Python	Your AI second brain. Self-hostable. Get answers from the web or your docs. Build custom agents, schedule automations, do deep research. Turn any online or local LLM into your personal, autonomous AI (gpt, claude, gemini, llama, qwen, mistral). Get started - free.
+selfhosted	glanceapp/glance	36581	2026-08-21T09:56:59Z	false	AGPL-3.0	Go	A self-hosted dashboard that puts all your feeds in one place
+selfhosted	filebrowser/filebrowser	35931	2026-07-31T10:06:58Z	false	Apache-2.0	Go	File Browser provides a file managing interface within a specified directory and it can be used to upload, delete, preview and edit your files.
+selfhosted	awesome-foss/awesome-sysadmin	34984	2026-08-19T09:58:40Z	false	NOASSERTION	-	A curated list of amazingly awesome open-source sysadmin resources.
+selfhosted	agentscope-ai/QwenPaw	34425	2026-08-25T06:43:57Z	false	Apache-2.0	Python	Your Personal AI Assistant; easy to install, deploy on your own machine or on the cloud; supports multiple chat apps with easily extensible capabilities.
+selfhosted	langfuse/langfuse	33660	2026-08-24T21:34:52Z	false	NOASSERTION	TypeScript	🪢 Open source AI engineering platform: LLM evals, observability, metrics, prompt management, playground, datasets. Integrates with OpenTelemetry, LangChain, OpenAI SDK, LiteLLM, and more. 🍊YC W23 
+selfhosted	dgtlmoon/changedetection.io	33330	2026-08-24T20:59:20Z	false	Apache-2.0	Python	Best and simplest tool for website change detection, web page monitoring, and website change alerts. Perfect for tracking content changes, price drops, restock alerts, and website defacement monitoring—all for free or enjoy our SaaS plan!
+devtools	affaan-m/ECC	242984	2026-08-25T02:12:59Z	false	MIT	JavaScript	The agent harness performance optimization system. Skills, instincts, memory, security, and research-first development for Claude Code, Codex, Opencode, Cursor and beyond.
+devtools	Graphify-Labs/graphify	110207	2026-08-24T13:19:04Z	false	Apache-2.0	Python	Turn any codebase, with its docs, SQL schemas, configs, and PDFs, into a queryable knowledge graph. A /graphify skill for Claude Code, Cursor, Codex, and Gemini CLI: local deterministic AST parsing, every edge explained, no vector store.
+devtools	DietrichGebert/ponytail	110020	2026-08-07T21:44:01Z	false	MIT	JavaScript	Makes your AI agent think like the laziest senior dev in the room. The best code is the code you never wrote.
+devtools	puppeteer/puppeteer	95495	2026-08-24T17:06:57Z	false	Apache-2.0	TypeScript	JavaScript API for Chrome and Firefox
+devtools	OpenHands/OpenHands	85016	2026-08-25T06:24:40Z	false	MIT	TypeScript	🙌 OpenHands: AI-Driven Development
+devtools	hoppscotch/hoppscotch	80094	2026-08-24T17:33:02Z	false	MIT	TypeScript	Open-Source API Development Ecosystem • https://hoppscotch.io • Offline, On-Prem & Cloud • Web, Desktop & CLI • Open-Source Alternative to Postman, Insomnia
+devtools	rtk-ai/rtk	77317	2026-08-23T23:04:13Z	false	Apache-2.0	Rust	CLI proxy that reduces LLM token consumption by 60-90% on common dev commands. Single Rust binary, zero dependencies
+devtools	ComposioHQ/awesome-claude-skills	73194	2026-08-10T21:45:44Z	false	NONE	Python	A curated list of awesome Claude Skills, resources, and tools for customizing Claude AI workflows
+devtools	daytonaio/daytona	71887	2026-07-24T07:12:07Z	false	NONE	-	Daytona is a Secure and Elastic Infrastructure for Running AI-Generated Code
+devtools	localstack/localstack	65150	2026-03-23T08:52:01Z	true	NOASSERTION	Python	💻 A fully functional local AWS cloud stack. Develop and test your cloud & Serverless apps offline
+devtools	GitHubDaily/GitHubDaily	47545	2025-12-31T18:59:20Z	false	NONE	-	坚持分享 GitHub 上高质量、有趣实用的开源技术教程、开发者工具、编程网站、技术资讯。A list cool, interesting projects of GitHub.
+devtools	usebruno/bruno	46528	2026-08-24T16:22:02Z	false	MIT	JavaScript	Opensource IDE For Exploring and Testing API's (lightweight alternative to Postman/Insomnia)
+devtools	streamlit/streamlit	45605	2026-08-25T05:43:52Z	false	Apache-2.0	Python	Streamlit — A faster way to build and share data apps.
+devtools	sickn33/agentic-awesome-skills	45361	2026-08-24T22:47:08Z	false	MIT	Python	AAS Core is the local, agent-first control plane for complete catalog discovery, agent-owned selection, stack validation, and planning, backed by 2,005+ agentic skills. Includes CLI, local MCP, catalog, plugins, and Workbench.
+devtools	files-community/Files	44753	2026-08-25T02:39:24Z	false	MIT	C#	A modern file manager that helps users organize their files and folders.
+devtools	agno-agi/agno	41894	2026-08-25T06:13:37Z	false	Apache-2.0	Python	Build, run, and manage agent platforms.
+devtools	sxyazi/yazi	41656	2026-08-24T23:23:52Z	false	MIT	Rust	💥 Blazing fast terminal file manager written in Rust, based on async I/O.
+devtools	appsmithorg/appsmith	40742	2026-08-24T23:35:22Z	false	Apache-2.0	TypeScript	Platform to build admin panels, internal tools, and dashboards. Integrates with 25+ databases and any API.
+devtools	DeusData/codebase-memory-mcp	40468	2026-08-24T16:02:51Z	false	MIT	C	High-performance code intelligence MCP server. Indexes codebases into a persistent knowledge graph — average repo in milliseconds. 158 languages, sub-ms queries, 99% fewer tokens. Single static binary, zero dependencies.
+devtools	CorentinTh/it-tools	40349	2026-08-16T11:35:00Z	false	GPL-3.0	Vue	Collection of handy online tools for developers, with great UX. 
+devtools	koalaman/shellcheck	39920	2026-08-04T08:32:46Z	false	GPL-3.0	Haskell	ShellCheck, a static analysis tool for shell scripts
+devtools	freeCodeCamp/devdocs	39372	2026-08-21T13:21:38Z	false	MPL-2.0	Ruby	API Documentation Browser
+devtools	wshobson/agents	39101	2026-08-24T01:08:10Z	false	MIT	Python	Multi-harness agentic plugin marketplace for Claude Code, Codex, Cursor, OpenCode, GitHub Copilot, and Google Antigravity
+devtools	lapce/lapce	38768	2026-07-15T11:27:37Z	false	Apache-2.0	Rust	Lightning-fast and Powerful Code Editor written in Rust
+devtools	httpie/cli	38449	2024-12-17T17:30:35Z	false	BSD-3-Clause	Python	🥧 HTTPie CLI  — modern, user-friendly command-line HTTP client for the API era. JSON support, colors, sessions, downloads, plugins & more.
+devtools	continuedev/continue	35620	2026-08-24T16:42:22Z	false	Apache-2.0	TypeScript	open-source coding agent
+devtools	refinedev/refine	35568	2026-06-05T15:19:38Z	false	MIT	TypeScript	A React Framework for building  internal tools, admin panels, dashboards & B2B apps with unmatched flexibility.
+devtools	esengine/DeepSeek-Reasonix	35131	2026-08-25T07:02:10Z	false	MIT	Go	DeepSeek-native AI coding agent for your terminal. Engineered around prefix-cache stability — leave it running.
+devtools	TabbyML/tabby	33834	2026-06-30T20:38:02Z	false	NOASSERTION	Rust	Self-hosted AI coding assistant
+devtools	Pythagora-io/gpt-pilot	33689	2026-06-18T18:38:25Z	false	NOASSERTION	Python	The first real AI developer
+adr	npryce/adr-tools	5627	2024-04-25T18:22:02Z	false	NOASSERTION	Shell	Command-line tools for working with Architecture Decision Records
+adr	evolutionary-architecture/evolutionary-architecture-by-example	3499	2026-08-22T13:11:05Z	false	MIT	C#	Navigate the complex landscape of .NET software architecture with our step-by-step, story-like guide. Unpack the interplay between modular monoliths, microservices, domain-driven design, and various architectural patterns. Go beyond the one-size-fits-all solutions and understand how to blend these approaches based on your unique needs.
+adr	study8677/awesome-architecture	2202	2026-08-21T09:41:29Z	false	MIT	Vue	🧭 Architecture-first system design: 26 bilingual tutorials, 25 architecture templates, and 6 end-to-end cases covering distributed systems, AI-native systems, RAG, coding Agents, and production trade-offs.
+adr	tractorjuice/arc-kit	2201	2026-08-21T17:08:05Z	false	NOASSERTION	JavaScript	The Enterprise Architecture Governance Harness — strategy, architecture, delivery, and assurance using AI coding assistants
+adr	thomvaill/log4brains	1567	2024-12-17T16:51:30Z	false	Apache-2.0	TypeScript	✍️ Architecture Decision Records (ADR) management and publication tool
+adr	structurizr/cli	566	2026-02-01T14:27:37Z	true	Apache-2.0	Java	A command line utility for Structurizr.
+propertytest	HypothesisWorks/hypothesis	8912	2026-08-23T00:05:17Z	false	NOASSERTION	Python	The property-based testing library for Python
+propertytest	dubzzz/fast-check	5117	2026-08-23T20:42:37Z	false	MIT	TypeScript	Property based testing framework for JavaScript (like QuickCheck) written in TypeScript
+propertytest	schemathesis/schemathesis	3559	2026-08-24T21:28:27Z	false	MIT	Python	Catch API bugs before your users do
+propertytest	functionaljava/functionaljava	1620	2023-04-25T16:17:13Z	false	NONE	Java	Functional programming in Java
+propertytest	antithesishq/bombadil	1429	2026-08-24T19:38:50Z	false	MIT	Rust	Property-based testing for web and terminal UIs
+propertytest	typelift/SwiftCheck	1427	2022-04-03T14:57:09Z	false	MIT	Swift	QuickCheck for Swift
+mutation	goldbergyoni/javascript-testing-best-practices	24629	2024-06-27T07:25:17Z	false	MIT	JavaScript	📗🌐 🚢 Comprehensive and exhaustive JavaScript & Node.js testing best practices (August 2025)
+mutation	stryker-mutator/stryker-js	3044	2026-08-24T07:03:28Z	false	Apache-2.0	TypeScript	Mutation testing for JavaScript and friends
+mutation	infection/infection	2234	2026-08-25T03:59:52Z	false	BSD-3-Clause	PHP	PHP Mutation Testing library
+mutation	mbj/mutant	2186	2026-08-24T03:51:55Z	false	NOASSERTION	Ruby	Mutation testing for Ruby. AI writes your code. AI writes your tests. But who tests the tests?
+mutation	stryker-mutator/stryker-net	2063	2026-08-25T06:58:12Z	false	Apache-2.0	C#	Mutation testing for .NET core and .NET framework!
+mutation	hcoles/pitest	1849	2026-08-24T21:19:08Z	false	Apache-2.0	Java	State of the art mutation testing system for the JVM
+mutation	boxed/mutmut	1402	2026-08-17T18:29:43Z	false	BSD-3-Clause	Python	Mutation testing system
+mutation	sourcefrog/cargo-mutants	1270	2026-08-23T15:20:59Z	false	MIT	Rust	:zombie: Inject bugs and see if your tests catch them!
+mutation	humbug/humbug	1126	2017-12-31T15:29:08Z	true	BSD-3-Clause	PHP	Humbug is a Mutation Testing framework for PHP to measure the real effectiveness of your test suites and assist in their improvement. It eats Code Coverage for breakfast.
+mutation	mull-project/mull	832	2026-07-31T17:32:40Z	false	Apache-2.0	C++	Practical mutation testing and fault injection for C and C++
+reproducible	earthly/earthly	12045	2025-10-23T20:10:46Z	false	MPL-2.0	Go	Super simple build framework with fast, repeatable builds and an instantly familiar syntax – like Dockerfile and Makefile had a baby.
+reproducible	cpm-cmake/CPM.cmake	4102	2026-07-06T12:22:10Z	false	MIT	CMake	📦 CMake's missing package manager. A small CMake script for setup-free, cross-platform, reproducible dependency management.
+reproducible	wolfcw/libfaketime	3105	2026-08-19T07:58:50Z	false	GPL-2.0	C	libfaketime modifies the system time for a single application
+reproducible	LoopPerfect/buckaroo	946	2022-12-08T02:05:03Z	false	MIT	F#	The decentralized package manager for C++ and friends 🏝️
+reproducible	baoyachi/shadow-rs	698	2026-05-19T05:48:53Z	false	MIT	Rust	A build-time information stored in your rust project.(binary,lib,cdylib,dylib,wasm)
+contracts	life4/deal	903	2025-11-30T10:55:47Z	false	MIT	Python	🤝 Design by contract for Python. Write bug-free code. Add a few decorators, get static analysis and tests for free.
+formal	spacejam/sled	9079	2026-04-04T14:52:13Z	false	Apache-2.0	Rust	the champagne of beta embedded databases
+formal	p-org/P	3669	2026-08-21T19:09:01Z	false	MIT	C#	The P programming language.
+formal	ligurio/sqa-wiki	2320	2023-02-01T15:23:18Z	false	NOASSERTION	-	My own notes (drafts mostly) about software quality
+formal	hacl-star/hacl-star	1837	2026-06-07T03:50:52Z	false	Apache-2.0	F*	HACL*, a formally verified cryptographic library written in F*
+formal	creusot-rs/creusot	1831	2026-08-24T10:03:34Z	false	LGPL-2.1	Rust	Creusot helps you prove your Rust code is correct.
+formal	leanprover-community/mathlib3	1663	2024-06-28T02:36:34Z	true	Apache-2.0	Lean	Lean 3's obsolete mathematical components library: please use mathlib4
+formal	quint-co/quint	1635	2026-08-20T13:55:29Z	false	Apache-2.0	TypeScript	An executable specification language  with delightful tooling based on the temporal logic of actions (TLA)
+tla	fizzbee-io/fizzbee	344	2026-08-25T00:01:17Z	false	Apache-2.0	Go	Easiest-ever formal methods language! Designed for developers crafting distributed systems, microservices, and cloud applications
+fuzzing	Hack-with-Github/Awesome-Hacking	118989	2026-07-26T03:29:02Z	false	CC0-1.0	-	A collection of various awesome lists for hackers, pentesters and security researchers
+fuzzing	maurosoria/dirsearch	14659	2026-08-24T17:05:11Z	false	NONE	Python	Web path scanner
+fuzzing	google/oss-fuzz	12583	2026-08-24T22:58:53Z	false	Apache-2.0	Shell	OSS-Fuzz - continuous fuzzing for open source software.
+fuzzing	foundry-rs/foundry	10573	2026-08-25T04:10:53Z	false	Apache-2.0	Rust	Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.
+fuzzing	spacejam/sled	9079	2026-04-04T14:52:13Z	false	Apache-2.0	Rust	the champagne of beta embedded databases
+fuzzing	HypothesisWorks/hypothesis	8912	2026-08-23T00:05:17Z	false	NOASSERTION	Python	The property-based testing library for Python
+fuzzing	TheKingOfDuck/fuzzDicts	8421	2023-11-13T03:48:29Z	false	NONE	Python	You Know, For WEB Fuzzing ! 
+fuzzing	AFLplusplus/AFLplusplus	6734	2026-08-24T18:26:58Z	false	AGPL-3.0	C	The fuzzer afl++ is afl with community patches, qemu 5.1 upgrade, collision-free coverage, enhanced laf-intel & redqueen, AFLfast++ power schedules, MOpt mutators, unicorn_mode, and a lot more!
+fuzzing	google/syzkaller	6307	2026-08-24T14:12:26Z	false	Apache-2.0	Go	syzkaller is an unsupervised coverage-guided kernel fuzzer
+fuzzing	secfigo/Awesome-Fuzzing	5903	2024-04-03T07:04:46Z	false	CC0-1.0	-	A curated list of fuzzing resources ( Books, courses - free and paid, videos, tools, tutorials and vulnerable applications to practice on ) for learning Fuzzing and initial phases of Exploit Development like root cause analysis.
+fuzzing	elceef/dnstwist	5729	2025-04-15T18:41:47Z	false	Apache-2.0	Python	Domain name permutation engine for detecting homograph phishing attacks, typo squatting, and brand impersonation
+fuzzing	google/clusterfuzz	5595	2026-08-24T20:37:20Z	false	Apache-2.0	Python	Scalable fuzzing infrastructure.
+fuzzing	dubzzz/fast-check	5117	2026-08-23T20:42:37Z	false	MIT	TypeScript	Property based testing framework for JavaScript (like QuickCheck) written in TypeScript
+fuzzing	dvyukov/go-fuzz	4848	2024-09-24T07:00:22Z	false	Apache-2.0	Go	Randomized testing for Go
+fuzzing	evyatarmeged/Raccoon	3999	2026-04-21T21:23:15Z	false	MIT	Python	A high performance offensive security tool for reconnaissance and vulnerability scanning
+fuzzing	1N3/IntruderPayloads	3969	2021-09-27T01:47:05Z	false	NONE	BlitzBasic	A collection of Burpsuite Intruder payloads, BurpBounty payloads, fuzz lists, malicious file uploads and web pentesting methodologies and checklists.
+fuzzing	arainho/awesome-api-security	3861	2026-05-01T18:32:56Z	true	GPL-3.0	-	A collection of awesome API Security tools and resources. The focus goes to open-source tools and resources that benefit all the community.
+fuzzing	antonio-morales/Fuzzing101	3818	2026-06-16T09:38:26Z	false	Apache-2.0	-	An step by step fuzzing tutorial. A GitHub Security Lab initiative 
+fuzzing	schemathesis/schemathesis	3559	2026-08-24T21:28:27Z	false	MIT	Python	Catch API bugs before your users do
+fuzzing	google/honggfuzz	3375	2026-06-19T13:47:59Z	false	Apache-2.0	C	Security oriented software fuzzer. Supports evolutionary, feedback-driven fuzzing based on code coverage (SW and HW based)
+fuzzing	rtcatc/Packer-Fuzzer	3249	2024-05-24T11:06:25Z	false	GPL-3.0	Python	Packer Fuzzer is a fast and efficient scanner for security detection of websites constructed by javascript module bundler such as Webpack. 
+fuzzing	six2dez/OneListForAll	3229	2026-03-11T21:38:54Z	false	NONE	Go	Rockyou for web fuzzing
+fuzzing	devanshbatham/ParamSpider	3160	2026-03-07T16:16:48Z	false	MIT	Python	 Mining URLs from dark corners of Web Archives for bug hunting/fuzzing/further probing 
+fuzzing	gh0stkey/Web-Fuzzing-Box	2791	2026-03-23T07:31:48Z	false	NONE	HTML	Web Fuzzing Box - Web 模糊测试字典与一些Payloads
+fuzzing	wcventure/FuzzingPaper	2768	2026-03-19T17:46:12Z	false	MIT	-	Recent Fuzzing Paper
+fuzzing	asatarin/testing-distributed-systems	2634	2026-07-28T05:26:36Z	false	CC-BY-4.0	HTML	Curated list of resources on testing distributed systems
+fuzzing	AFLplusplus/LibAFL	2622	2026-08-24T11:54:56Z	false	NOASSERTION	Rust	Advanced Fuzzing Library - Slot your Fuzzer together in Rust! Scales across cores and machines. For Windows, Android, MacOS, Linux, no_std, ...
+fuzzing	googleprojectzero/winafl	2604	2026-03-13T12:56:22Z	false	Apache-2.0	C	A fork of AFL for fuzzing Windows binaries
+fuzzing	jtpereyda/boofuzz	2355	2026-08-06T20:36:50Z	false	GPL-2.0	Python	A fork and successor of the Sulley Fuzzing Framework
+fuzzing	p0dalirius/Coercer	2308	2026-04-24T08:03:18Z	false	GPL-2.0	Python	A python script to automatically coerce a Windows server to authenticate on an arbitrary machine through 12 methods.

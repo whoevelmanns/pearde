@@ -1,0 +1,34 @@
+# cargo-deny config. Advisories are the hard gate: a *vulnerability* (RUSTSEC
+# with a patched fix available) fails CI. "unmaintained" advisories are
+# warning-level in this family's judgement — every one currently in the
+# lockfiles is a transitive dep pulled by a maintained parent that will
+# migrate when it migrates, and none has a known exploit. They are ignored
+# here *by ID with that reasoning recorded*, so the list is short and every
+# entry can be re-litigated. Unlisted IDs still fail.
+#
+# cargo-deny 0.20.x has no `unmaintained` severity key — unmaintained
+# advisories surface as errors, and the ignore list above is the only lever.
+# The db cfg below is 0.20's schema. The fetched advisory DB is cached
+# per-user, so CI's first run pays the clone and later runs do not.
+[advisories]
+db-urls = ["https://github.com/rustsec/advisory-db"]
+unused-ignored-advisory = "allow"
+ignore = [
+    { id = "RUSTSEC-2023-0089", reason = "atomic-polyfill: archived upstream; pulled via a maintained parent; no known exploit" },
+    { id = "RUSTSEC-2024-0436", reason = "paste: archived upstream; macro-only, build-time only, no runtime surface; no known exploit" },
+    { id = "RUSTSEC-2024-0413", reason = "gtk-rs GTK3: superseded by gtk4-rs; GUI bindings, not reachable from any server path" },
+    { id = "RUSTSEC-2024-0416", reason = "gtk-rs GTK3 second component: same reasoning as RUSTSEC-2024-0413" },
+    { id = "RUSTSEC-2025-0141", reason = "bincode: archived upstream; serialized data is this family's own, not attacker-controlled" },
+]
+
+# Not gated yet: license and duplicate-version backlogs are real but
+# non-zero on these lockfiles (637 deps in mitosys). Turning them on blind
+# would paint three repos red on arrival and teach everyone to ignore the
+# tab. Each tree's backlog gets triaged, then these flip on.
+[licenses]
+allow = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "ISC", "BSD-3-Clause", "Unicode-3.0", "Zlib", "BSD-2-Clause", "CC0-1.0", "MPL-2.0", "EPL-2.0"]
+unused-allowed-license = "warn"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "warn"

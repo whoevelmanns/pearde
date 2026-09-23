@@ -1,0 +1,76 @@
+# The round file
+
+`prds/.round.md` — the session's own memory, fifteen lines, rewritten at every
+transition. Machine-local and git-ignored, like `prds/.plan.json`: it is what
+one session is holding, not what the board is.
+
+A context window ends without warning. When it does, everything the round
+worked out — which PRD is being collected, what a check returned, what the user
+answered, what is owed — is gone, and the cheapest thing the session can do
+next is the most expensive thing it can do: re-read the specs, re-run the
+sweeps, re-derive the conclusion it already had. This file is the alternative,
+and it costs one write per transition.
+
+## What goes in it
+
+Only what `@resources/board/plan.py scan` cannot print. The scan already has
+every state, weight, gate, claim and box count — copying those in makes the
+file wrong the moment a worker moves.
+
+```markdown
+# Round — <what this round is doing>
+
+## Established
+- <fact> — <how it was checked> · <time>
+
+## Decided
+- <decision> — <what it beat, in a clause>
+
+## Asked
+- <question put to the user> · <answered | out>
+
+## Edits
+- <slug> `## <section>` — applied | refused · <whose fault the failure was>
+
+## Owed
+- <the next action, as an action>
+```
+
+- **Established** is the section that pays for the file: a count, a diff, a
+  command's verdict, with the time on it. A fact in here is cited, never
+  re-run — @references/parts/loop.md. The progress line is printed by every
+  command, so it is never computed by hand: quote the line, never the sum.
+- **Decided** is the round's judgment calls. A decision the code will not
+  explain graduates to a memo, per @references/parts/memos.md; this is the
+  scratch it is drafted in.
+- **Asked** is the live frontier: what went to the user and whether it came
+  back. A question in here is never re-asked.
+- **Edits** is every workflow edit this round applied or refused, per
+  @references/parts/loop.md step 6. A refusal is the half that has to be
+  written down: the file is unchanged, so nothing on disk records that the run
+  proposed it or why it was turned down, and the next round would either
+  re-refuse it from scratch or take it. Empty when no worker returned a
+  `## Workflow` section — the section is then omitted, not left with a
+  placeholder under it.
+- **Owed** is one line, in the imperative, and it is the first thing the next
+  turn does.
+
+## When it is written
+
+At every transition — the same moment the progress line is printed, and the
+line says `round file owed` until this file is newer than the PRD it moved.
+Steps 2, 3, 6 and 7 of the loop all move something; each rewrites this file
+whole before it moves on. Never appended and never sectioned by round: the file says
+what is true now, and there is nothing to prune later.
+
+## After a compaction
+
+Read this file, run `scan`, act. In that order and nothing else — no spec
+re-read, no tree sweep, no re-derivation of a conclusion the file already
+carries. If the file does not carry it, that is the bug: write it down this
+time.
+
+If the steps themselves are gone, re-read @references/parts/loop.md — that
+one file, not the `@@loop` scope and not the reference tree behind it. A round
+that re-opens the manual after every compaction pays for the manual as many
+times as it compacts.
