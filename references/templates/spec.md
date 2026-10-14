@@ -40,5 +40,9 @@ PRD, without reading the sibling specs.>
 <command(s) that exercise the acceptance boxes — tests, build, lint;
 the implementer runs these and quotes the output.
 Scope them to this PRD's footprint: a whole-workspace command inherits every
-other node's flake, and `pearde specced` warns when no path here is under it.>
+other node's flake, and `pearde specced` warns when no path here is under it.
+The block runs as one `bash -e` script in the PRD's repo root. Either one
+`cd <dir>` line on its own, or `cd <dir> && <cmd>` on every line (each such
+line runs in its own subshell) — never `cd <dir> &&` repeated after a bare
+`cd`, which fails on the second line.>
 ```

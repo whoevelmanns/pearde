@@ -246,6 +246,47 @@ def parse_when(s):
     return None
 
 
+_CD_AND = re.compile(r"^(\s*)(cd\s+\S+\s*&&\s*.+?)\s*$")
+
+
+def isolate_cd(script):
+    """A line `cd <dir> && <cmd>` runs in a subshell, so the next line starts
+    where the block started. Specs repeat that prefix on every line (the
+    analysts' habit); in one shell the second `cd` then fails on a path
+    relative to the first. A bare `cd <dir>` line still persists."""
+    out = []
+    for line in script.splitlines():
+        m = _CD_AND.match(line)
+        out.append(f"{m.group(1)}({m.group(2)})" if m and not line.rstrip().endswith("\\") else line)
+    tail = "\n" if script.endswith("\n") else ""
+    return "\n".join(out) + tail
+
+
+def analysis_start(board, rel):
+    """When the analyst last took this PRD (`-> analyzing` in the transition
+    log), or None. Dirt in the PRD's own footprint newer than that is the
+    analyst's probe, which the implementer is told to continue, so it
+    belongs to this PRD and does not need `--widen`."""
+    log = os.path.join(board, ".state", "transitions.jsonl")
+    want = rel.replace("\\", "/")
+    when = None
+    try:
+        with open(log, encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if (row.get("to") == "analyzing"
+                        and str(row.get("prd", "")).replace("\\", "/") == want):
+                    t = parse_when(str(row.get("t", "")))
+                    if t is not None:
+                        when = t
+    except OSError:
+        return None
+    return when
+
+
 def fmt_hours(h):
     s = f"{h:.2f}".rstrip("0").rstrip(".")
     return (s or "0") + "h"
@@ -893,6 +934,22 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
                        f"line between the edits")
         return (keep, theirs) if keep and theirs else ("all" if keep else "")
 
+    a_start = analysis_start(board, rel)
+    feet_here = {x.rstrip("/") for g in groups.values() for x in g}
+
+    def probe_of_analyst(root, p):
+        """A footprint file named exactly, touched after the analyst took
+        this PRD, and in no other held PRD's footprint."""
+        if a_start is None or p not in feet_here:
+            return False
+        if root == repo and any(inside(p, c) for c in others.values()):
+            return False
+        try:
+            return datetime.datetime.fromtimestamp(
+                os.path.getmtime(os.path.join(root, p))) >= a_start
+        except OSError:
+            return False
+
     plan = {}
     for root, union in groups.items():
         union = sorted(u.rstrip("/") for u in union if u and u != ".")
@@ -922,6 +979,9 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
                                    "it whole")
                 if nh not in (None, "", "all"):
                     p["partial"][path] = nh
+                elif predates(root, path, kind) and probe_of_analyst(root, path):
+                    p["add"].append(path)
+                    p["widened"].append(path)
                 elif predates(root, path, kind):
                     p["stop"].append(path)
                 else:
@@ -990,7 +1050,8 @@ def collect_one(board, rel, opts, out=print):
         if gate:
             checks.append(("gate", gate, board_root))
         for name, script, cwd in checks:
-            code, output = run(["bash", "-e", "-o", "pipefail"], cwd, script)
+            code, output = run(["bash", "-e", "-o", "pipefail"], cwd,
+                               isolate_cd(script))
             red = code != 0
             if red and name == "gate" and base is not None:
                 # measured against the claim's baseline, not against silence
