@@ -937,12 +937,21 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
     a_start = analysis_start(board, rel)
     feet_here = {x.rstrip("/") for g in groups.values() for x in g}
 
-    def probe_of_analyst(root, p):
-        """A footprint file named exactly, touched after the analyst took
-        this PRD, and in no other held PRD's footprint."""
-        if a_start is None or p not in feet_here:
+    def probe_of_analyst(root, p, kind):
+        """A footprint file named exactly and in no other held PRD's
+        footprint: a new file always (the footprint names it, nothing in
+        HEAD can be someone else's edit of it), a tracked one only when it
+        was touched after the analyst took this PRD."""
+        named = p in feet_here or (
+            kind == "untracked" and not p.startswith(".pearde/")
+            and inside(p, sorted(feet_here)))
+        if not named:
             return False
         if root == repo and any(inside(p, c) for c in others.values()):
+            return False
+        if kind == "untracked":
+            return True
+        if a_start is None:
             return False
         try:
             return datetime.datetime.fromtimestamp(
@@ -979,7 +988,7 @@ def sort_paths(board, rel, prd, prds, board_root, repo, feet, opts, since):
                                    "it whole")
                 if nh not in (None, "", "all"):
                     p["partial"][path] = nh
-                elif predates(root, path, kind) and probe_of_analyst(root, path):
+                elif predates(root, path, kind) and probe_of_analyst(root, path, kind):
                     p["add"].append(path)
                     p["widened"].append(path)
                 elif predates(root, path, kind):
