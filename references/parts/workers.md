@@ -58,6 +58,10 @@ Rules for every worker:
   board.
 - A report that is incomplete, or a worker stopped mid-task: continue THAT
   worker — it holds the context. Never respawn it.
+- Say it in the first lines of the report when the evidence shows the
+  ticket belongs to another project or board (a log from another app's
+  context root, a stack with no frame of this repo): the orchestrator asks
+  the user to move the ticket per @references/parts/loop.md, *Board fit*.
 - Report a defect found outside your scope. Do not file it and do not fix it.
   Say what is wrong, what you measured, and which requested PRD it would get
   wrong. The orchestrator decides what it becomes, per

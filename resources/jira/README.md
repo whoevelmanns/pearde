@@ -305,6 +305,30 @@ bzw. `  parent: none -> flat`. Am Ende, nur wenn mindestens ein Ticket
 gefunden wurde: `jira_sync: import-new: <n> ticket(s) without an existing
 PRD`. Kein Treffer: keine Ausgabe.
 
+### Board-Passung (`jira_sync.py fit`)
+
+Read-only. Auf dem Master-Board laufen lassen, damit alle Member auf einmal
+geprüft werden. Meldet jedes PRD mit Ticket-Key in `open`/`refine`/`question`/
+`specced`, das auf dem falschen Board liegen könnte — bevor ein Worker eine
+Runde daran verbrennt und solange das Ticket in Jira noch verschoben werden
+kann (HAMA-1532 war eigentlich ein Chat-Server-Ticket und wurde CHAT-42).
+Zwei Signale:
+
+- das Projekt des Keys steht nicht in `jira-projects` des Boards,
+- der PRD-Text nennt einen anderen Member (Boardname, Boardname ohne
+  `abbino-`-Präfix, ohne Bindestriche — z. B. der Log-Context-Root
+  `/chatserver/` — oder ein `jira-fit-keywords`-Eintrag) und den eigenen nicht.
+
+```
+jira_sync: fit @<member>/<prd> (<KEY>) — <Grund>; <Grund>
+jira_sync: fit: <n> PRD(s) to clear with the user before the first claim
+```
+
+Kein Treffer: keine Ausgabe. Settings pro Board: `jira-fit-keywords` (Liste,
+zusätzliche Erkennungswörter) und `jira-fit-ok-keys` (Keys, die der Nutzer als
+richtig bestätigt hat — der Orchestrator trägt sie nach der Rückfrage ein).
+Zu kurze oder generische Namen (tasks, cdn, hama) zählen absichtlich nicht.
+
 ### Beides im Loop
 
 `jira-sync: on` genügt nicht allein — beide brauchen dieselben drei

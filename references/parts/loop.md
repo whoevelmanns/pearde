@@ -114,6 +114,19 @@ and its new atomics at `runs: 0` and runs `workflow check` over the library
 before either is kept, refusing the whole call with nothing written on red.
 `--workflow none` is refused outright, naming `## Route`.
 
+**Board fit, before the first claim.** On a master with `jira-sync: on`, run
+`python resources/jira/jira_sync.py fit` from the master board once per
+session, and again after every `import-new` that created PRDs. A line names a
+keyed PRD whose ticket may belong to another project (HAMA-1532 turned out to
+be CHAT-42). Do not claim that PRD yet: put it to the user with
+AskUserQuestion — keep it here, or move the ticket in Jira first (hand over
+the `secure/MoveIssue!default.jspa?id=<numeric-id>` link) — and read the
+answer as the decision, not as approval for anything else. Moved: rename the
+PRD dir, its heading and any branch/tag to the new key, as for CHAT-42. Kept:
+add the key to `jira-fit-ok-keys` in that board's `settings.md`, and the
+line stays silent. A PRD the analyst's own findings later show to be on the
+wrong board is the same question, asked at once instead of at collect.
+
 **No implementer where the analyst already finished the build.** An
 analyst's SPECCED report where every spec's acceptance boxes are already
 `[x]` with quoted verify output did the implementer's work during its own
