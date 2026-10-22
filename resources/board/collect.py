@@ -355,8 +355,11 @@ def git_out(root, *args, input=None, shared=False):
     # thread's decode fail silently, leaving r.stdout None while returncode
     # stays 0 (git itself succeeded). git's own output is UTF-8 regardless
     # of platform, so decode it as that explicitly.
+    # surrogateescape keeps bytes that are not UTF-8 (ISO-8859-1 .properties)
+    # intact through the capture and any replay of the text via stdin.
     r = subprocess.run(("git", "-C", root) + args, capture_output=True,
-                       text=True, encoding="utf-8", input=input, env=env)
+                       text=True, encoding="utf-8", errors="surrogateescape",
+                       input=input, env=env)
     if r.returncode != 0:
         raise Stop(f"git {args[0]} failed in {root}: "
                    f"{(r.stderr or r.stdout).strip()}")
