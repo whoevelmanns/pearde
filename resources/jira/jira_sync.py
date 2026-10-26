@@ -7,6 +7,7 @@ back the other direction (drift detection, new-ticket import).
     python3 jira_sync.py check [PROJECT-KEY]      # env + reachability, prints what it finds
     python3 jira_sync.py drift                    # report PRDs whose Jira status has drifted
     python3 jira_sync.py import-new               # report "Selected"+assigned tickets with no PRD
+    python3 jira_sync.py fit                      # report keyed PRDs that may sit on the wrong board
 
 Opt-in per board: `jira-sync: on` in prds/settings.md, and JIRA_BASE_URL,
 JIRA_EMAIL, JIRA_API_TOKEN in the environment. Any of the three missing is
@@ -776,6 +777,86 @@ def import_new(board):
         print(f"jira_sync: import-new: {len(found)} ticket(s) without an existing PRD")
 
 
+FIT_STATES = ("open", "refine", "question", "specced")
+
+
+def _explicit_projects(board_path):
+    raw = planlib.board_settings(board_path).get("jira-projects", [])
+    items = raw if isinstance(raw, list) else [raw]
+    return {piece.strip().upper() for item in items
+            for piece in str(item).split(",") if piece.strip()}
+
+
+def _fit_tokens(name, board_path):
+    """Lowercase words that point at a board when they appear in a ticket's
+    text: its directory-style name, that name without the abbino prefix and
+    without hyphens (a log context root like /chatserver/), and any
+    `jira-fit-keywords` the board lists. Short or generic cores (tasks, cdn,
+    hama) are left out — they would match half of every ticket."""
+    base = name.lower()
+    core = re.sub(r"^abbino(ws)?-?", "", base)
+    toks = {base, base.replace("-", "")}
+    for t in (core, core.replace("-", "")):
+        if len(t) >= 6:
+            toks.add(t)
+    raw = planlib.board_settings(board_path).get("jira-fit-keywords", [])
+    for item in (raw if isinstance(raw, list) else [raw]):
+        for piece in str(item).split(","):
+            if piece.strip():
+                toks.add(piece.strip().lower())
+    return {t for t in toks if t}
+
+
+def _hits(text, tokens):
+    return sorted(t for t in tokens
+                  if re.search(r"(?<![a-z0-9])" + re.escape(t) + r"(?![a-z0-9])", text))
+
+
+def fit(board):
+    """Report PRDs that carry a Jira key but may sit on the wrong board, so
+    the ticket can be moved in Jira before any worker spends a round on it.
+    Two signals: the key's project is not among the board's `jira-projects`,
+    and the PRD's text names another member board (its name, or a log context
+    root like /chatserver) but not its own. Run it on the master board to
+    cover every member at once. A PRD already cleared with the user is listed
+    under the board's `jira-fit-ok-keys` and stays silent. Never writes."""
+    prds = planlib.scan(board)
+    mem = planlib.members(board)
+    boards = {n: p for n, p in mem} if mem else {None: board}
+    names = {n: (n or os.path.basename(os.path.dirname(board))) for n in boards}
+    toks = {n: _fit_tokens(names[n], p) for n, p in boards.items()}
+    projects = {n: _explicit_projects(p) for n, p in boards.items()}
+    flagged = 0
+    for rel, p in prds.items():
+        key = issue_key(p["name"])
+        if not key or p["state"] not in FIT_STATES:
+            continue
+        own = p["board"]
+        if key in _key_set_setting(p["board_path"], "jira-fit-ok-keys"):
+            continue
+        prefix = key.split("-")[0]
+        why = []
+        if projects[own] and prefix not in projects[own]:
+            why.append(f"Projekt {prefix} nicht in jira-projects dieses Boards "
+                       f"({', '.join(sorted(projects[own]))})")
+        text = f"{p['name']} {p['title']} {p.get('body') or ''}".lower()
+        if not _hits(text, toks[own]):
+            for n in boards:
+                if n == own:
+                    continue
+                h = _hits(text, toks[n])
+                if h:
+                    owners = ", ".join(sorted(projects[n])) or "?"
+                    why.append(f"Text nennt {names[n]} ({', '.join(h)}) "
+                               f"[Projekt {owners}], PRD liegt auf {names[own]}")
+        if why:
+            flagged += 1
+            print(f"jira_sync: fit {rel} ({key}) — " + "; ".join(why))
+    if flagged:
+        print(f"jira_sync: fit: {flagged} PRD(s) to clear with the user "
+              "before the first claim")
+
+
 def find_board(arg):
     return planlib.find_board(arg)
 
@@ -815,6 +896,9 @@ def main(argv):
     if cmd == "import-new":
         board = find_board(None)
         import_new(board)
+        return 0
+    if cmd == "fit":
+        fit(find_board(None))
         return 0
     if cmd == "check":
         board = find_board(None)
