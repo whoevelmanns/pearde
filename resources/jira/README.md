@@ -312,4 +312,9 @@ Umgebungsvariablen wie `sync`; fehlen sie, eine Zeile auf stderr, Exit 0,
 kein Traceback. Beide laufen in Loop-Schritt 1 (Scan), vor dem eigentlichen
 Board-Scan oder direkt danach: `drift`s Zeilen fließen in den Rundenbericht,
 `import-new`s Blöcke werden vom Orchestrator in neue `prds/`-Verzeichnisse
-umgesetzt (README, **The loop**, Schritt 1).
+umgesetzt (README, **The loop**, Schritt 1). Hat der Jira-Parent eines Tickets
+schon ein PRD (`parent: <KEY> -> existing PRD <rel> ...`), gehört das neue PRD
+**in den Ordner dieses PRDs**, nicht flach auf die Top-Ebene — die
+Ordnerverschachtelung ist die einzige Hierarchie des Boards, und sie folgt dem
+Jira-Parent (HAMA-1543/1546 standen 2026-10-26 flach, obwohl ihr Parent
+HAMA-1515 war).

@@ -763,7 +763,8 @@ def import_new(board):
                     siblings = sorted(os.path.basename(c)
                                        for c in prds[prel].get("children", []))
                     parent_line = (f"  parent: {pkey} -> existing PRD {prel} "
-                                   f"(siblings: {', '.join(siblings) or '(none)'})")
+                                   f"(siblings: {', '.join(siblings) or '(none)'}) "
+                                   f"-> create the new PRD inside {prel}/, not flat")
                 else:
                     parent_line = f"  parent: {pkey} -> no existing PRD -> flat"
             found.append((key, summary, parent_line, desc))
