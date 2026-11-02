@@ -1030,3 +1030,10 @@ kbd{font:10.5px ui-monospace,SFMono-Regular,monospace;background:var(--fill);
 .qs .qnone{margin:0 14px 10px;padding:10px 12px;border-radius:8px;
   background:var(--content-2);border:.5px solid var(--sep-2);
   font-size:11.5px;line-height:1.5;color:var(--ink3)}
+.card .jira-key,.card .jira-parent{display:block;margin-bottom:2px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color:var(--ink2);text-decoration:none}
+.card .jira-key{font-weight:700;font-size:14px;line-height:1.3;letter-spacing:.02em}
+.card .jira-parent{font-weight:500;font-size:11px;line-height:1.3}
+.card a.jira-key,.card a.jira-parent{cursor:pointer}
+.card a.jira-key:hover,.card a.jira-parent:hover{text-decoration:underline;color:var(--ink)}

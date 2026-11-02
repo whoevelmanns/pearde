@@ -192,6 +192,36 @@ const fmtW = w => K() ? fmtHr(w * K())
   : (Math.round(w * 10) / 10 + "w").replace(".0w", "w");
 const esc = s => String(s).replace(/[&<>"']/g,
   c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+/* The Jira ticket a PRD stands for: the leading <PROJECT>-<number> of its own
+   directory name (the same shape jira_sync.py's issue_key() reads), and the
+   nearest enclosing folder that carries one as its parent ticket. `rel` holds
+   the OS separator, so both slashes split it. Links need the board's Jira
+   site (payload `jiraSite`); without one the keys show as plain text. */
+const JIRA_KEY_RE = /^([A-Za-z]+)-(\d+)(?:-|$)/;
+const jiraKeyOf = seg => {
+  const m = JIRA_KEY_RE.exec(seg || "");
+  return m ? `${m[1].toUpperCase()}-${m[2]}` : null;
+};
+const jiraKey = rel => jiraKeyOf((rel || "").split(/[\\/]/).pop());
+const jiraParentKey = rel => {
+  const segs = (rel || "").split(/[\\/]/).slice(0, -1);
+  for (let i = segs.length - 1; i >= 0; i--) {
+    const k = jiraKeyOf(segs[i]);
+    if (k) return k;
+  }
+  return null;
+};
+const jiraLink = (key, cls, text) => {
+  const site = DATA && DATA.jiraSite;
+  return site
+    ? html`<a class=${cls} href=${site + "/browse/" + key} target="_blank" rel="noopener"
+        @click=${e => e.stopPropagation()}>${text}</a>`
+    : html`<span class=${cls}>${text}</span>`;
+};
+/* "KEY — title" / "KEY: title" repeats the key the kicker above shows */
+const stripKeyPrefix = (title, key) => key
+  ? String(title).replace(new RegExp("^\\s*" + key + "\\s*(?:[—:-]\\s*)?"), "")
+  : title;
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /* how long a worker has held this PRD, off the `claim:` stamp. Computed in
@@ -2922,8 +2952,12 @@ class PeardeBoard extends LitElement {
                           e.dataTransfer.setData("text/plain", r.rel);
                           e.currentTarget.classList.add("drag"); }}
       @dragend=${e => e.currentTarget.classList.remove("drag")}
-      ><div class="t">${t && t.critical ? html`<span class="star">★ </span>` : ""
-      }${r.title || r.name}</div><div class="m">${
+      >${(() => {
+        const own = jiraKey(r.rel), parent = jiraParentKey(r.rel);
+        return own ? html`${jiraLink(own, "jira-key", own)}${
+          parent && parent !== own ? jiraLink(parent, "jira-parent", "↑ " + parent) : ""}` : "";
+      })()}<div class="t">${t && t.critical ? html`<span class="star">★ </span>` : ""
+      }${stripKeyPrefix(r.title || r.name, jiraKey(r.rel))}</div><div class="m">${
         r.board ? html`<span class="chip">${r.board}</span>` : ""
       }<span>p${r.prio}</span>${
         r.weight ? html`<span>${fmtW(r.weight)}</span>` : ""}${
