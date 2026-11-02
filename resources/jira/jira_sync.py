@@ -711,6 +711,16 @@ def _search_jql(base_url, auth, jql, fields):
         token = d["nextPageToken"]
 
 
+JIRA_PRIORITY_RANK = {"lowest": 0, "low": 1, "medium": 2, "high": 3, "highest": 4}
+
+
+def _prd_priority_line(name):
+    rank = JIRA_PRIORITY_RANK.get((name or "").strip().lower())
+    if rank is None:
+        return f"  priority: {name or 'none'} -> unmapped, use 2"
+    return f"  priority: {name} -> prd priority {rank}"
+
+
 def import_new(board):
     """Print one block per Jira ticket assigned to JIRA_EMAIL's user that
     has no PRD on this board yet and is neither `backlog_status_name()`
@@ -743,7 +753,7 @@ def import_new(board):
     for project in projects:
         jql = f'project = "{project}" AND assignee = currentUser() ORDER BY key'
         for issue in _search_jql(base_url, auth, jql,
-                                  "summary,description,parent,status"):
+                                  "summary,description,parent,status,priority"):
             key = issue.get("key")
             if not key or key.upper() in ignored or _prd_for_key(prds, key) is not None:
                 continue
@@ -764,13 +774,16 @@ def import_new(board):
                     siblings = sorted(os.path.basename(c)
                                        for c in prds[prel].get("children", []))
                     parent_line = (f"  parent: {pkey} -> existing PRD {prel} "
-                                   f"(siblings: {', '.join(siblings) or '(none)'})")
+                                   f"(siblings: {', '.join(siblings) or '(none)'}) "
+                                   f"-> create the new PRD inside {prel}/, not flat")
                 else:
                     parent_line = f"  parent: {pkey} -> no existing PRD -> flat"
-            found.append((key, summary, parent_line, desc))
-    for key, summary, parent_line, desc in found:
+            prio_line = _prd_priority_line((fields.get("priority") or {}).get("name"))
+            found.append((key, summary, parent_line, prio_line, desc))
+    for key, summary, parent_line, prio_line, desc in found:
         print(f'jira_sync: new {key} "{summary}"')
         print(parent_line)
+        print(prio_line)
         print(f"  description: {desc}")
     if found:
         print(f"jira_sync: import-new: {len(found)} ticket(s) without an existing PRD")
